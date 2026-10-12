@@ -181,11 +181,16 @@ def _set_group(entity, group: str) -> None:
 def join_party(session, entity, owners: Optional[Iterable[str]] = None, *,
                sidekick_class: Optional[str] = None,
                sidekick_level: Optional[int] = None,
-               role: Optional[str] = None) -> dict[str, Any]:
+               role: Optional[str] = None,
+               auto_follow: Optional[bool] = None) -> dict[str, Any]:
     """Convert ``entity`` into an in-party sidekick.
 
     ``owners`` are player usernames (not entity UIDs). Empty owners means the
     sidekick is in the party but unassigned (DM / jointly claimed later).
+
+    ``auto_follow`` opts the sidekick into following the focused (POV)
+    character out of combat; defaults to the campaign definition's value
+    (``game.yml`` ``sidekicks[].auto_follow``) when not given.
     """
     if entity is None:
         raise ValueError('entity is required')
@@ -215,6 +220,8 @@ def join_party(session, entity, owners: Optional[Iterable[str]] = None, *,
     if role is None:
         role = rec.get('role') or cfg.get('role')
 
+    if auto_follow is None:
+        auto_follow = rec.get('auto_follow', cfg.get('auto_follow'))
     record = {
         'owners': owner_list,
         'status': STATUS_IN_PARTY,
@@ -222,6 +229,7 @@ def join_party(session, entity, owners: Optional[Iterable[str]] = None, *,
         'sidekick_level': int(sidekick_level or 1),
         'role': role,
         'pending_asi': rec.get('pending_asi') or 0,
+        'auto_follow': bool(auto_follow),
     }
     sidekick_records(session)[uid] = record
     _set_group(entity, PARTY_GROUP)
@@ -250,8 +258,24 @@ def leave_party(session, entity, *, hostile: bool = False) -> dict[str, Any]:
     rec = sidekick_record(session, uid) or {}
     rec['status'] = STATUS_HOSTILE if hostile else STATUS_LEFT
     rec['owners'] = []
+    rec['auto_follow'] = False
     sidekick_records(session)[uid] = rec
     _set_group(entity, HOSTILE_GROUP if hostile else NEUTRAL_GROUP)
+    return rec
+
+
+def is_auto_follow_sidekick(session, entity_or_uid) -> bool:
+    """True when an in-party sidekick has auto-follow enabled."""
+    rec = sidekick_record(session, entity_or_uid)
+    return bool(rec and rec.get('status') == STATUS_IN_PARTY and rec.get('auto_follow'))
+
+
+def set_auto_follow(session, entity_or_uid, enabled: bool) -> Optional[dict[str, Any]]:
+    """Toggle auto-follow for an in-party sidekick. Returns the record (or None)."""
+    rec = sidekick_record(session, entity_or_uid)
+    if rec is None or rec.get('status') != STATUS_IN_PARTY:
+        return None
+    rec['auto_follow'] = bool(enabled)
     return rec
 
 

@@ -27,6 +27,10 @@ class MoveAction(Action):
         # active battle (or the entity is not a combatant) — the engine
         # still validates passability tile-by-tile.
         self.unlimited_movement = False
+        # Legendary "Move" option: budget is the creature's full speed and
+        # the cost is paid from the legendary action pool, not movement.
+        self.legendary_cost = 1
+        self.ignore_opportunity_attacks = False
 
     def to_dict(self):
         hash = super().to_dict()
@@ -36,17 +40,23 @@ class MoveAction(Action):
         hash['as_bonus_action'] = self.as_bonus_action
         hash['unlimited_movement'] = self.unlimited_movement
         hash['stack_descent'] = self.stack_descent
+        hash['legendary_action'] = self.legendary_action
+        hash['legendary_cost'] = self.legendary_cost
+        hash['ignore_opportunity_attacks'] = self.ignore_opportunity_attacks
         return hash
     
     @staticmethod
     def from_dict(hash):
-        action = MoveAction(hash['session'], hash['source'], hash['action_type'])
-        action.move_path = hash['move_path']
-        action.jump_index = hash['jump_index']
-        action.as_dash = hash['as_dash']
-        action.as_bonus_action = hash['as_bonus_action']
+        action = MoveAction(hash.get('session'), hash.get('source'), hash['action_type'])
+        action.move_path = hash.get('move_path', [])
+        action.jump_index = hash.get('jump_index', [])
+        action.as_dash = hash.get('as_dash', False)
+        action.as_bonus_action = hash.get('as_bonus_action', False)
         action.unlimited_movement = hash.get('unlimited_movement', False)
         action.stack_descent = hash.get('stack_descent')
+        action.legendary_action = hash.get('legendary_action', False)
+        action.legendary_cost = hash.get('legendary_cost', 1)
+        action.ignore_opportunity_attacks = hash.get('ignore_opportunity_attacks', False)
         return action
 
     def __str__(self):
@@ -61,7 +71,11 @@ class MoveAction(Action):
         return "move"
     
     def clone(self):
-        return MoveAction(self.session, self.source, self.action_type, self.opts)
+        action = MoveAction(self.session, self.source, self.action_type, self.opts)
+        action.legendary_action = self.legendary_action
+        action.legendary_cost = self.legendary_cost
+        action.ignore_opportunity_attacks = self.ignore_opportunity_attacks
+        return action
 
     @staticmethod
     def can(entity, battle):
@@ -118,6 +132,8 @@ class MoveAction(Action):
                 # Cap at the map size so we still bound the loop.
                 mx, my = map.size
                 movement_budget = (mx + my) * 4
+        elif self.legendary_action:
+            movement_budget = (self.source.speed() // 5)
         elif self.as_dash:
             movement_budget = (self.source.speed // 5)
         else:
@@ -129,7 +145,8 @@ class MoveAction(Action):
         while actual_moves and not map.placeable(self.source, *actual_moves[-1], battle):
             actual_moves.pop()
 
-        actual_moves = self.check_opportunity_attacks(self.source, actual_moves, battle)
+        if not self.ignore_opportunity_attacks:
+            actual_moves = self.check_opportunity_attacks(self.source, actual_moves, battle)
 
         # if acutal_moves is a generator just exit
         if actual_moves and hasattr(actual_moves, 'send'):
@@ -200,6 +217,7 @@ class MoveAction(Action):
                         'as_dash': self.as_dash,
                         'as_bonus_action': self.as_bonus_action,
                         'move_cost': 0,
+                        'dragged_by': self.source,
                         'position': grappled_entity_movement[-1]
                     })
             # print(f"budget: {movement_budget}  {movement.budget}")
@@ -218,6 +236,8 @@ class MoveAction(Action):
                 'battle': battle,
                 'as_dash': self.as_dash,
                 'as_bonus_action': self.as_bonus_action,
+                'as_legendary_action': bool(self.legendary_action),
+                'legendary_cost': self.legendary_cost if (self.legendary_action and index == 0) else 0,
                 'type': 'move',
                 'path': movement.movement,
                 'move_cost': movement_cost,
@@ -319,16 +339,6 @@ class MoveAction(Action):
                     'roll': item['roll']
                 })
                 item['source'].prone()
-        elif item_type == 'drop_grapple':
-            if item.get('target'):
-                target = item['target']
-            else:
-                target = item['source'].grappling_targets()[0]
-            target.escape_grapple_from(item['source'])
-            print(f"{item['source'].name} dropped grapple on {target.label()}")
-            session.event_manager.received_event({"event": 'drop_grapple',
-                                                  "target": target,
-                                                  "source":item['source']})
         elif item_type == 'stack_descent':
             from natural20.map_stack_movement import apply_voluntary_stack_descent
             apply_voluntary_stack_descent(
@@ -359,7 +369,10 @@ class MoveAction(Action):
                         battle.trigger_movement_step(item['source'], prev, step)
                         prev = tuple(step)
 
-                if item['as_dash'] and item['as_bonus_action']:
+                if item.get('as_legendary_action'):
+                    if battle and item.get('legendary_cost'):
+                        battle.consume(item['source'], 'legendary_actions', item['legendary_cost'])
+                elif item['as_dash'] and item['as_bonus_action']:
                     battle.entity_state_for(item['source'])['bonus_action'] -= 1
                 elif item['as_dash']:
                     battle.entity_state_for(item['source'])['action'] -= 1
@@ -378,7 +391,9 @@ class MoveAction(Action):
                     'move_cost' : item['move_cost'],
                     'feet_per_grid': battle_map.feet_per_grid,
                     'as_dash': item['as_dash'],
-                    'as_bonus': item['as_bonus_action']
+                    'as_bonus': item['as_bonus_action'],
+                    'as_legendary_action': bool(item.get('as_legendary_action')),
+                    'dragged_by': item.get('dragged_by'),
                 })
 
     def check_movement_acrobatics(self, actual_moves, dexterity_checks, battle):

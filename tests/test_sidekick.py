@@ -19,9 +19,11 @@ from natural20.sidekick import (
     extra_attack_count,
     is_in_party_sidekick,
     iter_party_members,
+    is_auto_follow_sidekick,
     join_party,
     leave_party,
     selectable_sidekick_entries,
+    set_auto_follow,
     STATUS_HOSTILE,
     STATUS_IN_PARTY,
     STATUS_LEFT,
@@ -61,6 +63,57 @@ def test_join_and_leave_party():
     hostile = leave_party(session, npc, hostile=True)
     assert hostile['status'] == STATUS_HOSTILE
     assert npc.group == 'b'
+
+
+def test_auto_follow_default_off_and_toggle():
+    session = _session()
+    npc = session.npc('goblin', {'overrides': {'entity_uid': 'npc_squire'}})
+    session.register_entity(npc)
+
+    rec = join_party(session, npc, ['alice'])
+    assert rec['auto_follow'] is False
+    assert not is_auto_follow_sidekick(session, npc)
+
+    rec = set_auto_follow(session, npc, True)
+    assert rec['auto_follow'] is True
+    assert is_auto_follow_sidekick(session, npc)
+
+    rec = set_auto_follow(session, npc, False)
+    assert rec['auto_follow'] is False
+    assert not is_auto_follow_sidekick(session, npc)
+
+    # Toggling a non-sidekick (left the party) is a no-op.
+    leave_party(session, npc)
+    assert set_auto_follow(session, npc, True) is None
+
+
+def test_auto_follow_explicit_and_campaign_default():
+    session = _session()
+    session.game_properties['sidekicks'] = [
+        {'entity_uid': 'npc_auto', 'auto_follow': True},
+        {'entity_uid': 'npc_manual'},
+    ]
+    auto_npc = session.npc('goblin', {'overrides': {'entity_uid': 'npc_auto'}})
+    manual_npc = session.npc('goblin', {'overrides': {'entity_uid': 'npc_manual'}})
+    session.register_entity(auto_npc)
+    session.register_entity(manual_npc)
+
+    # Campaign default applies when auto_follow is not passed explicitly.
+    rec = join_party(session, auto_npc, ['alice'])
+    assert rec['auto_follow'] is True
+    assert is_auto_follow_sidekick(session, auto_npc)
+
+    rec = join_party(session, manual_npc, ['alice'])
+    assert rec['auto_follow'] is False
+
+    # Explicit opt-out beats the campaign default.
+    set_auto_follow(session, auto_npc, False)
+    assert not is_auto_follow_sidekick(session, auto_npc)
+
+    # Leaving the party clears the auto-follow flag.
+    set_auto_follow(session, auto_npc, True)
+    leave_party(session, auto_npc)
+    assert not is_auto_follow_sidekick(session, auto_npc)
 
 
 def test_death_saves_for_in_party_sidekick():

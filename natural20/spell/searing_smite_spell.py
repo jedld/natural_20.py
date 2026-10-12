@@ -225,7 +225,7 @@ class SearingSmiteSpell(Spell):
             'wisdom': 'wisdom', 'charisma': 'charisma',
         }.get(str(ability).lower() if ability else '', 'charisma')
         dc = self.source.spell_save_dc(ability_full)
-        save = entity.save_throw('constitution', battle=battle, opts={'is_magical': True})
+        save = entity.save_throw('constitution', battle=battle, opts={'is_magical': True, 'dc': dc})
         if save.result() >= dc:
             # remove_effect on the ignited creature clears start_of_turn hooks
             # and the caster's casted_effects entry.

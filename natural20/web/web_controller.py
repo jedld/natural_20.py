@@ -42,6 +42,13 @@ class WebController(GenericController):
             return None
         yield battle, entity, valid_actions
 
+    def legendary_action_listener(self, battle, session, entity, map, event):
+        # A human picks legendary actions: open a phase in the UI instead.
+        from natural20.utils.legendary_actions import has_legendary_choice
+        if has_legendary_choice(entity, battle):
+            battle.queue_legendary_phase(entity)
+        return None
+
     def select_reaction(self, entity, battle, map, valid_actions, event):
         yield battle , entity, valid_actions
 

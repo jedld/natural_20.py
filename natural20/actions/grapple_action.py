@@ -107,6 +107,7 @@ class GrappleAction(Action):
 class DropGrappleAction(Action):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
+        self.target = None
 
     @classmethod
     def can(cls, entity, battle, options=None):
@@ -117,26 +118,24 @@ class DropGrappleAction(Action):
 
     @classmethod
     def build(cls, session, source):
-        action = DropGrappleAction(session, source, 'grapple')
+        action = DropGrappleAction(session, source, 'drop_grapple')
         return action.build_map()
 
     def resolve(self, session, map, opts=None):
-        self.result = [{
+        item = {
             'source': self.source,
             'type': 'drop_grapple'
-        }]
+        }
+        if self.target is not None:
+            item['target'] = self.target
+        self.result = [item]
+        return self
 
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'drop_grapple':
-            if not session:
-                session = battle.session
+            from natural20.utils.grappling import release
             source = item['source']
-            targets = list(source.grappling_targets())
-            source.drop_grapple()
+            targets = [item['target']] if item.get('target') is not None else list(source.grappling_targets())
             for target in targets:
-                session.event_manager.received_event({
-                    'event': 'drop_grapple',
-                    'source': source,
-                    'target': target,
-                })
+                release(source, target, battle, reason=item.get('reason'))

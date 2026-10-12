@@ -423,6 +423,10 @@ en:
         not_participant: You are not part of this Message link.
     shove:
       invalid_target_size: The target must be no more than one size larger than you
+    attack:
+      charmed_by_target: You can't attack the creature that charmed you.
+      target_condition: The target doesn't meet this attack's requirements (e.g. it must be grappled, incapacitated, restrained or willing).
+      target_creature_type: This attack can't affect that kind of creature.
   waive_opportunity_attack: Waive Opportunity Attack
   with_advantage: advantage
   with_disadvantage: disadvantage

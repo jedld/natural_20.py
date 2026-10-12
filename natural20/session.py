@@ -415,15 +415,21 @@ class Session:
 
     def increment_game_time(self, seconds=6):
         self.game_time += seconds
+        from natural20.utils.monster_traits import tick_session_misty_escapes
+        tick_session_misty_escapes(self)
 
     def load_characters(self):
+        return [character for _path, character in self.load_characters_with_paths()]
+
+    def load_characters_with_paths(self):
+        """Return ``(sheet_path, PlayerCharacter)`` pairs for every character sheet."""
         characters = []
         for char_path in self._iter_category_files('characters'):
             char_content = load_yaml(
                 char_path,
                 campaign_root=str(char_path.parent.parent),
             )
-            characters.append(PlayerCharacter(self, char_content))
+            characters.append((char_path, PlayerCharacter(self, char_content)))
         return characters
 
     def _category_roots(self, category, include_templates=False):

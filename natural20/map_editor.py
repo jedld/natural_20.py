@@ -2194,6 +2194,47 @@ def place_npc_in_map(
     return result
 
 
+def character_sheet_ref(session, sheet_path) -> str:
+    """Return a ``PlayerCharacter.load``-compatible sheet path relative to the campaign root."""
+    return os.path.relpath(os.path.abspath(str(sheet_path)), os.path.abspath(session.root_path))
+
+
+def find_character_sheet(session, entity_uid: str) -> str | None:
+    """Locate the character sheet for ``entity_uid`` across campaign/import character roots.
+
+    Matches the sheet's ``entity_uid`` first, then the file stem (sheets without an
+    explicit ``entity_uid`` are identified by file name in the PC spawner).
+    """
+    entity_uid = str(entity_uid or "").strip()
+    iter_files = getattr(session, "_iter_category_files", None)
+    if not entity_uid or iter_files is None:
+        return None
+    stem_match = None
+    for sheet_path in iter_files("characters"):
+        try:
+            with open(sheet_path, "r", encoding="utf-8") as handle:
+                raw = yaml.safe_load(handle) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if isinstance(raw, dict) and str(raw.get("entity_uid") or "") == entity_uid:
+            return character_sheet_ref(session, sheet_path)
+        if stem_match is None and sheet_path.stem.lower() == entity_uid.lower():
+            stem_match = sheet_path
+    if stem_match is not None:
+        return character_sheet_ref(session, stem_match)
+    return None
+
+
+def _validated_sheet_ref(session, sheet: str | None) -> str | None:
+    if not sheet:
+        return None
+    sheet = str(sheet).strip()
+    candidate = sheet if sheet.endswith(".yml") else f"{sheet}.yml"
+    if not os.path.isfile(os.path.join(session.root_path, candidate)):
+        raise ValueError(f"Character sheet not found: {sheet}")
+    return sheet
+
+
 def place_player_in_map(
     session,
     map_name: str,
@@ -2201,13 +2242,17 @@ def place_player_in_map(
     entity_uid: str,
     x: int,
     y: int,
+    sheet: str | None = None,
 ) -> dict[str, Any]:
     """Place or move a Player Character in the campaign map YAML (edit mode persistence).
 
     Updates the ``player`` list in the map YAML with the new position.
-    If the PC is already placed, its position is updated.
+    If the PC is already placed, its position is updated; otherwise a new
+    entry is created with the character ``sheet`` (resolved from ``entity_uid``
+    when not supplied) so the map can instantiate the PC on load.
     Returns the placement result dict.
     """
+    sheet = _validated_sheet_ref(session, sheet)
     path = resolve_map_yaml_path(session, map_name)
     data = copy.deepcopy(load_map_document(path))
 
@@ -2224,6 +2269,10 @@ def place_player_in_map(
         overrides = entry.get("overrides") or {}
         if isinstance(overrides, dict) and str(overrides.get("entity_uid")) == entity_uid:
             entry["position"] = [int(x), int(y)]
+            if not entry.get("sheet"):
+                resolved = sheet or find_character_sheet(session, entity_uid)
+                if resolved:
+                    entry["sheet"] = resolved
             updated = True
             break
 
@@ -2231,15 +2280,19 @@ def place_player_in_map(
         for entry in player_list:
             if not isinstance(entry, dict):
                 continue
-            sheet = entry.get("sheet", "")
-            if entity_uid in str(sheet):
+            entry_sheet = entry.get("sheet", "")
+            if entity_uid in str(entry_sheet):
                 entry["position"] = [int(x), int(y)]
                 updated = True
                 break
 
     if not updated:
+        sheet = sheet or find_character_sheet(session, entity_uid)
+        if not sheet:
+            raise ValueError(f"No character sheet found for {entity_uid}")
         new_entry: dict[str, Any] = {
             "position": [int(x), int(y)],
+            "sheet": sheet,
             "overrides": {"entity_uid": entity_uid},
         }
         player_list.append(new_entry)

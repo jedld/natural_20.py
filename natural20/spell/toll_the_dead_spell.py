@@ -30,11 +30,11 @@ class TollTheDeadSpell(Spell):
     def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
-        if entity.level() >= 5:
+        if entity.cantrip_level() >= 5:
             level += 1
-        if entity.level() >= 11:
+        if entity.cantrip_level() >= 11:
             level += 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             level += 1
         target = self.action.target
         if target.hp() < target.max_hp():

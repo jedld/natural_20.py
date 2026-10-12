@@ -170,8 +170,8 @@ class WrathOfTheStormAction(Action):
         damage_dice = getattr(source, '_wrath_damage_dice', 2)
 
         # Roll Dexterity saving throw for the attacker.
-        save_roll = target.save_throw('dexterity', battle)
         spell_dc = source.spell_save_dc()
+        save_roll = target.save_throw('dexterity', battle, {'dc': spell_dc})
         save_success = save_roll.result() >= spell_dc
 
         # Roll damage.

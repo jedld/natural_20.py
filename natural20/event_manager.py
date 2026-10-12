@@ -180,8 +180,8 @@ class EventManager:
                 msg = "[legendary action] " + msg
             if event['attack_roll']:
                 msg += f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}"
-            if event['attack_roll'] and event['attack_roll'].nat_20():
-                msg += " (critical hit)."
+            if event.get('critical') or (event['attack_roll'] and event['attack_roll'].nat_20()):
+                msg += " (critical hit)"
             if event['spell_save'] and event['spell_save'].result() < event['dc']:
                 msg += f" the target failed the save with {event['spell_save']} = {event['spell_save'].result()} < DC: {event['dc']}."
             elif event['spell_save'] and event['spell_save'].result() >= event['dc']:
@@ -491,6 +491,17 @@ class EventManager:
             'death_save': death_save,
             'damage_absorption': lambda event: self.output_logger.log(f"{self.show_name(event)} absorbs {event['damage_type']} damage and is intead healed by {event['damage']} hit points."),
             'damage_immunity': lambda event: self.output_logger.log(f"{self.show_name(event)} is unaffected by {event['damage_type']} damage."),
+            'legendary_resistance': lambda event: self.output_logger.log(f"{self.show_name(event)} fails a {event['save_type']} saving throw ({event['roll'].result()} vs DC {event['dc']}) but uses Legendary Resistance to succeed instead ({event['remaining']} left today)."),
+            'regeneration': lambda event: self.output_logger.log(f"{self.show_name(event)} regenerates {event['value']} hit points."),
+            'regeneration_blocked': lambda event: self.output_logger.log(f"{self.show_name(event)} cannot regenerate this turn ({str(event['reason']).replace('_', ' ')})."),
+            'misty_escape': lambda event: self.output_logger.log(f"{self.show_name(event)} drops to 0 hit points and dissolves into a cloud of mist, escaping toward its resting place."),
+            'misty_escape_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} cannot turn to mist ({str(event['reason']).replace('_', ' ')}) and is destroyed!"),
+            'misty_escape_recovered': lambda event: self.output_logger.log(f"{self.show_name(event)} regains 1 hit point in its resting place."),
+            'additional_damage': lambda event: self.output_logger.log(f"{self.show_target_name(event)} takes {event['value']} additional {event['damage_type']} damage from {self.show_name(event)}'s {event['attack_name']}."),
+            'life_drain': lambda event: self.output_logger.log(f"{self.show_name(event)} drains {event['value']} life from {self.show_target_name(event)}: its hit point maximum is reduced and {self.show_name(event)} regains that many hit points."),
+            'grappled_on_hit': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)} (escape DC {event['escape_dc']}) instead of dealing {event['damage_type']} damage."),
+            'charmed': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is charmed by {self.show_name(event)}."),
+            'charm_ended': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is no longer charmed by {self.show_name(event)}."),
             'generic_failed_save': lambda event: self.output_logger.log(f"[{event['effect_description']}]: {self.show_name(event)} failed a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']} = {event['roll'].result()}. {event['outcome']}"),
             'generic_success_save': lambda event: self.output_logger.log(f"[{event['effect_description']}]: {self.show_name(event)} succeeded on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']} = {event['roll'].result()}. {event.get('outcome')}"),
             'drop_concentration': lambda event: self.output_logger.log(f"{self.show_name(event)} drops concentration."),
@@ -501,6 +512,17 @@ class EventManager:
             'uncanny_dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses Uncanny Dodge."),
             'dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} dodges."),
             'died': died,
+            'summon_called': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {event.get('summon_label', 'a summon')}, calling "
+                f"{event.get('count')} {event.get('npc_label')}"
+                + (f" (arriving in {event['arrival_rounds']} rounds)." if event.get('arrival_rounds') else ".")),
+            'summons_arrived': lambda event: self.output_logger.log(
+                f"{event.get('count')} {event.get('npc_label')} answer the call of {self.show_name(event)}."),
+            'summons_dismissed': lambda event: self.output_logger.log(
+                f"{event.get('count')} creature(s) summoned by {self.show_name(event)} depart"
+                + (f" ({event['reason']})." if event.get('reason') else ".")),
+            'animated_remains_restored': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} collapses, leaving the body of {self.show_target_name(event)}."),
             'dash': lambda event: self.output_logger.log(f"{self.show_name(event)} {'bonus action' if event['as_bonus_action'] else ''} dashes."),
             'stand': lambda event: self.output_logger.log(f"{self.show_name(event)} stands up."),
             'prone': lambda event: self.output_logger.log(f"{self.show_name(event)} goes prone."),
@@ -527,9 +549,14 @@ class EventManager:
             ),
             'object_interaction': object_interaction,
             'grapple_success': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)}"),
-            'move': lambda event: self.output_logger.log(f"{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
+            'move': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} is dragged to {event['position']} by {getattr(event['dragged_by'], 'name', event['dragged_by'])}"
+                if event.get('dragged_by') is not None else
+                f"{'[legendary action] ' if event.get('as_legendary_action') else ''}{self.show_name(event)} moved to {event['position']} {event['move_cost'] * 5} feet"),
             'grapple_failure': lambda event: self.output_logger.log(f"{self.show_name(event)} failed to grapple {self.show_target_name(event)}"),
-            'drop_grapple': lambda event: self.output_logger.log(f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"),
+            'drop_grapple': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"
+                + (f" ({event['reason']})" if event.get('reason') else "")),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
             'start_of_turn': lambda event: self.output_logger.log(f"======== {self.show_name(event)} starts their turn. ========"),
             'detect_magic': lambda event: self.output_logger.log(

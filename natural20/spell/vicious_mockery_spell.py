@@ -53,7 +53,7 @@ class ViciousMockerySpell(Spell):
         }
 
     def _dice_count(self):
-        level = self.source.level()
+        level = self.source.cantrip_level()
         n = 1
         if level >= 5:
             n += 1
@@ -90,7 +90,7 @@ class ViciousMockerySpell(Spell):
         if isinstance(target, list):
             target = target[0]
         spell_dc = entity.spell_save_dc('charisma')
-        save = target.save_throw('wisdom', battle, {'is_magical': True})
+        save = target.save_throw('wisdom', battle, {'is_magical': True, 'dc': spell_dc})
         if save < spell_dc:
             damage_roll = self._damage(battle)
             return [{

@@ -30,7 +30,7 @@ class PolymorphSpell(Spell):
         dc = None
         if unwilling:
             dc = entity.spell_save_dc('intelligence')
-            save_roll = target.save_throw('wisdom', battle, {'is_magical': True})
+            save_roll = target.save_throw('wisdom', battle, {'is_magical': True, 'dc': dc})
             if save_roll.result() >= dc:
                 return [{
                     'type': 'spell_miss',

@@ -1,4 +1,5 @@
 from natural20.action import Action
+from natural20.die_roll import DieRoll
 from collections import namedtuple
 
 class EscapeGrappleAction(Action):
@@ -46,14 +47,19 @@ class EscapeGrappleAction(Action):
         battle = opts.get("battle")
         target = self.target
 
-        strength_roll = target.athletics_check(battle)
         athletics_stats = (self.source.proficiency_bonus() if self.source.athletics_proficient() else 0) + self.source.str_mod()
         acrobatics_stats = (self.source.proficiency_bonus() if self.source.acrobatics_proficient() else 0) + self.source.dex_mod()
 
         contested_roll = self.source.athletics_check(battle) if athletics_stats > acrobatics_stats else self.source.acrobatics_check(battle)
-        grapple_success = strength_roll.result() >= contested_roll.result()
+        escape_dc = ((self.source.attributes or {}).get('grapple_escape_dcs') or {}).get(getattr(target, 'entity_uid', None))
+        if escape_dc:
+            strength_roll = DieRoll.roll(str(int(escape_dc)), description='escape_dc')
+            escaped = contested_roll.result() >= strength_roll.result()
+        else:
+            strength_roll = target.athletics_check(battle)
+            escaped = contested_roll.result() > strength_roll.result()
 
-        if grapple_success:
+        if escaped:
             result = [{
                 "source": self.source,
                 "target": target,

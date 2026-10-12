@@ -1,0 +1,58 @@
+---
+kind: Swarm of Bats
+label: Swarm of Bats
+description: >
+  A shrieking, flapping cloud of bats that engulfs anything in its path. The
+  swarm can occupy another creature's space and vice versa.
+size: medium
+race:
+  - beast
+alignment: unaligned
+default_ac: 12
+max_hp: 22
+hp_die: 5d8
+speed: 0
+speed_fly: 30
+passive_perception: 11
+blindsight: 60
+token:
+  - B
+color: gray
+ability:
+  str: 5
+  dex: 15
+  con: 10
+  int: 2
+  wis: 12
+  cha: 4
+languages: []
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+attributes:
+  - swarm
+  - echolocation
+  - keen_hearing
+resistances:
+  - bludgeoning
+  - piercing
+  - slashing
+condition_immunities:
+  - charmed
+  - frightened
+  - grappled
+  - paralyzed
+  - petrified
+  - prone
+  - restrained
+  - stunned
+actions:
+  - name: Bites
+    type: melee_attack
+    range: 0
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 2d4
+    damage_die_half_hp: 1d4
+    damage_type: piercing

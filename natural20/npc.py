@@ -14,7 +14,8 @@ from natural20.actions.attack_action import AttackAction
 from natural20.actions.hide_action import HideAction, HideBonusAction
 from natural20.actions.help_action import HelpAction, HelpBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
-from natural20.actions.grapple_action import GrappleAction
+from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
+from natural20.actions.summon_creatures_action import SummonCreaturesAction, DismissSummonsAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
@@ -119,7 +120,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
     ]
 
     def __init__(self, session, type, opt=None):
-        super().__init__(type, "npc", {})
+        super().__init__(type, "npc", {}, event_manager=getattr(session, 'event_manager', None))
         if opt is None:
             opt = {}
         self.properties = copy.deepcopy(
@@ -261,7 +262,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         if self.linked_hp:
             return self.linked_hp.max_hp()
         else:
-            return self._max_hp
+            from natural20.utils.monster_traits import max_hp_reduction
+            return max(0, self._max_hp - max_hp_reduction(self))
         
     def set_hp(self, hp, override_max=False):
         if self.linked_hp:
@@ -299,12 +301,12 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         else:
             super().make_unconscious()
 
-    def make_dead(self, battle=None):
+    def make_dead(self, battle=None, cause=None):
         if self.linked_hp:
-            self.linked_hp.make_dead(battle=battle)
-            super().make_dead(battle=battle)
+            self.linked_hp.make_dead(battle=battle, cause=cause)
+            super().make_dead(battle=battle, cause=cause)
         else:
-            super().make_dead(battle=battle)
+            super().make_dead(battle=battle, cause=cause)
 
     def max_spell_slots(self, level, character_class=None):
         if self.familiar():
@@ -356,6 +358,20 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                 pass
         return self.properties.get("cr", 1)
 
+    def cantrip_level(self):
+        """Level used for cantrip damage scaling: a monster's spellcaster
+        level (``spellcaster_level`` / ``caster_level`` in YAML), not its CR."""
+        props = self.properties or {}
+        for key in ('spellcaster_level', 'caster_level'):
+            raw = props.get(key)
+            if raw in (None, ''):
+                continue
+            try:
+                return int(raw)
+            except (TypeError, ValueError):
+                continue
+        return self.level()
+
 
     def c_class(self):
         return self.properties.get("kind")
@@ -405,6 +421,17 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
 
         if legendary_actions:
             actions.extend([s for s in self.generate_npc_attack_actions(battle, legendary_actions=True, auto_target=auto_target)])
+            return actions
+
+        if battle and getattr(battle, 'legendary_phase', None) == self.entity_uid and not opportunity_attack:
+            if interact_only:
+                return []
+            from natural20.utils.legendary_actions import legendary_action_cost, mark_legendary_move
+            actions.extend(self.generate_npc_attack_actions(battle, legendary_actions=True, auto_target=auto_target))
+            move_options = self.legendary_move_options(battle)
+            if move_options:
+                move = mark_legendary_move(MoveAction(session, self, "move"), min(move_options, key=legendary_action_cost))
+                actions.append(move)
             return actions
 
         if battle and battle.current_turn() != self and not opportunity_attack and not legendary_actions:
@@ -486,6 +513,17 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                                     else:
                                         actions.append(action)
 
+            if not interact_only and not self.familiar():
+                actions.extend(SummonCreaturesAction.options_for(session, self, battle))
+                if DismissSummonsAction.can(self, battle):
+                    actions.append(DismissSummonsAction(session, self, 'dismiss_summons'))
+
+            if not interact_only and battle is not None and self.is_grappling():
+                for held in list(self.grappling_targets()):
+                    drop = DropGrappleAction(session, self, 'drop_grapple')
+                    drop.target = held
+                    actions.append(drop)
+
         return actions
 
     def placeable(self):
@@ -564,7 +602,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
     def attack_options(self, battle, opportunity_attack=False, legendary_actions=False):
         actions = []
         if legendary_actions:
-            available_actions = self.legendary_actions
+            from natural20.utils.legendary_actions import is_legendary_move
+            available_actions = [a for a in (self.legendary_actions or []) if not is_legendary_move(a)]
         else:
             available_actions = self.npc_actions
 
@@ -643,6 +682,16 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             'source': self,
         }]
 
+    def legendary_move_options(self, battle):
+        """``type: move`` legendary options the creature can currently afford."""
+        from natural20.utils.legendary_actions import is_legendary_move, legendary_action_cost
+        pool = self.total_legendary_actions(battle) or 0
+        return [
+            option for option in (self.legendary_actions or [])
+            if is_legendary_move(option) and pool >= legendary_action_cost(option)
+            and (not option.get('if') or self.eval_if(option['if']))
+        ]
+
     def generate_npc_attack_actions(self, battle, opportunity_attack=False, auto_target=True, legendary_actions=False):
         if self.familiar():
             return []
@@ -654,6 +703,12 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             action.npc_action = npc_action
             action.legendary_action = legendary_actions
             actions.append(action)
+            if npc_action.get('grapple_instead') and not opportunity_attack:
+                grapple_variant = AttackAction(self.session, self, "attack")
+                grapple_variant.npc_action = npc_action
+                grapple_variant.legendary_action = legendary_actions
+                grapple_variant.grapple_instead = True
+                actions.append(grapple_variant)
 
         # assign possible attack targets
         if battle and auto_target:
@@ -661,6 +716,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             for action in actions:
                 valid_targets = battle.valid_targets_for(self, action, target_types=["enemies"])
                 for target in valid_targets:
+                    if action.grapple_instead and (
+                        self in (getattr(target, 'grapples', None) or [])
+                        or target.immune_to_condition('grappled')
+                    ):
+                        continue
                     targeted_action = copy.copy(action)
                     targeted_action.target = target
                     final_attack_list.append(targeted_action)
@@ -732,6 +792,14 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             npc._current_hit_die = {int(k): v for k, v in data["_current_hit_die"].items()}
         if "_max_hit_die" in data:
             npc._max_hit_die = dict(data["_max_hit_die"])
+        if data.get("effects"):
+            npc.effects = data["effects"]
+        if data.get("casted_effects"):
+            npc.casted_effects = data["casted_effects"]
+        if data.get("concentration") is not None:
+            npc.concentration = data["concentration"]
+        if data.get("temp_hp"):
+            npc._temp_hp = data["temp_hp"]
         from natural20.weapon_mastery import mastery_state_from_dict
         mastery_state_from_dict(npc, data)
         return npc

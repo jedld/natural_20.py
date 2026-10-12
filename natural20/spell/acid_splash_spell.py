@@ -46,7 +46,7 @@ class AcidSplashSpell(Spell):
         }
 
     def _dice_count(self):
-        level = self.source.level()
+        level = self.source.cantrip_level()
         n = 1
         if level >= 5:
             n += 1
@@ -86,7 +86,7 @@ class AcidSplashSpell(Spell):
         results = []
         spell_dc = entity.spell_save_dc('intelligence')
         for target in targets:
-            save = target.save_throw('dexterity', battle, {'is_magical': True})
+            save = target.save_throw('dexterity', battle, {'is_magical': True, 'dc': spell_dc})
             if save < spell_dc:
                 damage_roll = self._damage(battle)
                 results.append({

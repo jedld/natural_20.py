@@ -1,0 +1,240 @@
+
+==============================================================================
+SAMPLE 1: battle start - goblin, first turn, empty log
+No entries have happened yet, so there is NO "since last turn:" block.
+==============================================================================
+
+--- goblin's first turn
+STATE (sent to decide_action):
+Entity: Zugmokgor; HP 7/7; AC 15; pos [1, 5]; movement 30 ft; speed 30 ft
+mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
+visible enemies: Gomerin hp 67/67 ac 19 5 ft melee
+allies: none
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+OPTIONS (20 sent):
+   [0] attack Gomerin (67/67) with Scimitar
+   [1] attack Gomerin (67/67) with Shortbow
+   [2] move: engage Gomerin: (1, 6)
+   [3] move: engage Gomerin: (2, 6)
+   [4] move: engage Gomerin: (3, 5)
+   [5] move: engage Gomerin: (3, 6)
+   [6] move: offensive (1, 6) [OA-free, in reach of 5 ft foe)
+   [7] move: offensive (2, 6) [OA-free, in reach of 5 ft foe)
+   [8] move: offensive (3, 5) [OA-free, in reach of 5 ft foe)
+   [9] move: offensive (3, 6) [OA-free, in reach of 5 ft foe)
+   [10] help Gomerin (67/67)
+   [11] dodge
+   [12] hide
+   [13] disengage
+   [14] look
+   [15] interact ground
+   [16] shove Gomerin (67/67)
+   [17] grapple Gomerin (67/67)
+   [18] grapple Gomerin (67/67)
+   [19] pass (end turn)
+
+==============================================================================
+SAMPLE 2: one round later - fighter, second turn
+Round 1: goblin attacked, fighter dodged. Round 2: goblin attacked again. The fighter now sees its own dodge and the newest attack; the round-1 attack is outside the window.
+==============================================================================
+
+--- fighter's second turn (witnessed: own dodge + new attack)
+STATE (sent to decide_action):
+Entity: Gomerin; HP 57/67; AC 19; pos [2, 5]; movement 30 ft; speed 30 ft
+mods: str+1 dex+5 con+3 int+3 wis+1 cha+0
+visible enemies: Zugzuk hp 7/7 ac 15 5 ft melee
+allies: none
+items: Potion of Healing
+since last turn:
+- Gomerin dodged
+- Zugzuk attacked Gomerin (57/67), miss
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+OPTIONS (24 sent):
+   [0] attack Zugzuk (7/7) with vicious_rapier
+   [1] attack Zugzuk (7/7) with longbow
+   [2] move: engage Zugzuk: (0, 4)
+   [3] move: engage Zugzuk: (0, 5)
+   [4] move: engage Zugzuk: (0, 6)
+   [5] move: engage Zugzuk: (1, 6)
+   [6] move: engage Zugzuk: (2, 6)
+   [7] move: offensive (0, 4) [OA-free, in reach of 5 ft foe)
+   [8] move: offensive (0, 5) [OA-free, in reach of 5 ft foe)
+   [9] move: offensive (0, 6) [OA-free, in reach of 5 ft foe)
+   [10] move: offensive (1, 6) [OA-free, in reach of 5 ft foe)
+   [11] move: offensive (2, 6) [OA-free, in reach of 5 ft foe)
+   [12] help Zugzuk (7/7)
+   [13] dodge
+   [14] hide
+   [15] disengage
+   [16] look
+   [17] second wind
+   [18] use healing_potion
+   [19] interact ground
+   [20] shove Zugzuk (7/7)
+   [21] grapple Zugzuk (7/7)
+   [22] grapple Zugzuk (7/7)
+   [23] pass (end turn)
+
+==============================================================================
+SAMPLE 3: spellcaster state - Test Wizard (Noke) with slots
+Wizard on his turn: full state with mods/slots, then the POV line appears for the fighter after Noke casts Haste on himself.
+==============================================================================
+
+--- wizard's first turn (no POV yet - empty log)
+Entity: Noke; HP 22/22; AC 12; pos [1, 1]; movement 30 ft; speed 30 ft
+mods: str-1 dex+2 con+2 int+3 wis+1 cha+0
+visible enemies: Gomerin hp 67/67 ac 19 5 ft melee
+allies: none
+spell slots: L3 2/2, L4 1/1
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+--- fighter after witnessing the Haste cast
+STATE (sent to decide_action):
+Entity: Gomerin; HP 67/67; AC 19; pos [1, 2]; movement 30 ft; speed 30 ft
+mods: str+1 dex+5 con+3 int+3 wis+1 cha+0
+visible enemies: Noke hp 22/22 ac 14 5 ft melee
+allies: none
+items: Potion of Healing
+since last turn:
+- Noke cast Haste on Noke (22/22)
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+OPTIONS (26 sent):
+   [0] attack Noke (22/22) with vicious_rapier
+   [1] attack Noke (22/22) with longbow
+   [2] move: engage Noke: (0, 1)
+   [3] move: engage Noke: (0, 2)
+   [4] move: engage Noke: (1, 0)
+   [5] move: engage Noke: (2, 0)
+   [6] move: engage Noke: (2, 1)
+   [7] move: engage Noke: (2, 2)
+   [8] move: offensive (0, 1) [OA-free, in reach of 5 ft foe)
+   [9] move: offensive (0, 2) [OA-free, in reach of 5 ft foe)
+   [10] move: offensive (1, 0) [OA-free, in reach of 5 ft foe)
+   [11] move: offensive (2, 0) [OA-free, in reach of 5 ft foe)
+   [12] move: offensive (2, 1) [OA-free, in reach of 5 ft foe)
+   [13] move: offensive (2, 2) [OA-free, in reach of 5 ft foe)
+   [14] help Noke (22/22)
+   [15] dodge
+   [16] hide
+   [17] disengage
+   [18] look
+   [19] second wind
+   [20] use healing_potion
+   [21] interact ground
+   [22] shove Noke (22/22)
+   [23] grapple Noke (22/22)
+   [24] grapple Noke (22/22)
+   [25] pass (end turn)
+
+--- wizard's second turn (POV includes his own Haste cast)
+Entity: Noke; HP 22/22; AC 14; pos [1, 1]; movement 30 ft; speed 60 ft
+statuses: hasted
+mods: str-1 dex+2 con+2 int+3 wis+1 cha+0
+visible enemies: Gomerin hp 67/67 ac 19 5 ft melee
+allies: none
+spell slots: L3 1/2, L4 1/1
+effects: Haste 60s
+resources: action=0, bonus=1
+since last turn:
+- Noke cast Haste on Noke (22/22)
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+==============================================================================
+SAMPLE 4: downed & poisoned wizard (rich state + conditions)
+The goblin's opening attack drops Crysania (6 HP) to 0. The state now shows the standing conditions (unconscious, poisoned) that ``entity.statuses`` tracks, plus the witnessed blow and her slots/scroll. Rendered state-only because a downed entity has no actions to choose.
+==============================================================================
+
+--- Crysania's state (0 HP, poisoned, witnessed the blow)
+Entity: Crysania; HP 0/6; AC 12; pos [2, 5]; movement 0 ft; speed 30 ft
+statuses: poisoned, prone, unconscious
+mods: str+0 dex+2 con+2 int+4 wis+1 cha-1
+visible enemies: Thakzug hp 7/7 ac 15 5 ft melee
+allies: none
+spell slots: L1 2/2
+items: scroll_of_magic_missile
+since last turn:
+- Thakzug attacked Crysania (0/6), d6(6) + 2 dmg
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+==============================================================================
+SAMPLE 5: window semantics - what "since last turn" includes
+The window opens at the START of the entity's previous turn, so on the fighter's 3rd turn it holds: the fighter's own 2nd-turn move, then the goblin's 3rd-turn attack. The 1st-turn dodge and 2nd-turn attack are already outside the window. Lines are oldest-first, newest-last.
+==============================================================================
+
+--- fighter's third turn (window: own 2nd-turn move + new attack)
+STATE (sent to decide_action):
+Entity: Gomerin; HP 67/67; AC 19; pos [0, 4]; movement 30 ft; speed 30 ft
+mods: str+1 dex+5 con+3 int+3 wis+1 cha+0
+visible enemies: Zugzug hp 7/7 ac 15 5 ft melee
+allies: none
+items: Potion of Healing
+since last turn:
+- Gomerin moved
+- Zugzug attacked Gomerin (67/67), miss
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+OPTIONS (24 sent):
+   [0] attack Zugzug (7/7) with vicious_rapier
+   [1] attack Zugzug (7/7) with longbow
+   [2] move: engage Zugzug: (0, 5)
+   [3] move: engage Zugzug: (0, 6)
+   [4] move: engage Zugzug: (1, 6)
+   [5] move: engage Zugzug: (2, 5)
+   [6] move: engage Zugzug: (2, 6)
+   [7] move: offensive (0, 5) [OA-free, in reach of 5 ft foe)
+   [8] move: offensive (0, 6) [OA-free, in reach of 5 ft foe)
+   [9] move: offensive (1, 6) [OA-free, in reach of 5 ft foe)
+   [10] move: offensive (2, 5) [OA-free, in reach of 5 ft foe)
+   [11] move: offensive (2, 6) [OA-free, in reach of 5 ft foe)
+   [12] help Zugzug (7/7)
+   [13] dodge
+   [14] hide
+   [15] disengage
+   [16] look
+   [17] second wind
+   [18] use healing_potion
+   [19] interact ground
+   [20] shove Zugzug (7/7)
+   [21] grapple Zugzug (7/7)
+   [22] grapple Zugzug (7/7)
+   [23] pass (end turn)
+
+==============================================================================
+SAMPLE 6: POV cap - more witnessed entries than MAX_JEV_POV_LOG
+The log is padded past the cap; only the 10 most recent witnessed lines are rendered (oldest of the kept ten first).
+==============================================================================
+
+--- _pov_log() output (cap = 10):
+(10 lines rendered)
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+- Narbakzug attacked Gomerin (67/67), miss
+
+==============================================================================
+SAMPLE 7: unconscious enemy + name-collision disambiguation
+Existing state lines shown for completeness of the context review: a downed-but-stable enemy is flagged (unconscious); a renamed fighter colliding with the goblin name gets an @[x, y] suffix.
+==============================================================================
+
+--- goblin vs a downed (0 HP, unconscious) fighter
+Entity: Nargor; HP 7/7; AC 15; pos [1, 5]; movement 30 ft; speed 30 ft
+mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
+visible enemies: Gomerin hp 0/67 ac 19 5 ft melee (unconscious)
+allies: none
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.
+
+--- name collision (fighter renamed to the goblin's name)
+Entity: Dargvakrog; HP 7/7; AC 15; pos [1, 5]; movement 30 ft; speed 30 ft
+mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
+visible enemies: Dargvakrog@[2, 5] hp 67/67 ac 19 5 ft melee
+allies: none
+Task: choose the single best option index from the full list of actions available this turn. Prefer actions that win the fight and keep the entity alive.

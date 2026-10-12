@@ -676,6 +676,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       _max_hp = self.properties['max_hp'] + self.level()
     else:
       _max_hp = self.properties['max_hp']
+    from natural20.utils.monster_traits import max_hp_reduction
+    _max_hp = max(0, _max_hp - max_hp_reduction(self))
     if self.has_effect('hit_point_max_override'):
       return self.eval_effect('hit_point_max_override', { "max_hp" : _max_hp})
 
@@ -1307,13 +1309,26 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     return super().proficient(prof)
 
+  def _equipped_item_meta(self, name):
+    """Armor/shield/accessory definition for an equipped item (magic items win)."""
+    try:
+      magic = self.session.load_magic_item(name)
+    except Exception:
+      magic = None
+    if magic is not None:
+      return magic
+    try:
+      return self.session.load_equipment(name)
+    except Exception:
+      return None
+
   def equipped_ac(self):
-    equipments = self.session.load_all_equipments()
-    # Also load magic items (magic armor, shields, accessories)
-    magic_items = self.session.load_all_magic_items() if hasattr(self.session, 'load_all_magic_items') else {}
-    # Merge: magic items override base equipment for same keys
-    all_items = {**equipments, **magic_items}
     equipped = self.properties.get('equipped', [])
+    all_items = {}
+    for e in equipped:
+      meta = self._equipped_item_meta(e)
+      if meta is not None:
+        all_items[e] = meta
     equipped_meta = [all_items[e] for e in equipped if e in all_items]
     # Reverse to prefer last-equipped armor/shield (most recently equipped wins)
     armor = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'armor'), None)
@@ -1666,7 +1681,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     for casted_effect in self.casted_effects:
       _copy = copy.copy(casted_effect)
       if 'target' in casted_effect:
-        _copy['target'] = casted_effect['target'].entity_uid
+        _copy['target'] = getattr(casted_effect['target'], 'entity_uid', casted_effect['target'])
       _serialized_casted_effects.append(_copy)
 
     for k, descriptors in self.effects.items():
@@ -1674,7 +1689,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       for descriptor in descriptors:
         _descriptor = copy.copy(descriptor)
         if 'source' in _descriptor:
-          _descriptor['source'] = _descriptor['source'].entity_uid
+          _descriptor['source'] = getattr(_descriptor['source'], 'entity_uid', _descriptor['source'])
         _descriptor_arr.append(_descriptor)
       _serialized_effects[k] = _descriptor_arr
 

@@ -1,0 +1,57 @@
+---
+kind: Legendary Brute
+description: Test creature exercising legendary attacks, legendary costs and legendary movement.
+size: medium
+race:
+- undead
+alignment: lawful_evil
+default_ac: 16
+max_hp: 144
+hp_die: 17d8+68
+speed: 30
+passive_perception: 14
+darkvision: 120
+token:
+  - L
+color: red
+ability:
+  str: 18
+  dex: 18
+  con: 18
+  int: 12
+  wis: 12
+  cha: 12
+cr: 10
+xp: 5900
+proficiency_bonus: 4
+actions:
+  - name: claw
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 9
+    damage: 8
+    damage_die: 1d8+4
+    damage_type: slashing
+legendary_action_count: 3
+legendary_actions:
+  - name: move
+    type: move
+    description: Moves up to its speed without provoking opportunity attacks.
+  - name: claw
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 9
+    damage: 8
+    damage_die: 1d8+4
+    damage_type: slashing
+  - name: maul
+    type: melee_attack
+    cost: 2
+    range: 5
+    targets: 1
+    attack: 9
+    damage: 30
+    damage_die: 6d8+4
+    damage_type: bludgeoning

@@ -24,11 +24,11 @@ class SacredFlameSpell(Spell):
     def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
-        if entity.level() >= 5:
+        if entity.cantrip_level() >= 5:
             level += 1
-        if entity.level() >= 11:
+        if entity.cantrip_level() >= 11:
             level += 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             level += 1
         return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.sacred_flame'))
 
@@ -49,8 +49,8 @@ class SacredFlameSpell(Spell):
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
 
-        result = target.save_throw('dexterity', battle, { "is_magical": True })
         spell_dc = entity.spell_save_dc("wisdom")
+        result = target.save_throw('dexterity', battle, { "is_magical": True, "dc": spell_dc })
         if result < spell_dc:
             save_failed = True
         else:

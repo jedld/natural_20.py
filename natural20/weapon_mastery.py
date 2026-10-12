@@ -324,7 +324,7 @@ def resolve_mastery_on_hit(action, battle, target, weapon, hit: bool, damage) ->
         if can_use_mastery(source, weapon, "topple") and _wants_optional_mastery(action, battle, "topple"):
             ability_mod = attack_ability_mod(source, weapon)
             dc = 8 + ability_mod + source.proficiency_bonus()
-            save_roll = target.save_throw("constitution", battle=battle)
+            save_roll = target.save_throw("constitution", battle=battle, opts={"dc": dc})
             results.append({
                 "type": "save_success" if save_roll.result() >= dc else "save_fail",
                 "source": target,

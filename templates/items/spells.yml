@@ -1552,7 +1552,11 @@ animate_dead:
   label: Animate Dead
   casting_time: 1:minute
   components: [verbal, somatic, material]
-  description: Animate a corpse or pile of bones.
+  description: >-
+    Choose a pile of bones or the corpse of a Small or Medium humanoid within
+    range; it rises as a skeleton (bones) or zombie (corpse) under your control.
+    At higher levels, animate two additional remains per slot level above 3rd.
+    The 1-minute casting time means it cannot be cast during combat.
   duration: instant
   level: 3
   name: Animate Dead

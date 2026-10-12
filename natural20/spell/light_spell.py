@@ -189,12 +189,12 @@ class LightSpell(Spell):
         }
 
         if save_required:
-            saving_throw = target.save_throw('dexterity', battle, {'is_magical': True})
             ability = self._caster_spell_ability(entity)
             try:
                 dc = entity.spell_save_dc(ability)
             except Exception:
                 dc = entity.spell_save_dc()
+            saving_throw = target.save_throw('dexterity', battle, {'is_magical': True, 'dc': dc})
             item['saving_throw'] = saving_throw
             item['save_dc'] = dc
             item['save_success'] = saving_throw.result() >= dc

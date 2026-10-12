@@ -109,9 +109,9 @@ def _build_spell_class_registry():
     from natural20.spell.leomunds_tiny_hut_spell import LeomundsTinyHutSpell
     from natural20.spell.message_spell import MessageSpell
     from natural20.spell.stinking_cloud_spell import StinkingCloudSpell
+    from natural20.spell.animate_dead_spell import AnimateDeadSpell
     from natural20.spell.wizard_spells import (
         AganazzarsScorcherSpell,
-        AnimateDeadSpell,
         BanishmentSpell,
         BigbysHandSpell,
         ChainLightningSpell,

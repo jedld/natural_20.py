@@ -302,6 +302,12 @@ The simplest way to run the webapp is from the repository root:
 
 # Or use the submodule launcher directly
 ./n20-webapp/start_web.sh wild_sheep_chase
+
+# Optional startup flags (accepted before or after the campaign argument):
+#   --reset  wipe persisted save state at boot (saves, campaign logs,
+#            notebook + attachments, NPC memories) so the campaign starts fresh
+./start_web.sh wild_sheep_chase --reset
+./start_web.sh --edit --reset death_house
 ```
 
 The dev server runs on port 5001 by default (`http://localhost:5001`).

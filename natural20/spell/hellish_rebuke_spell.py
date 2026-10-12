@@ -70,8 +70,8 @@ class HellishRebukeSpell(Spell):
         target = spell_action.target
         at_level = getattr(spell_action, 'at_level', None) or self.properties.get('level', 1)
 
-        save = target.save_throw('dexterity', battle, {'is_magical': True})
         dc = self._spell_save_dc(entity)
+        save = target.save_throw('dexterity', battle, {'is_magical': True, 'dc': dc})
         damage_roll = self._damage(battle, opts={'at_level': at_level})
 
         if target.class_feature('evasion'):

@@ -9,6 +9,7 @@ from natural20.item_library.door_object import DoorObjectWall, DoorObject
 from natural20.item_library.window_object import WindowObjectWall
 from natural20.item_library.chest import Chest
 from natural20.item_library.teleporter import Teleporter
+from natural20.item_library.chasm import Chasm
 from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.switch import Switch
 from natural20.item_library.multi_switch import MultiSwitch
@@ -21,6 +22,8 @@ from natural20.spell.mage_armor_spell import MageArmorSpell
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.action_record import ActionRecord
+from natural20.action import Action
 from natural20.spell.bless_spell import BlessSpell
 from natural20.item_library.pit_trap import PitTrap
 from natural20.generic_controller import GenericController
@@ -56,6 +59,150 @@ def represent_np_bool(dumper, data):
 def represent_die_roll_result(dumper, data):
     return dumper.represent_int(int(data))
 
+_SPELL_BASE_FIELDS = {
+    'session', 'name', 'properties', 'action', 'source', 'target',
+    'errors', 'validation_issues', 'attack_roll',
+}
+_SPELL_SCALAR_TYPES = (bool, int, float, str, type(None))
+
+
+def _entity_ref(value):
+    uid = getattr(value, 'entity_uid', None)
+    if uid is not None:
+        return uid
+    return value if isinstance(value, str) else None
+
+
+def represent_spell(dumper, data):
+    """Fallback for Spell subclasses without a dedicated tag (e.g. persistent effects)."""
+    state = {
+        k: v for k, v in vars(data).items()
+        if k not in _SPELL_BASE_FIELDS and not k.startswith('_')
+        and isinstance(v, _SPELL_SCALAR_TYPES)
+    }
+    return dumper.represent_mapping('!spell', {
+        'class': f"{type(data).__module__}.{type(data).__qualname__}",
+        'name': data.name,
+        'session': data.session,
+        'properties': data.properties,
+        'source': _entity_ref(data.source),
+        'target': _entity_ref(data.target),
+        'state': state,
+    })
+
+
+EFFECT_ENTITY_REFS_ATTR = '_n20_entity_refs'
+
+
+def represent_effect_object(dumper, data):
+    """Fallback for plain engine objects (effect markers such as Chill Touch's
+    undead effect) that have no dedicated tag. Entities become UIDs relinked
+    on load; session/battle/map handles are dropped and other values are
+    represented normally."""
+    from natural20.entity import Entity
+
+    klass = type(data)
+    if not klass.__module__.startswith('natural20.') or not hasattr(data, '__dict__'):
+        raise yaml.representer.RepresenterError("cannot represent an object", data)
+    state, entities = {}, {}
+    for key, value in vars(data).items():
+        if key == EFFECT_ENTITY_REFS_ATTR or isinstance(value, (Session, Battle, Map)):
+            continue
+        if isinstance(value, Entity):
+            entities[key] = value.entity_uid
+        else:
+            state[key] = value
+    return dumper.represent_mapping('!effect_object', {
+        'class': f"{klass.__module__}.{klass.__qualname__}",
+        'state': state,
+        'entities': entities,
+    })
+
+
+def effect_object_constructor(loader, node):
+    data = loader.construct_mapping(node, deep=True)
+    module_name, class_name = data['class'].rsplit('.', 1)
+    klass = getattr(importlib.import_module(module_name), class_name)
+    obj = klass.__new__(klass)
+    for key, value in (data.get('state') or {}).items():
+        setattr(obj, key, value)
+    entities = data.get('entities') or {}
+    for key, uid in entities.items():
+        setattr(obj, key, uid)
+    if entities:
+        setattr(obj, EFFECT_ENTITY_REFS_ATTR, list(entities))
+    return obj
+
+
+def spell_constructor(loader, node):
+    data = loader.construct_mapping(node, deep=True)
+    module_name, class_name = data['class'].rsplit('.', 1)
+    klass = getattr(importlib.import_module(module_name), class_name)
+    spell = klass(data.get('session'), data.get('source'), data.get('name'), data.get('properties') or {})
+    spell.target = data.get('target')
+    for key, value in (data.get('state') or {}).items():
+        setattr(spell, key, value)
+    return spell
+
+
+def relink_spell_entities(session, maps=None, battle=None):
+    """Swap entity_uid strings on restored spell effects (and summoner links) back to live entities."""
+    from natural20.spell.spell import Spell
+
+    def resolve(value):
+        if isinstance(value, str):
+            entity = session.entity_by_uid(value)
+            return entity if entity is not None else value
+        return value
+
+    def fix(spell):
+        if isinstance(spell, Spell):
+            spell.source = resolve(spell.source)
+            spell.target = resolve(spell.target)
+        for attr in getattr(spell, EFFECT_ENTITY_REFS_ATTR, None) or []:
+            setattr(spell, attr, resolve(getattr(spell, attr, None)))
+
+    entities = set()
+    for m in (maps.values() if isinstance(maps, dict) else (maps or [])):
+        entities.update(getattr(m, 'entities', {}) or {})
+    if battle is not None:
+        entities.update(getattr(battle, 'entities', {}) or {})
+    for entity in entities:
+        summoner_uid = (getattr(entity, 'properties', None) or {}).get('summoner_uid')
+        if summoner_uid and getattr(entity, 'owner', None) is None:
+            entity.owner = session.entity_by_uid(summoner_uid)
+        for descriptors in (getattr(entity, 'effects', None) or {}).values():
+            for descriptor in descriptors or []:
+                if isinstance(descriptor, dict):
+                    fix(descriptor.get('effect'))
+                    if 'source' in descriptor:
+                        descriptor['source'] = resolve(descriptor['source'])
+        for descriptor in getattr(entity, 'casted_effects', None) or []:
+            if isinstance(descriptor, dict):
+                fix(descriptor.get('effect'))
+                if 'target' in descriptor:
+                    descriptor['target'] = resolve(descriptor['target'])
+
+
+def relink_battle_log(session, battle):
+    """Swap entity_uid strings on restored ``battle.battle_log`` actions back to
+    live entities and attach the session (older saves omitted both)."""
+    if battle is None:
+        return
+    for action in getattr(battle, 'battle_log', None) or []:
+        if getattr(action, 'session', None) is None and hasattr(action, 'session'):
+            action.session = session
+        for attr in ('source', 'target'):
+            value = getattr(action, attr, None)
+            if isinstance(value, str):
+                entity = session.entity_by_uid(value)
+                if entity is not None:
+                    setattr(action, attr, entity)
+            elif isinstance(action, ActionRecord) and isinstance(value, list):
+                setattr(action, attr, [
+                    (session.entity_by_uid(v) or v) if isinstance(v, str) else v for v in value
+                ])
+
 def represent_class(dumper, data):
     # Represent a class by its fully qualified name.
     class_path = data.__module__ + "." + data.__qualname__
@@ -65,7 +212,14 @@ yaml.SafeDumper.add_representer(type, represent_class)
 
 # Create a specialized loader with constructors
 class SafeLoaderWithConstructors(yaml.FullLoader):
-    pass
+    def construct_mapping(self, node, deep=False):
+        # SafeDumper writes tuple keys (e.g. battle state ``positions_entered``)
+        # as sequences, which are unhashable; load them back as tuples.
+        if isinstance(node, yaml.MappingNode):
+            for key_node, _ in node.value:
+                if isinstance(key_node, yaml.SequenceNode):
+                    key_node.tag = 'tag:yaml.org,2002:python/tuple'
+        return super().construct_mapping(node, deep=deep)
 
 # Global mapping: classes are associated with their YAML tag.
 CLASS_TAG_MAPPING = {
@@ -87,6 +241,7 @@ CLASS_TAG_MAPPING = {
     Chest: '!chest',
     Switch: '!switch',
     Teleporter: '!teleporter',
+    Chasm: '!chasm',
     TrapDoor: '!trap_door',
     ProximityTrigger: '!proximity_trigger',
     MageArmorSpell: '!mage_armor_spell',
@@ -97,6 +252,7 @@ CLASS_TAG_MAPPING = {
     GenericController: '!generic_controller',
     WebController: '!web_controller',
     AttackAction: '!attack_action',
+    ActionRecord: '!action_record',
     MultiSwitch: '!multi_switch',
     RoomServiceBuzzer: '!room_service_buzzer',
     CryptCoffin: '!crypt_coffin',
@@ -121,6 +277,11 @@ def generic_constructor(loader, node):
     # Look up our mapping to find the class associated with this tag.
     for cls, tag in CLASS_TAG_MAPPING.items():
         if node.tag == tag:
+            if tag in ('!generic_controller', '!web_controller'):
+                # Older saves stored controller ``battle_data`` keyed by the
+                # Battle being loaded (a recursive alias); it's transient, drop it.
+                node.value = [(k, v) for k, v in node.value
+                              if getattr(k, 'value', None) != 'battle_data']
             data = loader.construct_mapping(node, deep=True)
             return cls.from_dict(data)
     raise yaml.constructor.ConstructorError(
@@ -144,11 +305,22 @@ def register_yaml_handlers():
     yaml.SafeDumper.add_representer(uuid.UUID, represent_uuid)
     yaml.SafeDumper.add_representer(np.ndarray, represent_ndarray)
     yaml.SafeDumper.add_representer(DieRollResult, represent_die_roll_result)
+    from natural20.spell.spell import Spell
+    yaml.SafeDumper.add_multi_representer(Spell, represent_spell)
+    SafeLoaderWithConstructors.add_constructor('!spell', spell_constructor)
+    # Actions without their own tag (e.g. UseItemAction in battle_log) are
+    # saved as ActionRecord; exact-class representers above take precedence.
+    yaml.SafeDumper.add_multi_representer(
+        Action,
+        lambda dumper, data: dumper.represent_mapping('!action_record', ActionRecord.from_action(data).to_dict()),
+    )
     # NumPy scalar types (np.int64, np.float32, np.bool_, etc.) are not handled
     # by PyYAML SafeDumper by default.
     yaml.SafeDumper.add_multi_representer(np.integer, represent_np_integer)
     yaml.SafeDumper.add_multi_representer(np.floating, represent_np_floating)
     yaml.SafeDumper.add_multi_representer(np.bool_, represent_np_bool)
+    yaml.SafeDumper.add_multi_representer(object, represent_effect_object)
+    SafeLoaderWithConstructors.add_constructor('!effect_object', effect_object_constructor)
     
     # Register constructors for each tag in our mapping, plus the UUID.
     for tag in list(CLASS_TAG_MAPPING.values()) + ['!uuid']:
@@ -192,6 +364,8 @@ class Serialization:
             battle = state.get('battle')
             maps = state.get('maps')
             session.rebuild_entity_registry(maps=maps, battle=battle)
+            relink_spell_entities(session, maps=maps, battle=battle)
+            relink_battle_log(session, battle)
         except Exception:
             pass
         return state['session'], state['battle'], state['maps']

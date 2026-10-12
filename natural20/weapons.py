@@ -170,19 +170,23 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
     disadvantage = overrides.get('disadvantage', [])
 
     if source.has_effect('attack_advantage_modifier'):
-        advantage_mod, disadvantage_mod = source.eval_effect('attack_advantage_modifier', { "target" : target })
+        advantage_mod, disadvantage_mod = source.eval_effect('attack_advantage_modifier', { "target" : target }) or ([], [])
         advantage += advantage_mod
         disadvantage += disadvantage_mod
 
     if target.has_effect('targeted_advantage_override'):
-        advantage_mod, disadvantage_mod = target.eval_effect('targeted_advantage_override', { "source" : source })
+        advantage_mod, disadvantage_mod = target.eval_effect('targeted_advantage_override', { "source" : source }) or ([], [])
         advantage += advantage_mod
         disadvantage += disadvantage_mod
 
-    if source.is_grappling() and target not in source.grappling_targets():
-        disadvantage.append('grappling')
-    elif source.grappled() and  not source.grappled_by(target):
-        disadvantage.append('grappling')
+    if source.grappled() and not source.grappled_by(target):
+        ruleset = getattr(session, 'ruleset', None)
+        try:
+            grappled_penalty = bool(ruleset.grappled_attack_disadvantage()) if ruleset is not None else False
+        except Exception:
+            grappled_penalty = False
+        if grappled_penalty:
+            disadvantage.append('grappled')
 
     try:
         from natural20.weapon_mastery import consume_sap_disadvantage, consume_vex_advantage

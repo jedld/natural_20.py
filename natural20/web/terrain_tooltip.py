@@ -1,6 +1,9 @@
 """Build per-tile terrain tooltips for map rendering (used by JsonRenderer)."""
 
+import html
+
 from natural20.item_library.object import Object
+from natural20.web.grapple_info import grapple_info, grapple_tooltip_lines
 
 
 def _light_description(tile, battle_map):
@@ -43,7 +46,10 @@ def _thing_descriptions(thing, battle):
         description.append("Unconscious")
     if thing.dead():
         description.append("Dead")
-    if thing.grappled():
+    grapple_lines = grapple_tooltip_lines(grapple_info(thing))
+    if grapple_lines:
+        description.extend(html.escape(line) for line in grapple_lines)
+    elif thing.grappled():
         description.append("Grappled")
     if battle and thing.dodge(battle):
         description.append("Dodge")

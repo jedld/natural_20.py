@@ -72,7 +72,14 @@ class ShieldSpell(Spell):
             if hasattr(result, 'send'):
                 raise AsyncReactionHandler(entity, result, original_action, 'shield')
             if result:
-                return [[event], False]
+                # The +5 AC already counts against the triggering attack.
+                blocks_attack = (
+                    attack_roll is not None
+                    and effective_ac is not None
+                    and not attack_roll.nat_20()
+                    and attack_roll.result() < effective_ac + 5
+                )
+                return [[event], 'force_miss' if blocks_attack else False]
             else:
                 return [[], False]
         else:

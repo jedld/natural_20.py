@@ -51,11 +51,23 @@ class UtilityWizardSpell(Spell):
                            'target_types': target_types}],
                 'next': set_target}
 
+    @staticmethod
+    def _creature_target(target):
+        """Single creature from a target that may be ``[entity]`` (auto-targeting) or ``[x, y]`` (point)."""
+        if isinstance(target, (list, tuple)):
+            creatures = [t for t in target if hasattr(t, 'register_effect')]
+            return creatures[0] if creatures else None
+        return target if hasattr(target, 'register_effect') else None
+
     def resolve(self, entity, battle, spell_action, battle_map):
+        raw_target = spell_action.target
+        target = self._creature_target(raw_target)
+        if target is None and not raw_target:
+            target = entity
         return [{
             'type': 'wizard_spell_effect',
             'source': entity,
-            'target': spell_action.target or entity,
+            'target': target,
             'effect': self,
             'spell': self.properties,
         }]
@@ -66,7 +78,7 @@ class UtilityWizardSpell(Spell):
             return None
         if battle and session is None:
             session = battle.session
-        target = item.get('target')
+        target = UtilityWizardSpell._creature_target(item.get('target'))
         spell = item.get('spell') or {}
         effect = item.get('effect')
         status = spell.get('status') or spell.get('id')
@@ -81,7 +93,8 @@ class UtilityWizardSpell(Spell):
                 'event': 'spell_buf',
                 'spell': effect,
                 'source': item.get('source'),
-                'target': target,
+                # Point-targeted casts have no creature; log them as self-cast.
+                'target': target if target is not None else item.get('source'),
             })
 
 
@@ -462,7 +475,7 @@ class CounterspellSpell(UtilityWizardSpell):
         save_roll = None
         success = False
         if target is not None and hasattr(target, 'save_throw'):
-            save_roll = target.save_throw('constitution', battle=battle, opts={'is_magical': True})
+            save_roll = target.save_throw('constitution', battle=battle, opts={'is_magical': True, 'dc': dc})
             # Failed CON save → spell interrupted (counterspell succeeds)
             success = save_roll.result() < dc
         return [{
@@ -594,10 +607,6 @@ class GustOfWindSpell(AreaSaveSpell):
     BASE_LEVEL = 2
     SHAPE = 'line'
     SAVE = 'strength'
-
-
-class AnimateDeadSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['point']
 
 
 class TeleportSpell(UtilityWizardSpell):

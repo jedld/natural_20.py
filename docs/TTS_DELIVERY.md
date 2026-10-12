@@ -38,6 +38,11 @@ All players use the same mode. The server reads this at bootstrap and after DM s
 - **`manual`**: volume icon immediately; click runs `/tts/generate`.
 - **Playback**: click-to-play in async/manual. Stream mode plays automatically while chunks arrive.
 - Optional auto-play for async: `TTSPlayer.setAutoplay(true)` or `localStorage n20.tts.autoplay=true`.
+- **One voice per browser**: every VTT tab of a login gets the same `reply_id`. This happens, for
+  example, when a DM keeps one window per POV. Before playing, a tab claims the reply in
+  `localStorage` (`n20.tts.claim.<reply_id>`, last writer wins after ~80 ms). Tabs that lose the
+  claim mark the reply as played and skip it, both for WAV autoplay and for live stream PCM.
+  The speak button still replays the line on demand.
 
 ## Socket events
 

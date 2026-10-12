@@ -23,6 +23,8 @@ from natural20.spell.objects.stinking_cloud_gas import StinkingCloudGas
 from natural20.spell.objects.tiny_hut import TinyHutDome
 import logging
 from natural20.web.terrain_tooltip import build_terrain_tooltip
+from natural20.web.grapple_info import grapple_tile_attributes
+from natural20.web.death_save_info import death_save_tile_attributes
 from natural20.utils.magical_aura import magical_auras_for_tile, viewer_has_detect_magic
 
 
@@ -849,6 +851,8 @@ class JsonRenderer:
                                 'team_group': team_group,
                                 'team_border_tint': team_border_tint
                             })
+                            attributes.update(grapple_tile_attributes(entity))
+                            attributes.update(death_save_tile_attributes(entity))
                             if entity_pov:
                                 pov_for_interact = entity_pov[0] if len(entity_pov) == 1 else next(
                                     (ep for ep in entity_pov if ep and not (

@@ -5,7 +5,7 @@ import random
 import re
 from typing import List, Optional, Tuple, Any
 
-from natural20.generic_controller import GenericController
+from natural20.generic_controller import GenericController, is_unbuilt_spell
 from natural20.action import Action
 from natural20.actions.move_action import MoveAction
 from natural20.actions.attack_action import AttackAction
@@ -584,12 +584,17 @@ class LlmMcpController(GenericController):
 		``pass (end turn)`` ends the turn by returning ``None``; any failure
 		falls back to the generic heuristic action logic.
 		"""
+		release = self.grapple_release_action(entity, battle)
+		if release is not None:
+			return release
 		prov = getattr(self, "llm_provider", None)
 		if prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
 				and getattr(prov, "is_available", False):
 			try:
 				from natural20.utils.jev_decision import jev_select_action
 				action = jev_select_action(prov, battle, entity)
+				if is_unbuilt_spell(action):
+					action = None
 				if action is not None:
 					if getattr(action, "action_type", None) == "end_turn":
 						# Explicit pass: end the turn (the loop breaks on None).
@@ -1144,8 +1149,8 @@ class LlmMcpController(GenericController):
 					'reachable': False
 				}
 			
-			# Calculate movement cost
-			movement_cost_ft = (len(path) - 1) * feet_per
+			from natural20.utils.grappling import drag_cost_multiplier
+			movement_cost_ft = (len(path) - 1) * feet_per * drag_cost_multiplier(entity)
 			
 			# Check for opportunity attacks
 			triggers_oa, oa_foe = self._move_oa_info(battle, entity, path)
@@ -1228,8 +1233,8 @@ class LlmMcpController(GenericController):
 					'reachable': False
 				}
 			
-			# Calculate movement cost
-			movement_cost_ft = (len(best_path) - 1) * feet_per
+			from natural20.utils.grappling import drag_cost_multiplier
+			movement_cost_ft = (len(best_path) - 1) * feet_per * drag_cost_multiplier(entity)
 			
 			# Check for opportunity attacks
 			triggers_oa, oa_foe = self._move_oa_info(battle, entity, best_path)
@@ -1274,7 +1279,8 @@ class LlmMcpController(GenericController):
 			# Get available movement
 			state = battle.entity_state_for(entity) or {}
 			movement_left = state.get('movement', getattr(entity, 'speed', lambda: 0)())
-			movement_grids = movement_left // feet_per
+			from natural20.utils.grappling import drag_cost_multiplier
+			movement_grids = movement_left // (feet_per * drag_cost_multiplier(entity))
 			
 			if movement_grids <= 0:
 				return {
@@ -1461,7 +1467,7 @@ class LlmMcpController(GenericController):
 		if getattr(entity, 'dead', lambda: False)() or getattr(entity, 'unconscious', lambda: False)():
 			return None
 
-		available_actions = [action for action in (available_actions or []) if action is not None and not getattr(action, 'disabled', False)]
+		available_actions = [action for action in (available_actions or []) if action is not None and not getattr(action, 'disabled', False) and not is_unbuilt_spell(action)]
 		if not available_actions:
 			return None
 
@@ -1938,6 +1944,13 @@ class LlmMcpController(GenericController):
 			speed_txt = f", speed {speed} ft" if speed else ''
 			lines.append(f"{entity.name}, {ident}, at {pos_txt}")
 			lines.append(f"HP {entity.hp()}/{entity.max_hp()} ({hp_b}), temp HP {temp}{ac_txt}{speed_txt}")
+			try:
+				from natural20.utils.grappling import grapple_status_text
+				grapple_txt = grapple_status_text(entity)
+				if grapple_txt:
+					lines.append(grapple_txt)
+			except Exception:
+				pass
 			weapons, to_hit, armors = self._gear_breakdown(entity, self.session)
 			weapons_txt = ', '.join(weapons[:6]) if weapons else 'unarmed'
 			armors_txt = ', '.join(armors[:4]) if armors else 'none'
@@ -2170,6 +2183,13 @@ class LlmMcpController(GenericController):
 					if not isinstance(tgt, (DoorObject, TrapDoor)) and any(battle.can_see(entity, e) for e in battle.opponents_of(entity)):
 						return f"{idx}. interact {tgt_name} [{act_name or 'use'}] (non-combat; enemies present!)"
 					return f"{idx}. interact {tgt_name} [{act_name or 'use'}]"
+				if a.action_type == 'drop_grapple':
+					held = getattr(a, 'target', None)
+					held_name = getattr(held, 'name', None) or 'all held creatures'
+					return f"{idx}. release grapple on {held_name} (free, no action; restores full speed)"
+				if a.action_type in ('summon_creatures', 'dismiss_summons'):
+					cost = 'bonus action' if a.as_bonus_action else 'action'
+					return f"{idx}. {a.describe()} ({cost})"
 				# Generic fallback
 				return f"{idx}. {a.action_type}"
 			except Exception:
@@ -2244,6 +2264,15 @@ class LlmMcpController(GenericController):
 		state = battle.entity_state_for(entity) or {}
 		movement_left = state.get('movement', getattr(entity, 'speed', lambda: 0)())
 		resources = f"action={state.get('action', 0)}, bonus={state.get('bonus_action', 0)}, reaction={state.get('reaction', 0)}, movement={movement_left} ft"
+		try:
+			from natural20.utils.grappling import drag_cost_multiplier
+			if drag_cost_multiplier(entity) > 1:
+				resources += f" (dragging a grappled creature: only {int(movement_left) // 2} ft of distance)"
+		except Exception:
+			pass
+		legendary_note = self._legendary_note(entity, state)
+		if legendary_note:
+			resources = f"{resources}, {legendary_note}"
 		hp_pct = (hp_val / max_hp_val) if (hp_val is not None and max_hp_val) else 1.0
 		concentration = self._concentration_label(entity)
 		# Nearest enemy (distance + name)
@@ -2527,6 +2556,26 @@ class LlmMcpController(GenericController):
 			return f"{getattr(action, 'action_type', 'action')}{f' {tname}' if tname else ''}"
 		except Exception:
 			return getattr(action, 'action_type', 'action')
+
+	def _legendary_note(self, entity, state) -> str:
+		"""Summarize the legendary pool so the turn plan can stay within reach
+		of foes; the options themselves are spent automatically at the end of
+		other creatures' turns."""
+		options = getattr(entity, 'legendary_actions', None) or []
+		if not options:
+			return ""
+		try:
+			from natural20.utils.legendary_actions import legendary_action_cost, legendary_pool_size
+			names = []
+			for opt in options:
+				if not isinstance(opt, dict):
+					continue
+				cost = legendary_action_cost(opt)
+				names.append(f"{opt.get('name', opt.get('type', '?'))}{f' ({cost})' if cost > 1 else ''}")
+			return (f"legendary={state.get('legendary_actions', 0)}/{legendary_pool_size(entity)} "
+					f"[{', '.join(names)}; used after other creatures' turns]")
+		except Exception:
+			return ""
 
 	def _low_slots_note(self, entity) -> str:
 		"""Return 'Low slots: L2 L3' if any levels have 1 or fewer slots remaining."""

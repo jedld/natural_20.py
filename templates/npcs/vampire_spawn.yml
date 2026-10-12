@@ -43,7 +43,12 @@ attributes:
   - spider_climb
   - sunlight_sensitivity
   - multiattack
+regeneration:
+  hp: 10
+  suppressed_by: [radiant, holy_water]
+  blocked_by: [sunlight, running_water]
 multiattack:
+  - claws,claws2
   - claws,bite
 equipped: []
 actions:
@@ -56,6 +61,19 @@ actions:
     damage_die: 2d4+3
     damage_type: slashing
     multiattack_group: 1
+    grapple_instead:
+      escape_dc: 13
+  - name: claws2
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 8
+    damage_die: 2d4+3
+    damage_type: slashing
+    multiattack_group: 1
+    grapple_instead:
+      escape_dc: 13
   - name: bite
     type: melee_attack
     range: 5
@@ -65,10 +83,8 @@ actions:
     damage_die: 1d6+3
     damage_type: piercing
     multiattack_group: 1
-    on_hit:
-      - description: >
-          Plus 7 (2d6) necrotic damage. The target's hit point maximum is
-          reduced by the necrotic damage, and the spawn regains that many
-          hit points.
-        flavor_fail: specter.life_drain
-        fail: effect:life_drain
+    target_if: [willing, grappled_by_source, incapacitated, restrained]
+    additional_damage:
+      - damage_die: 2d6
+        damage_type: necrotic
+        life_drain: true

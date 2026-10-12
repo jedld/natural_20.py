@@ -31,11 +31,11 @@ class FireboltSpell(AttackSpell):
     def _damage(self, battle, crit=False, opts=None):
         entity = self.source
         level = 1
-        if entity.level() >= 5:
+        if entity.cantrip_level() >= 5:
             level += 1
-        if entity.level() >= 11:
+        if entity.cantrip_level() >= 11:
             level += 1
-        if entity.level() >= 17:
+        if entity.cantrip_level() >= 17:
             level += 1
         return DieRoll.roll(f"{level}d10", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')))
 
