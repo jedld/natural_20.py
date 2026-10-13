@@ -64,11 +64,16 @@ def _wild_shape_duration_rounds(druid_level):
   return hours * 600
 
 
-def _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=None):
-  """Overlay beast statblock onto druid (no snapshot capture)."""
+def _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=None, replace_mental=False):
+  """Overlay beast statblock onto druid (no snapshot capture).
+
+  Wild Shape keeps the druid's mental scores; Polymorph replaces all six
+  (``replace_mental``).
+  """
   new_scores = copy.deepcopy(druid.ability_scores)
   beast_ability = props.get('ability', {})
-  for k in ('str', 'dex', 'con'):
+  keys = ('str', 'dex', 'con', 'int', 'wis', 'cha') if replace_mental else ('str', 'dex', 'con')
+  for k in keys:
     if beast_ability.get(k) is not None:
       new_scores[k] = beast_ability[k]
   druid.ability_scores = new_scores
@@ -109,7 +114,17 @@ def transform(druid, beast_id):
   if not can_assume(props, getattr(druid, 'druid_level', None)):
     raise ValueError(f'beast {beast_id} not legal at druid level '
                      f'{getattr(druid, "druid_level", None)}')
+  assume_form(druid, beast_id, props,
+              duration_rounds=_wild_shape_duration_rounds(getattr(druid, 'druid_level', 2) or 2))
 
+
+def assume_form(druid, beast_id, props, *, source='wild_shape', replace_mental=False,
+                duration_rounds=None, meta=None):
+  """Snapshot the creature and overlay ``props`` (a beast statblock).
+
+  ``source`` tags who owns the form (``wild_shape`` or ``polymorph``);
+  ``meta`` is extra JSON-safe data kept on the state (e.g. caster uid).
+  """
   snapshot = {
     'ability_scores': copy.deepcopy(druid.ability_scores),
     'max_hp_property': druid.properties.get('max_hp'),
@@ -126,14 +141,17 @@ def transform(druid, beast_id):
     'has_token_image_key': 'token_image' in druid.properties,
   }
 
-  _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=beast_id)
+  _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=beast_id,
+                       replace_mental=replace_mental)
 
   druid._wild_shape_state = {
     'form': beast_id,
     'beast_props': props,
     'snapshot': snapshot,
-    'duration_rounds_left': _wild_shape_duration_rounds(
-      getattr(druid, 'druid_level', 2) or 2),
+    'duration_rounds_left': duration_rounds,
+    'source': source,
+    'replace_mental': bool(replace_mental),
+    **(meta or {}),
   }
 
 
@@ -182,7 +200,8 @@ def reapply_after_load(druid):
   beast = state.get('beast_props')
   if not beast:
     return
-  _apply_beast_overlay(druid, beast, set_full_hp=False, beast_id=state.get('form'))
+  _apply_beast_overlay(druid, beast, set_full_hp=False, beast_id=state.get('form'),
+                       replace_mental=state.get('replace_mental', False))
 
 
 def revert(druid, overflow_damage=0, battle=None):
@@ -247,7 +266,13 @@ def revert(druid, overflow_damage=0, battle=None):
 
 
 def is_wild_shaped(druid):
+  """True while any beast form overlay is active (Wild Shape or Polymorph)."""
   return bool(getattr(druid, '_wild_shape_state', None))
+
+
+def form_source(druid):
+  state = getattr(druid, '_wild_shape_state', None)
+  return (state.get('source') or 'wild_shape') if state else None
 
 
 def current_form(druid):

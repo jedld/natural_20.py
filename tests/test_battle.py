@@ -244,6 +244,30 @@ class TestBattle(unittest.TestCase):
         self.assertEqual(payload['message']['spell'], 'fireball')
         self.assertEqual(payload['message']['target_pos'], [7, 3])
 
+    def test_spell_animation_payload_with_tuple_targets_is_json_safe(self):
+        """Multi-target spells chosen by the AI arrive with a tuple of entities."""
+        import json
+        from natural20.battle import action_animator
+        from types import SimpleNamespace
+
+        session = self.make_session()
+        goblin = session.npc('goblin', {'name': 'g1'})
+        goblin2 = session.npc('goblin', {'name': 'g2'})
+        action = SimpleNamespace(
+            action_type='spell',
+            source=SimpleNamespace(entity_uid='wizard'),
+            target=(goblin, goblin2),
+            spell_action=SimpleNamespace(
+                short_name=lambda: 'acid_splash',
+                properties={'id': 'acid_splash'},
+            ),
+            label=lambda: 'Acid Splash',
+        )
+
+        payload = action_animator(action)
+        self.assertEqual(payload['message']['target'], [goblin.entity_uid, goblin2.entity_uid])
+        json.dumps(payload)
+
     def test_look_animation_payload_includes_perception_roll(self):
         from natural20.battle import action_animator
         from types import SimpleNamespace

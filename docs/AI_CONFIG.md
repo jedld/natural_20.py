@@ -87,6 +87,10 @@ Where each setting is used:
 - **LLM combat provider.** `ai_config.combat_llm_provider_for(handler, entity)` resolves it, with
   fallbacks: per-NPC profile, then `combat.llm_provider`, then the `battle` slot, then the `dm` slot.
   It is used by `/battle`, `/update_controller`, MCP `dm.set_controller` and auto-battles.
+  It applies to any entity with an `llm` controller, including player characters. To run every
+  `llm` combatant on JEV, point the `battle` profile at `provider: jev` (or set
+  `BATTLE_LLM_PROVIDER=jev`) and leave `combat.llm_provider` unset or `battle`. A PC can be
+  overridden by its `entity_uid` under `npcs:`.
 - **Conversation and task providers.** `LLMConversationController.generate_response` tags each call
   with `entity_uid` and `ai_role`. A conversation id of the form `<uid>:goal|movement|environment|long_rest*`
   is a task. `LLMHandler.npc_provider_resolver`, installed by `configure_ai`, swaps in the profile's

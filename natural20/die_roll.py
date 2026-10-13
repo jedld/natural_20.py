@@ -590,7 +590,9 @@ class DieRoll(Rollable):
         rolls_str = ' + '.join(roll_parts)
         
         # Handle legacy modifier
-        if self.modifier != 0:
+        if not self.die_sides:
+            base_str = str(self.modifier)
+        elif self.modifier != 0:
             sign = ' - ' if self.modifier < 0 else ' + '
             base_str = f"d{self.die_sides}({rolls_str}){sign}{abs(self.modifier)}"
         else:

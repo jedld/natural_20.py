@@ -5,12 +5,25 @@ import math
 
 
 
+def _reasons_text(reasons):
+    """``['target_is_prone']`` -> `` (target is prone)``."""
+    if not reasons:
+        return ''
+    if isinstance(reasons, str):
+        reasons = [reasons]
+    words = [str(r).replace('_', ' ').strip() for r in reasons if r]
+    return f" ({', '.join(w for w in words if w)})" if words else ''
+
+
 def to_advantage_str(item):
     if 'adv_info' not in item or item['adv_info'] is None:
         return ''
     advantage_info, disadvantage_info = item['adv_info']
-    advantage_str = f' with advantage{advantage_info}' if item['advantage_mod'] > 0 else f' with disadvantage{disadvantage_info}' if item['advantage_mod'] < 0 else ''
-    return advantage_str
+    if item['advantage_mod'] > 0:
+        return f' with advantage{_reasons_text(advantage_info)}'
+    if item['advantage_mod'] < 0:
+        return f' with disadvantage{_reasons_text(disadvantage_info)}'
+    return ''
 
 
 def _spell_class_key(spell_details):
@@ -39,7 +52,13 @@ def damage_event(item, battle):
             item['damage'] = item['damage'].half()
         else:
             item['damage'] = int(item['damage']) // 2
+        sneak = item.get('sneak_attack')
+        if sneak is not None and sneak is not False:
+            item['sneak_attack'] = sneak.half() if hasattr(sneak, 'half') else int(sneak) // 2
         item['uncanny_dodge'] = True
+        hit_state = item.get('_hit_state')
+        if isinstance(hit_state, dict):
+            hit_state['uncanny_dodge'] = True
         battle.consume(target, 'reaction')
         session.event_manager.received_event({
             'source': target,
@@ -451,6 +470,9 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
                 r['source_spell'] = 'hellish_rebuke'
                 damage_event(r, battle)
                 events.append(r)
+
+    from natural20.actions.wrath_of_the_storm_action import wrath_of_the_storm_reaction
+    events.extend(wrath_of_the_storm_reaction(battle, target, attacker, damage_opts))
 
     # Phase 3 reaction registry: trigger 'damage_taken' window for any
     # handler registered via ``Battle.register_reaction_trigger``.

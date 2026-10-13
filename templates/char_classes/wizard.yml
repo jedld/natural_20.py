@@ -91,6 +91,7 @@ spell_list:
     - protection_from_energy
     - slow
     - stinking_cloud
+    - sleet_storm
   level_4:
     - blight
     - greater_invisibility

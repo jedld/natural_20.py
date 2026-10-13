@@ -86,15 +86,17 @@ def _animation_uid(value):
         return None
     if isinstance(value, uuid.UUID):
         return str(value)
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [_animation_uid(v) for v in value]
+    if hasattr(value, 'entity_uid'):
+        return _animation_uid(value.entity_uid)
     return value
 
 
 def _attack_animation_missed(action):
     """True when the resolved attack result includes a miss (no damage dealt)."""
     for item in getattr(action, 'result', None) or []:
-        if isinstance(item, dict) and item.get('type') == 'miss':
+        if isinstance(item, dict) and item.get('type') in ('miss', 'blind_miss'):
             return True
     return False
 
@@ -228,7 +230,7 @@ def _damage_events_from_action(action, battle=None):
 def action_animator(action, battle=None):
     def target_id(action):
         if hasattr(action, 'target') and action.target:
-            if isinstance(action.target, list):
+            if isinstance(action.target, (list, tuple)):
                 return [
                     _animation_uid(t.entity_uid if isinstance(t, Entity) else t)
                     for t in action.target
@@ -240,6 +242,10 @@ def action_animator(action, battle=None):
 
     if action and action.action_type == 'attack':
         target_pos, target_positions = _target_grid_positions(battle, getattr(action, 'target', None))
+        blind_square = getattr(action, 'target_square', None)
+        if target_pos is None and blind_square is not None:
+            target_pos = [int(blind_square[0]), int(blind_square[1])]
+            target_positions = [target_pos]
         message = {
             'target': target_id(action),
             'source': _animation_uid(action.source.entity_uid),
@@ -315,16 +321,21 @@ def action_animator(action, battle=None):
             message['perception_roll_label'] = perception_roll_label
         return {'type': 'spell', 'message': message}
     else:
-        return {
-            'type': 'spell',
-            'message': {
-                'target': target_id(action),
-                'source': _animation_uid(action.source.entity_uid),
-                'type': action.action_type,
-                'label': action.label(),
-                'spell': action.action_type
-            }
+        message = {
+            'target': target_id(action),
+            'source': _animation_uid(action.source.entity_uid),
+            'type': action.action_type,
+            'label': action.label(),
+            'spell': action.action_type
         }
+        target_pos, target_positions = _target_grid_positions(battle, getattr(action, 'target', None))
+        if target_pos is not None:
+            message['target_pos'] = target_pos
+            message['target_positions'] = target_positions
+        damage_events = _damage_events_from_action(action, battle)
+        if damage_events:
+            message['damage_events'] = damage_events
+        return {'type': 'spell', 'message': message}
 
 class Battle():
     def __init__(self, session: Session, maps: Map, standard_controller=None, animation_log_enabled=False):
@@ -399,6 +410,8 @@ class Battle():
         self._install_goes_down_bridge()
         self._install_object_interaction_bridge()
         self._install_concentration_break_bridge()
+        from natural20.utils.combat_comms import register_battle
+        register_battle(self)
 
     def current_round(self):
         return self.round
@@ -566,7 +579,8 @@ class Battle():
         self.event_manager.received_event({"event": 'start_of_combat',
                                            "target" : self.current_turn,
                                            "combat_order" : [[e, self.entities[e]['initiative']] for e in self.combat_order],
-                                           "players" : self.entities })
+                                           "players" : self.entities,
+                                           "battle": self })
 
     def roll_for(self, entity, die_type, number_of_times, description, advantage=False, disadvantage=False, controller=None):
         return DieRoll.roll_for(die_type, number_of_times, advantage, disadvantage)
@@ -760,6 +774,9 @@ class Battle():
         # turn, regardless of whether the trigger fired.
         if self.readied_actions and entity is not None:
             self.clear_ready_action(entity)
+        if entity.dead():
+            # Died on this turn's death save: there is no turn to start.
+            return
         self.trigger_event('start_of_turn', self, { "target" : entity })
         state = self.entity_state_for(entity)
         if state is not None:
@@ -1225,6 +1242,8 @@ class Battle():
         elif action.action_type == 'attack':
             if self.animation_log_enabled:
                 self.animation_log.append(action_animator(action, self))
+            from natural20.utils.unseen_targets import note_noise
+            note_noise(self, action.source)
             # Fire the ``attacked`` event so any readied actions whose trigger
             # depends on the readier being attacked can react. Note this fires
             # after the attack resolves; the readied action is then executed
@@ -1268,6 +1287,8 @@ class Battle():
             # enemy casts at you).
             if action.action_type == 'spell':
                 from natural20.actions.spell_action import spell_action_provokes_hostility
+                from natural20.utils.unseen_targets import note_noise
+                note_noise(self, action.source)
                 if spell_action_provokes_hostility(action):
                     try:
                         target = getattr(action, 'target', None)

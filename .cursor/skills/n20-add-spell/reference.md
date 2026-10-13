@@ -56,6 +56,8 @@ python scripts/sync_spell_upcast_metadata.py --write
 
 Legacy aliases `higher_level: true` and `scales_with_slot: true` are still read but `upcast` is preferred.
 
+Slot healing spells set `heal_dice` (base) and `heal_dice_per_slot` (added per level above the base level), read through `slot_healing_dice` in `natural20/spell/cure_wounds_spell.py`. If the dice differ by edition, override them in `templates/rulesets/5e-2024/items/spells.yml`.
+
 ## Python class skeleton (concentration debuff)
 
 ```python
@@ -142,6 +144,10 @@ register('hold person', function(payload){ return play('hold_person', payload); 
 ```
 
 ### Effect icon PNG
+
+With an image generation tool: ask for a flat vector game icon, one centered emblem on a plain light-gray background, glossy flat shading, no text or border. Pass existing icons (e.g. `static/spells/spell_stinking_cloud.png`) as style references. Resize to 128×128 RGB and save it as both `static/spells/spell_<slug>.png` and `static/assets/effect/<slug>.png`.
+
+For point-targeted spells, the animator sends `target: [x, y]` (numbers) plus `target_pos`. Use `pointCenter(payload)` in `spell_effects.js`. The 3D `targetsOf` treats a numeric pair as one grid point. Multi-target heals can set `allTargets: true` on a 3D `heal` recipe.
 
 Quick local asset (no API):
 

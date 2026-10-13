@@ -28,8 +28,10 @@ Engine
 - [ ] templates/char_classes/*.yml — spell_list level slot (if new to a class)
 - [ ] tests/test_<slug>_spell.py or extend tests/test_spell_action.py
 
-VTT (buff/debuff/concentration — skip for pure instant damage with no ongoing effect)
-- [ ] webapp/static/assets/effect/<slug>.png — tile/portrait icon
+VTT
+- [ ] webapp/static/spells/spell_<slug>.png — action-bar + concentration portrait icon (128×128 PNG, every spell)
+- [ ] webapp/static/assets/effect/<slug>.png — tile effect icon (same art; buff/debuff/concentration)
+- [ ] Ground areas: tile object subclasses spell/objects/zone_tile.py (save/load) + json_renderer marker flag + map.html / map_overlay_tiles.html div + styles.css
 - [ ] webapp/static/spell_effects.js — register('<slug>', cast animation)
 - [ ] n20-webapp/client-3d/src/fx/spellCatalog.js — 3D recipe (kind/color/duration; alias if the label has spaces)
 - [ ] webapp/static/status_effects.js — EFFECT_CLASS + CSS if persistent overlay while active
@@ -70,6 +72,7 @@ Verify
 
 - Spell classes live in `natural20/spell/`, registered only via `spell_loader.py`.
 - YAML: `spell_class: Natural20::FooSpell` matches `FooSpell` in loader dict.
+- AI hints in YAML: `hostile: true|false` overrides friendly-fire classification; `ai_in_combat: false` keeps non-combat utility spells (Mage Hand, Detect Magic, ...) out of AI option lists while enemies are up.
 - `resolve` returns typed result items (`type: 'hold_person'`, `spell_damage`, etc.); `apply` checks that type and returns the target (not `None`) when handled.
 - Line-of-sight targeting: `acquire_targets` uses `map.can_see` when `range` is set on `select_target`.
 - Serialize-friendly: effect objects must be Spell instances with stable `id` from YAML properties.

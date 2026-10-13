@@ -1136,6 +1136,11 @@ All state lives in `entity.attributes`, so it is saved/loaded with the game.
 ```yaml
 legendary_resistance: 3            # N/day; listing `legendary_resistance` under
                                    # `attributes` also works (= 3). Resets on long rest.
+legendary_resistance_policy:       # optional; defaults shown
+  concentration: auto              # auto | always | never (concentration checks only)
+  concentration_min_level: 3       # auto: protect only spells of this level or higher
+  concentration_reserve: 1         # auto: uses always kept back for saves against effects
+  concentration_per_round: 1       # auto: at most this many concentration rescues per round
 regeneration:
   hp: 20                           # regained at the start of its turn (needs >= 1 HP)
   suppressed_by: [radiant, holy_water]   # damage types/attack names that stop it next turn
@@ -1185,9 +1190,19 @@ actions:
 
 Behaviour notes:
 
+- **Finishing downed foes**: by default AI combatants leave creatures at 0 HP alone while a
+  standing foe can be attacked, because hitting a dying creature only adds death save failures.
+  Set `finish_downed: true` on a ruthless NPC (or PC) to keep attacking the fallen.
 - **Legendary Resistance** applies to any save rolled with a DC (`save_throw(..., opts={'dc': n})`,
   `SaveCheck`, spell and attack riders). Pure probability estimates that call `save_throw`
   without a DC never spend a use. The log reads "… uses Legendary Resistance to succeed instead".
+  Concentration checks (damage-triggered CON saves) follow `legendary_resistance_policy`. Under
+  `auto` a use is spent only when the spell is level 3 or higher, it is affecting at least one
+  living enemy, and more than `concentration_reserve` uses remain. A minor buff is never worth a
+  daily use, and the last one stays for a Hold Person or Banishment save. At most
+  `concentration_per_round` uses (default 1) go to concentration each round, so a Magic Missile
+  or Scorching Ray volley that forces one check per hit cannot drain the pool in a single turn. `always` restores the old
+  "spend on every failed save" behaviour; `never` keeps uses for effects only.
 - **Sunlight / running water**: a creature is in sunlight with the `in_sunlight` status, a map
   `sunlight: true`, or `sunlight: day` while the campaign clock is not night. Running water is the
   `in_running_water` status or a square in the map's `running_water_squares`.
@@ -1253,6 +1268,78 @@ summons:
   `attributes.active_summons`. Summoned creatures carry `properties.summoner_uid`.
   All of it is saved with the game.
 
+#### Polymorph and beast forms
+
+The *Polymorph* spell (`natural20/spell/polymorph_spell.py`) turns a PC or NPC into a beast
+statblock from `npcs/<beast>.yml`. The shared helpers are in `natural20/utils/polymorph.py`,
+so other effects that work the same way can reuse them.
+
+```yaml
+polymorph:          # templates/items/spells.yml (override per campaign)
+  beast_form: wolf          # used for willing / allied targets
+  hostile_beast_form: cat   # used for unwilling targets that fail the Wisdom save
+```
+
+- **Saves**: an unwilling (opposing) target makes a Wisdom save, and the result is logged in
+  both cases: `save_fail` on a failure, a spell miss on a success. Allies are willing and don't
+  save. Shapechangers (race `shapechanger`) and creatures at 0 HP are unaffected and get a
+  "Polymorph has no effect" log line. The beast's CR is capped at the target's CR (for NPCs) or
+  level (for PCs); if the configured form is too strong, the hostile form is used instead.
+- **The form**: all statistics, including INT/WIS/CHA, come from the beast. The target gets
+  the beast's HP, the `polymorphed` status, and only basic actions: attacks, movement, Dodge,
+  Hide, grapple and so on. It can't cast spells, use items, or use class/monster features.
+  For a PC, `class_feature()` only answers from the beast's `attributes`, so reactions such
+  as Uncanny Dodge and race traits such as Lucky are unavailable in the form. Wild Shape
+  keeps them. AI creatures avoid attacking a foe their own side polymorphed while another
+  foe can be targeted (`polymorph.polymorphed_by_side_of`). PCs reuse the Wild Shape overlay (`_wild_shape_state` with `source: polymorph`, so the
+  druid's "Revert Wild Shape" action is not offered). NPCs snapshot their statblock into
+  `properties.polymorph_state`. Both are saved with the game.
+- **Ending**: the form ends when the caster's concentration ends (damage, a new
+  concentration spell, or dismissal). It also ends when the beast drops to 0 HP: the creature
+  reverts, excess damage carries over to its normal HP, and the spell ends. A big hit on a
+  tiny beast form is not treated as massive damage against the real creature. Wild Shape
+  forms use the same 0 HP carry-over path (`Entity.take_damage` → `end_assumed_form`).
+
+#### Spell areas, material costs and casting requirements
+
+Level 3 SRD spells that cover an ongoing area or have special costs use generic YAML keys
+(`templates/items/spells.yml`), so campaign spells can reuse them:
+
+```yaml
+revivify:
+  consumed_materials:          # spent on cast; the spell is greyed out without them
+    - { item: diamond, qty: 1 }
+  max_dead_seconds: 60         # corpse age limit (death_info.game_time)
+call_lightning:
+  requires: [open_sky]         # also: outdoors, indoors
+  min_ceiling_ft: 100          # open_sky = map outdoors, or ceiling_height >= this
+spirit_guardians:
+  ai_no_recast: true           # AI won't recast while already concentrating on it
+```
+
+- **Map keys**: `outdoors: true`, `ceiling_height: <ft>` (open sky checks), and `stormy: true`
+  or a `weather` string containing storm words (Call Lightning's extra damage die).
+- **Persistent zones** (`natural20/spell/extensions/persistent_zone.py`): Spirit Guardians (a
+  15-ft emanation that moves with the caster and only hurts creatures opposing the caster), Sleet
+  Storm, Stinking Cloud and Grease. A zone can define `slows(entity, pos)`, and
+  `Map.difficult_terrain` honours it. Their tile objects subclass
+  `natural20/spell/objects/zone_tile.py` (`ZoneTile`), and both zones and tiles survive save/load
+  through the `!persistent_zone` and `!zone_tile` serialization tags.
+- **Call Lightning** leaves a storm on the caster. While they concentrate, a
+  `CallLightningBoltAction` (one action per turn) calls a new bolt anywhere under the 60-ft cloud.
+- **Revivify** targets a corpse square (`select_square` with `require_corpse`,
+  `corpse_max_age_seconds`, `corpse_allies_only`). It brings the creature back with
+  `Entity.revive(hp=1)`.
+- **Mass Healing Word** auto-targets the six most wounded allies (`select_target` with
+  `auto_pick: most_wounded`).
+- **Domain spells** (for example Tempest's Call Lightning and Sleet Storm) count as cleric spells
+  for slots, even when they come from another class's list.
+- **VTT**: each spell has an action-bar icon (`static/spells/spell_<id>.png`) and an effect icon
+  (`static/assets/effect/<id>.png`), plus a cast animation in `spell_effects.js` and the 3D
+  `spellCatalog.js`. Spirit Guardians draws a 15-ft aura around the caster, an active Call
+  Lightning storm shows a halo on the caster (`status_effects.js`), and Sleet Storm squares get a
+  `.sleet-storm-marker` overlay.
+
 ### NPC Overrides in Maps
 
 When placing NPCs in a map, use `overrides` to customize their behavior
@@ -1314,7 +1401,7 @@ legend:
 |---|---|---|
 | `entity_uid` | string | Unique identifier for the entity |
 | `label` | string | Display name override |
-| `token_image` | string | Custom token image filename |
+| `token_image` | string | Custom token image filename. When omitted, the token is `token_<slug>.png`, where the slug is the lowercased `kind` (or `sub_type`/`name`) with non-alphanumerics turned into `_` (e.g. "Swarm of Bats" → `token_swarm_of_bats.png`). `/assets/` searches the campaign, imported campaigns, expansion packs, the ruleset overlay, then `templates/assets/` |
 | `hp` | int | Override max HP |
 | `passive` | bool | Non-hostile; won't initiate combat |
 | `dialog` | bool | Entity can be talked to |
@@ -1411,6 +1498,10 @@ Tasha’s Expert / Spellcaster / Warrior tables are **not** in core. Opt in with
 Player character sheets live in `characters/` and define a full D&D 5e
 character.
 
+Class features come from the class YAML's `progression` (`level_N.class_features`), so a campaign that overrides `char_classes/<class>.yml` must keep those sections. Otherwise features such as the Fighter's Action Surge and Extra Attack silently disappear. Subclasses are top-level keys on the sheet: `martial_archetype` (Fighter), `roguish_archetype` (Rogue), `arcane_tradition` (Wizard), and `divine_domain` (Cleric).
+
+**Eldritch Knight:** set `martial_archetype: eldritch_knight`, then list wizard cantrips under `cantrips` and known spells under `prepared_spells`. Spell slots follow the PHB third-caster table, keyed under `fighter` (3 first-level slots at Fighter 5). Wizard-list spells are cast from those slots using INT (`Fighter.borrowed_spell_list_classes` → `Entity.spell_list_classes_for`). Weapon Bond and War Magic are not implemented.
+
 ### Initial journal entries
 
 PC YAML may include a `journal` (or `initial_journal`) list. Each item is
@@ -1430,6 +1521,52 @@ conversation beats from the fight. Disable per campaign with:
 ```yaml
 battle_combat_recap:
   enabled: false
+```
+
+To give the DM time to narrate, AI-controlled combatants (NPCs and AI/LLM
+PCs) can wait for the DM to end their turn instead of passing initiative
+automatically. A human DM is assumed: if no DM is logged in, the held turn
+waits until one logs in and ends it. The DM can also flip it live with the **DM ends AI turns** checkbox in the Battle
+Turn Order panel; that choice is saved with the game and overrides this
+default:
+
+```yaml
+battle_pacing:
+  dm_ends_ai_turns: true
+```
+
+When a battle starts, the combat log shows the DM (only) a roster:
+- HP totals for each team.
+- One line per combatant in initiative order, with:
+  - starting HP and max HP, AC, speed and passive Perception;
+  - equipped weapons and armor (damage, range, AC);
+  - NPC attacks with to-hit and damage;
+  - conditions, concentration, active buffs, damage defenses, Legendary
+    Resistance and beast form.
+
+Each turn also adds a DM-only line with that creature's current HP, AC and
+conditions. Both come from `natural20/utils/combat_roster.py` and are logged
+with `visibility='dm'`.
+
+Every team that includes a player character also gets a party briefing. Only
+that team's members, and the players who control them, can see it:
+- `[Party]` lines give full stats for partymates and sidekicks (HP, AC, gear,
+  conditions).
+- `[Foes]` lines describe each enemy the team can see: size, outward
+  appearance (YAML `outward_appearance`, otherwise derived from race, class
+  and gear), rough health (unhurt / lightly wounded / bloodied / badly
+  wounded / down), visible gear and visible conditions. They never show HP,
+  AC, to-hit, defenses or creature type.
+
+Hidden or invisible enemies are left out.
+
+Turn each part off per campaign:
+
+```yaml
+combat_log:
+  dm_summary: false       # roster at start of combat
+  dm_turn_status: false   # HP/conditions line at the start of each turn
+  party_briefing: false   # partymates + enemy descriptions for players
 ```
 
 When a `dialog: true` NPC kills a player character mid-battle, its conversation

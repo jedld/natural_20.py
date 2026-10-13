@@ -74,6 +74,53 @@ class TestLegendaryResistance(MonsterTraitsTestBase):
         self.assertEqual(legendary_resistance_remaining(self.vampire), 3)
 
 
+class TestLegendaryResistanceConcentration(MonsterTraitsTestBase):
+    def effect(self, level, target=None):
+        from types import SimpleNamespace
+        return SimpleNamespace(properties={'level': level},
+                               action=SimpleNamespace(target=target or self.pc))
+
+    def check(self, effect):
+        DieRoll.fudge(1)
+        return self.vampire.save_throw('constitution', self.battle, {'dc': 10, 'concentration': effect})
+
+    def test_minor_spell_is_not_worth_a_use(self):
+        self.assertLess(self.check(self.effect(1)).result(), 10)
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 3)
+
+    def test_major_spell_on_an_enemy_is_protected(self):
+        self.assertGreaterEqual(self.check(self.effect(4)).result(), 10)
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 2)
+
+    def test_last_use_is_kept_for_real_saves(self):
+        self.vampire.attributes['legendary_resistance_used'] = 2
+        self.assertLess(self.check(self.effect(4)).result(), 10)
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 1)
+
+    def test_only_one_concentration_rescue_per_round(self):
+        self.assertGreaterEqual(self.check(self.effect(4)).result(), 10)
+        self.assertLess(self.check(self.effect(4)).result(), 10)
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 2)
+        self.battle.round += 1
+        self.assertGreaterEqual(self.check(self.effect(4)).result(), 10)
+
+    def test_self_buff_is_not_protected(self):
+        self.check(self.effect(4, target=self.vampire))
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 3)
+
+    def test_yaml_policy_always(self):
+        self.vampire.properties['legendary_resistance_policy'] = {'concentration': 'always'}
+        self.assertGreaterEqual(self.check(self.effect(1)).result(), 10)
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 2)
+
+    def test_damage_concentration_check_uses_policy(self):
+        self.vampire.concentration = self.effect(1)
+        DieRoll.fudge(1)
+        self.vampire.take_damage(4, battle=self.battle)
+        self.assertEqual(legendary_resistance_remaining(self.vampire), 3)
+        self.assertIsNone(self.vampire.concentration)
+
+
 class TestRegeneration(MonsterTraitsTestBase):
     def test_regains_hit_points_at_start_of_turn(self):
         self.vampire.attributes['hp'] = 100
@@ -163,6 +210,29 @@ class TestVampireAttacks(MonsterTraitsTestBase):
         self.pc.do_grappled_by(self.vampire)
         bite.validate(self.map, target=self.pc, battle=self.battle)
         self.assertEqual(bite.errors, [])
+
+    def test_jev_offers_the_rest_of_a_multiattack(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        self.attack('unarmed_strike', d20=1)
+        self.assertEqual(self.battle.entity_state_for(self.vampire)['action'], 0)
+        planner = JevActionPlanner(None)
+        planner._battle, planner._entity, planner._session = self.battle, self.vampire, self.session
+        planner._map = self.map
+        planner._names = planner._display_names(self.battle, self.vampire)
+        descs = [d for t, _, d in planner._collect_leaves(None) if t == 'attack']
+        self.assertTrue(any('unarmed_strike2' in d for d in descs), descs)
+        self.assertFalse(any('with unarmed_strike ' in d for d in descs), descs)
+
+    def test_autobuild_only_offers_bite_against_eligible_targets(self):
+        from natural20.utils.action_builder import autobuild
+
+        def bites():
+            return [a for a in autobuild(self.session, AttackAction, self.vampire, self.battle)
+                    if (a.npc_action or {}).get('name') == 'bite']
+
+        self.assertEqual(bites(), [])
+        self.pc.do_grappled_by(self.vampire)
+        self.assertTrue(any(a.target is self.pc for a in bites()))
 
     def test_bite_drains_hit_point_maximum_and_heals(self):
         self.pc.do_grappled_by(self.vampire)

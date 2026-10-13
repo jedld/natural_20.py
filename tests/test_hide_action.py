@@ -64,6 +64,42 @@ class TestHideAction(unittest.TestCase):
 
         self.assertTrue(fighter.hidden())
 
+    def _visible_pair(self):
+        battle_map = Map(self.session, 'battle_sim')
+        battle = Battle(self.session, battle_map)
+        fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        npc = self.session.npc('goblin')
+        battle.add(fighter, 'a', position=[2, 2])
+        battle.add(npc, 'b', position=[3, 2])
+        fighter.reset_turn(battle)
+        npc.properties['passive_perception'] = 20
+        return battle_map, battle, fighter, npc
+
+    def _hide_with(self, battle_map, battle, fighter, stealth):
+        from unittest.mock import patch
+        from natural20.die_roll import DieRoll
+        action = HideAction.build(self.session, fighter)
+        with patch.object(fighter, 'stealth_check', return_value=DieRoll([stealth], 0), create=True):
+            action.resolve(self.session, battle_map, {'battle': battle})
+        return action.result[0]['result']
+
+    def test_low_stealth_fails_against_watching_enemy(self):
+        battle_map, battle, fighter, _npc = self._visible_pair()
+        self.assertEqual(self._hide_with(battle_map, battle, fighter, 1), 'failed')
+
+    def test_existing_hidden_status_does_not_cover_a_new_low_roll(self):
+        battle_map, battle, fighter, _npc = self._visible_pair()
+        fighter.do_hide(25)
+        self.assertEqual(self._hide_with(battle_map, battle, fighter, 3), 'failed')
+        self.assertTrue(fighter.hidden())
+        self.assertEqual(self._hide_with(battle_map, battle, fighter, 22), 'success')
+
+    def test_hide_uses_battle_maps_when_session_lookup_misses(self):
+        from unittest.mock import patch
+        battle_map, battle, fighter, _npc = self._visible_pair()
+        with patch.object(self.session, 'map_for_entity', return_value=None):
+            self.assertEqual(self._hide_with(battle_map, battle, fighter, 1), 'failed')
+
     def test_hide_resolve_without_battle_in_opts(self):
         battle_map = Map(self.session, 'hide_test')
         battle = Battle(self.session, battle_map)

@@ -1,5 +1,6 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
+from natural20.spell.cure_wounds_spell import slot_healing_dice
 
 class HealingWordSpell(Spell):
     def build_map(self, orig_action):
@@ -22,10 +23,8 @@ class HealingWordSpell(Spell):
 
     def _heal(self, battle, opts=None):
         entity = self.source
-        level = 1
-        if self.action.at_level > 1:
-            level += self.action.at_level - 1
-        return DieRoll.roll(f"{level}d4+{entity.cleric_spell_casting_modifier()}", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
+        dice = slot_healing_dice(self, '1d4')
+        return DieRoll.roll(f"{dice}+{entity.cleric_spell_casting_modifier()}", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
 
     def compute_hit_probability(self, battle, opts=None):
         return 1.0

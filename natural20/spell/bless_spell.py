@@ -44,7 +44,7 @@ class BlessSpell(Spell):
     def resolve(self, entity, battle, spell_action, _battle_map):
         targets = spell_action.target
         results = []
-        if not isinstance(targets, list):
+        if not isinstance(targets, (list, tuple)):
             targets = [targets]
         for target in targets:
             results.append({

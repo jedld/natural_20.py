@@ -21,6 +21,7 @@ from natural20.item_library.chasm import Chasm
 from natural20.spell.objects.grease_surface import GreaseSurface
 from natural20.spell.objects.stinking_cloud_gas import StinkingCloudGas
 from natural20.spell.objects.tiny_hut import TinyHutDome
+from natural20.spell.mirror_image_spell import MirrorImageSpell
 import logging
 from natural20.web.terrain_tooltip import build_terrain_tooltip
 from natural20.web.grapple_info import grapple_tile_attributes
@@ -400,6 +401,16 @@ class JsonRenderer:
         pov_list = [e for e in (pov_list or []) if e]
         detect_magic_viewers = [e for e in pov_list if viewer_has_detect_magic(e)]
         session = getattr(self.map, 'session', None)
+        unseen_markers = {}
+        if self.battle is not None and pov_list:
+            try:
+                from natural20.utils.unseen_targets import markers_for
+                unseen_markers = markers_for(
+                    self.battle, [e for e in pov_list if self.battle.map_for(e) is self.map],
+                )
+            except Exception:
+                self.logger.exception('unseen marker computation failed')
+                unseen_markers = {}
 
         # Pre-compute adjacency cache: tiles adjacent (8-way) to any POV position
         # are always visible — skip the full can_see_square Bresenham walk.
@@ -690,6 +701,7 @@ class JsonRenderer:
                                 object_entity.properties.get('stinking_cloud_seed')
                                 if is_stinking_cloud_gas else None
                             )
+                            object_info['sleet_storm_marker'] = bool(object_entity.properties.get('sleet_storm'))
     
                             is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
                                 object_entity.properties.get('tiny_hut_dome')
@@ -848,6 +860,7 @@ class JsonRenderer:
                                 'dead': entity.dead(),
                                 'unconscious': entity.unconscious(),
                                 'effects' : [str(effect['effect']) for effect in entity.current_effects()],
+                                'mirror_images': MirrorImageSpell.images_remaining_for(entity),
                                 'team_group': team_group,
                                 'team_border_tint': team_border_tint
                             })
@@ -906,6 +919,11 @@ class JsonRenderer:
                             map_objects=object_entities,
                         )
                         result_row.append(shared_attributes)
+                if unseen_markers:
+                    for tile in result_row:
+                        marker = unseen_markers.get((tile.get('x'), tile.get('y')))
+                        if marker is not None:
+                            tile['unseen_presence'] = marker
                 result.append(result_row)
             return result
         finally:

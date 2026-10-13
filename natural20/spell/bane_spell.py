@@ -47,7 +47,7 @@ class BaneSpell(Spell):
         # Each target makes a Charisma save; on failure, bane applies.
         targets = spell_action.target
         results = []
-        if not isinstance(targets, list):
+        if not isinstance(targets, (list, tuple)):
             targets = [targets]
 
         for target in targets:

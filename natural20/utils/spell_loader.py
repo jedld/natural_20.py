@@ -110,6 +110,11 @@ def _build_spell_class_registry():
     from natural20.spell.message_spell import MessageSpell
     from natural20.spell.stinking_cloud_spell import StinkingCloudSpell
     from natural20.spell.animate_dead_spell import AnimateDeadSpell
+    from natural20.spell.spirit_guardians_spell import SpiritGuardiansSpell
+    from natural20.spell.revivify_spell import RevivifySpell
+    from natural20.spell.mass_healing_word_spell import MassHealingWordSpell
+    from natural20.spell.call_lightning_spell import CallLightningSpell
+    from natural20.spell.sleet_storm_spell import SleetStormSpell
     from natural20.spell.wizard_spells import (
         AganazzarsScorcherSpell,
         BanishmentSpell,
@@ -242,6 +247,11 @@ def _build_spell_class_registry():
         'SunburstSpell': SunburstSpell,
         'TeleportSpell': TeleportSpell,
         'WallOfForceSpell': WallOfForceSpell,
+        'SpiritGuardiansSpell': SpiritGuardiansSpell,
+        'RevivifySpell': RevivifySpell,
+        'MassHealingWordSpell': MassHealingWordSpell,
+        'CallLightningSpell': CallLightningSpell,
+        'SleetStormSpell': SleetStormSpell,
     }
     return spell_classes
 

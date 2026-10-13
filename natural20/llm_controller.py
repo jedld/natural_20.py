@@ -321,6 +321,45 @@ class LlmMcpController(GenericController):
 		{
 			"type": "function",
 			"function": {
+				"name": "callout",
+				"description": "Free tactical callout on your own turn (D&D 5e brief utterance: once per turn, a few words). Allies within earshot who understand the language hear it on their next turn - so do enemies who understand it. You can only call out creatures you can see. Creatures with telepathy may send it silently to allies instead.",
+				"parameters": {
+					"type": "object",
+					"properties": {
+						"kind": {
+							"type": "string",
+							"enum": ["focus", "heal", "help", "warn", "retreat", "protect", "taunt", "say"],
+							"description": "focus=attack this enemy, heal=I need healing, help=assist me, warn=danger, retreat=fall back, protect=guard this ally, taunt=provoke enemy, say=free text.",
+						},
+						"target": {
+							"type": "string",
+							"description": "Optional name of the creature the callout is about.",
+						},
+						"message": {
+							"type": "string",
+							"description": "Optional brief words to say (truncated to the utterance limit).",
+						},
+						"language": {
+							"type": "string",
+							"description": "Optional language; pick one your allies know and your enemies do not to keep it secret. Defaults to the language most allies understand.",
+						},
+						"volume": {
+							"type": "string",
+							"enum": ["whisper", "normal", "shout"],
+							"description": "whisper reaches 5 ft, normal 30 ft, shout 60 ft (default shout).",
+						},
+						"telepathic": {
+							"type": "boolean",
+							"description": "Use telepathy instead of speech (only if you have telepathy).",
+						},
+					},
+					"required": ["kind"],
+				},
+			},
+		},
+		{
+			"type": "function",
+			"function": {
 				"name": "taunt",
 				"description": "Taunt or provoke an enemy to try to draw their attention. This is roleplay communication - it does not mechanically force them to target you, but may influence their behavior.",
 				"parameters": {
@@ -341,16 +380,52 @@ class LlmMcpController(GenericController):
 		},
 	]
 
-	def __init__(self, session, valid_move_types=None, llm_client=None, model: Optional[str] = None, use_tools: bool = True, llm_provider=None):
+	# Optional ``callable(entity) -> provider`` installed by the host app (the
+	# webapp resolves per-NPC ``.ai.yaml`` / battle providers). Used to rebind
+	# controllers restored from a save, which can't persist live providers.
+	provider_resolver = None
+
+	def __init__(self, session, valid_move_types=None, llm_client=None, model: Optional[str] = None, use_tools: bool = True, llm_provider=None, defer_provider: bool = False):
 		super().__init__(session, valid_move_types)
 		self.client = llm_client  # expected to be OpenAI-like client; optional
 		self.model = model or os.getenv("N20_LLM_MODEL", "gpt-4o-mini")
 		self.use_tools = use_tools
 		# Generic LLMProvider backend. If none provided, try to wire the configured local default.
-		self.llm_provider = llm_provider or self._default_provider()
+		self._provider_pending = False
+		if llm_provider is None and defer_provider:
+			self._llm_provider = None
+			self._provider_pending = True
+		else:
+			self.llm_provider = llm_provider or self._default_provider()
 		# Session-persistent context for each entity (keyed by entity UID)
 		# Stores: short_term_goal, long_term_goal, memory_notes, action_history_summary
 		self._entity_context: dict[str, dict] = {}
+
+	@property
+	def llm_provider(self):
+		if self._provider_pending:
+			self._provider_pending = False
+			self._llm_provider = self._default_provider()
+		return self._llm_provider
+
+	@llm_provider.setter
+	def llm_provider(self, value):
+		self._llm_provider = value
+		self._provider_pending = False
+
+	def _ensure_provider(self, entity) -> None:
+		"""Bind a deferred provider for *entity* through ``provider_resolver``."""
+		if not getattr(self, '_provider_pending', False):
+			return
+		resolver = type(self).provider_resolver
+		if callable(resolver):
+			try:
+				provider = resolver(entity)
+			except Exception:
+				logger.debug("[LlmMcpController] provider resolver failed", exc_info=True)
+				provider = None
+			if provider is not None:
+				self.llm_provider = provider
 
 	def _default_provider(self):
 		"""
@@ -482,8 +557,10 @@ class LlmMcpController(GenericController):
 				"escape and must defend yourself. Do not aid either side's attackers. "
 				"Only pick from the provided actions."
 			)
+		from natural20.utils.combat_intelligence import guidance
 		return (
-			"You're an NPC tactician in a D&D-like tactical sim. Choose the single best action for this turn. "
+			f"{guidance(entity)} "
+			"Choose the single best action for this turn in this D&D-like tactical sim, as this creature would. "
 			"Guidelines: prefer lethal or high-impact attacks when safe; avoid provoking opportunity attacks unless payoff is high; "
 			"use movement to get line of sight or optimal range; conserve limited resources when impact is low; "
 			"if HP is low, favor defensive options like disengage/dodge/hide; maintain concentration on valuable effects. "
@@ -544,6 +621,7 @@ class LlmMcpController(GenericController):
 		Processes pending communications (requests, warnings, directives, taunts)
 		and incorporates them into the entity's tactical context.
 		"""
+		self._ensure_provider(entity)
 		ctx = self._get_entity_context(entity)
 
 		# Process pending help requests from allies
@@ -584,6 +662,7 @@ class LlmMcpController(GenericController):
 		``pass (end turn)`` ends the turn by returning ``None``; any failure
 		falls back to the generic heuristic action logic.
 		"""
+		self._ensure_provider(entity)
 		release = self.grapple_release_action(entity, battle)
 		if release is not None:
 			return release
@@ -610,6 +689,7 @@ class LlmMcpController(GenericController):
 					# Non-movement leaves (attacks, defensive stances,
 					# interactions, ...) are fully specified and committed
 					# by the turn loop, mirroring GenericController semantics.
+					self._post_decision_callout(battle, entity, action)
 					return action
 			except Exception as _e:
 				import logging
@@ -659,13 +739,22 @@ class LlmMcpController(GenericController):
 		elif last_processed_time == -1:
 			ctx['_last_conversation_time'] = 0
 
-	def get_communication_context(self, entity) -> str:
+	def get_communication_context(self, entity, battle=None) -> str:
 		"""
-		Build a communication context string for inclusion in the LLM prompt.
-		Includes pending requests, warnings, and directives from allies.
+		Build a communication context string for inclusion in the LLM prompt:
+		callouts this entity heard in battle (allied and overheard enemy
+		speech, see ``natural20.utils.combat_comms``) plus any legacy
+		pending requests/warnings/directives/taunts on this controller.
 		"""
 		ctx = self._get_entity_context(entity)
 		parts = []
+
+		if battle is not None:
+			try:
+				from natural20.utils.combat_comms import callout_lines
+				parts.extend(f"- {line}" for line in callout_lines(battle, entity))
+			except Exception:
+				pass
 
 		pending_requests = ctx.get('pending_requests', [])
 		if pending_requests:
@@ -690,6 +779,60 @@ class LlmMcpController(GenericController):
 		if parts:
 			return "Incoming communications:\n" + "\n".join(parts) + "\n"
 		return ""
+
+	CALLOUT_LINE_RE = re.compile(r'^\s*CALLOUT\s+(\w+)\s*([^:\n]*?)\s*:\s*(.*)$', re.IGNORECASE | re.MULTILINE)
+
+	def _callout_instruction(self, battle, entity) -> str:
+		"""Prompt line offering a free callout, only when one is allowed now."""
+		try:
+			from natural20.utils import combat_comms
+			from natural20.utils.combat_intelligence import allowed_callout_kind
+			if not combat_comms.can_call_out(battle, entity):
+				return ""
+			words = combat_comms.max_words_for(entity, getattr(battle, 'session', None))
+			kinds = "|".join(k for k in combat_comms.CALLOUT_KINDS if allowed_callout_kind(entity, k))
+		except Exception:
+			return ""
+		return (
+			f"Optional free callout (once per turn, max {words} words; allies AND enemies within earshot "
+			"who know the language will hear it; only name creatures you can see): after the index, add a line "
+			f"`CALLOUT <{kinds}> [target name]: <brief words>`.\n"
+		)
+
+	def _extract_callout(self, text: str) -> Tuple[str, Optional[dict]]:
+		"""Split a free-text reply into (text without CALLOUT lines, callout args)."""
+		if not text:
+			return text, None
+		m = self.CALLOUT_LINE_RE.search(text)
+		if not m:
+			return text, None
+		callout = {
+			'kind': m.group(1).lower(),
+			'target': (m.group(2) or '').strip().strip('[]') or None,
+			'message': (m.group(3) or '').strip().strip('"') or None,
+		}
+		return self.CALLOUT_LINE_RE.sub('', text), callout
+
+	def _post_decision_callout(self, battle, entity, action=None, callout: Optional[dict] = None) -> None:
+		"""Issue the model's callout, or an automatic one for decision-only providers (JEV)."""
+		try:
+			from natural20.utils import combat_comms
+			if callout:
+				self._communicate(entity, battle, callout.get('kind') or 'say', callout.get('message'),
+				                  target=callout.get('target'))
+			elif self._is_jev_live():
+				from natural20.utils.jev_decision import jev_select_callout
+				prov = self.llm_provider
+				combat_comms.auto_callout(
+					battle, entity, action,
+					chooser=lambda options: jev_select_callout(prov, battle, entity, options, action))
+		except Exception:
+			logger.debug("[LlmMcpController] callout failed", exc_info=True)
+
+	def _is_jev_live(self) -> bool:
+		prov = getattr(self, "llm_provider", None)
+		return prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
+			and bool(getattr(prov, "is_available", False))
 
 	def _process_goal_tool_calls(self, entity, battle, tool_calls: List[dict]) -> List[dict]:
 		"""
@@ -720,6 +863,12 @@ class LlmMcpController(GenericController):
 					self._handle_coordinate_attack(entity, battle, args)
 				elif func_name == 'taunt':
 					self._handle_taunt(entity, battle, args)
+				elif func_name == 'callout':
+					result = self._communicate(
+						entity, battle, args.get('kind') or 'say', args.get('message'),
+						target=args.get('target'), language=args.get('language'),
+						volume=args.get('volume'), telepathic=args.get('telepathic'))
+					results.append({'tool': func_name, 'result': result})
 				# Perception tools
 				elif func_name == 'get_visible_entities':
 					result = self._handle_get_visible_entities(entity, battle)
@@ -759,31 +908,41 @@ class LlmMcpController(GenericController):
 		message = args.get('message', '')
 		if not message:
 			return
-		
-		language = args.get('language', 'common')
-		target_name = args.get('target')
-		
-		# Find the target entity if specified
+		self._communicate(entity, battle, 'say', message, target=args.get('target'),
+		                  language=args.get('language'), volume=args.get('volume'),
+		                  note=f"I said: \"{message[:50]}{'...' if len(message) > 50 else ''}\"")
+
+	def _communicate(self, entity, battle, kind: str, message: Optional[str], target=None,
+	                 language: Optional[str] = None, volume: Optional[str] = None,
+	                 note: Optional[str] = None, telepathic: Optional[bool] = None) -> dict:
+		"""Speak through the rules-bound combat channel (``combat_comms``).
+
+		In battle this enforces the 5e "brief utterance on your own turn"
+		limit, hearing range, and language comprehension, and lets enemies who
+		understand overhear. Outside battle it is plain speech.
+		"""
+		from natural20.utils import combat_comms
+		if battle is not None and getattr(battle, 'entities', None) is not None \
+				and battle.entity_state_for(entity) is not None:
+			result = combat_comms.issue_callout(
+				battle, entity, kind=kind, target=target, message=message,
+				language=language, volume=volume, telepathic=telepathic)
+			if result.get('ok') and note:
+				self.add_memory_note(entity, note)
+			return result
+		if not message or not hasattr(entity, 'send_conversation'):
+			return {'ok': False, 'reason': 'empty_message'}
 		targets = None
-		if target_name:
-			try:
-				# Search for the target in the battle
-				all_entities = list(battle.entities.keys()) if hasattr(battle, 'entities') else []
-				for e in all_entities:
-					if getattr(e, 'name', '').lower() == target_name.lower():
-						targets = [e]
-						break
-			except Exception:
-				pass
-		
-		# Use the entity's send_conversation method
+		target_entity = self._find_entity_by_name(battle, target) if isinstance(target, str) else target
+		if target_entity is not None:
+			targets = [target_entity]
 		try:
-			if hasattr(entity, 'send_conversation'):
-				entity.send_conversation(message, distance_ft=30, targets=targets, language=language)
-				# Also record this in the entity's context
-				self.add_memory_note(entity, f"I said: \"{message[:50]}{'...' if len(message) > 50 else ''}\"")
+			entity.send_conversation(message, distance_ft=30, targets=targets, language=language or 'common')
+			if note:
+				self.add_memory_note(entity, note)
+			return {'ok': True, 'reason': None, 'text': message}
 		except Exception:
-			pass  # Silently fail if communication fails
+			return {'ok': False, 'reason': 'send_failed'}
 
 	def _find_entity_by_name(self, battle, name: str):
 		"""Find an entity in the battle by name (case-insensitive)."""
@@ -805,25 +964,9 @@ class LlmMcpController(GenericController):
 		if not ally_name or not request:
 			return
 
-		ally = self._find_entity_by_name(battle, ally_name)
-		targets = [ally] if ally else None
-		message = f"[Request] {request}"
-
-		try:
-			if hasattr(entity, 'send_conversation'):
-				entity.send_conversation(message, distance_ft=60, targets=targets, language='common')
-				self.add_memory_note(entity, f"Asked {ally_name} for help: {request[:50]}")
-				# Record the request in the ally's context so it's available on their turn
-				if ally:
-					ally_ctx = self._get_entity_context(ally)
-					if 'pending_requests' not in ally_ctx:
-						ally_ctx['pending_requests'] = []
-					ally_ctx['pending_requests'].append({
-						'from': entity.name,
-						'request': request,
-					})
-		except Exception:
-			pass
+		kind = 'heal' if re.search(r'\bheal', request, re.IGNORECASE) else 'help'
+		self._communicate(entity, battle, kind, f"{ally_name}, {request}",
+		                  note=f"Asked {ally_name} for help: {request[:50]}")
 
 	def _handle_warn_ally(self, entity, battle, args: dict) -> None:
 		"""Handle a warn_ally tool call - shout a warning to a nearby ally."""
@@ -832,25 +975,8 @@ class LlmMcpController(GenericController):
 		if not ally_name or not warning:
 			return
 
-		ally = self._find_entity_by_name(battle, ally_name)
-		targets = [ally] if ally else None
-		message = f"[Warning] {warning}"
-
-		try:
-			if hasattr(entity, 'send_conversation'):
-				entity.send_conversation(message, distance_ft=60, targets=targets, language='common')
-				self.add_memory_note(entity, f"Warned {ally_name}: {warning[:50]}")
-				# Store the warning in the ally's context
-				if ally:
-					ally_ctx = self._get_entity_context(ally)
-					if 'pending_warnings' not in ally_ctx:
-						ally_ctx['pending_warnings'] = []
-					ally_ctx['pending_warnings'].append({
-						'from': entity.name,
-						'warning': warning,
-					})
-		except Exception:
-			pass
+		self._communicate(entity, battle, 'warn', f"{ally_name}, {warning}",
+		                  note=f"Warned {ally_name}: {warning[:50]}")
 
 	def _handle_coordinate_attack(self, entity, battle, args: dict) -> None:
 		"""Handle a coordinate_attack tool call - broadcast tactical directive to allies."""
@@ -859,32 +985,8 @@ class LlmMcpController(GenericController):
 		if not directive:
 			return
 
-		message = f"[Coordinate] {directive}"
-		if target_name:
-			message += f" (target: {target_name})"
-
-		try:
-			if hasattr(entity, 'send_conversation'):
-				# Broadcast to all allies in range
-				entity.send_conversation(message, distance_ft=60, targets=None, language='common')
-				self.add_memory_note(entity, f"Coordinated: {directive[:50]}")
-				# Store the directive in all ally contexts
-				try:
-					my_group = battle.entities[entity].get('group')
-					for e, state in battle.entities.items():
-						if e != entity and state.get('group') == my_group and e.conscious():
-							ally_ctx = self._get_entity_context(e)
-							if 'pending_directives' not in ally_ctx:
-								ally_ctx['pending_directives'] = []
-							ally_ctx['pending_directives'].append({
-								'from': entity.name,
-								'directive': directive,
-								'target': target_name,
-							})
-				except Exception:
-					pass
-		except Exception:
-			pass
+		self._communicate(entity, battle, 'focus' if target_name else 'say', directive,
+		                  target=target_name or None, note=f"Coordinated: {directive[:50]}")
 
 	def _handle_taunt(self, entity, battle, args: dict) -> None:
 		"""Handle a taunt tool call - taunt or provoke an enemy."""
@@ -893,24 +995,8 @@ class LlmMcpController(GenericController):
 		if not enemy_name or not message:
 			return
 
-		enemy = self._find_entity_by_name(battle, enemy_name)
-		targets = [enemy] if enemy else None
-
-		try:
-			if hasattr(entity, 'send_conversation'):
-				entity.send_conversation(message, distance_ft=60, targets=targets, language='common')
-				self.add_memory_note(entity, f"Taunted {enemy_name}: {message[:50]}")
-				# Store the taunt in the enemy's context so their LLM can consider it
-				if enemy:
-					enemy_ctx = self._get_entity_context(enemy)
-					if 'received_taunts' not in enemy_ctx:
-						enemy_ctx['received_taunts'] = []
-					enemy_ctx['received_taunts'].append({
-						'from': entity.name,
-						'message': message,
-					})
-		except Exception:
-			pass
+		self._communicate(entity, battle, 'taunt', message, target=enemy_name,
+		                  note=f"Taunted {enemy_name}: {message[:50]}")
 
 	# --- Perception Tool Handlers ---
 	def _handle_get_visible_entities(self, entity, battle) -> dict:
@@ -1470,6 +1556,14 @@ class LlmMcpController(GenericController):
 		available_actions = [action for action in (available_actions or []) if action is not None and not getattr(action, 'disabled', False) and not is_unbuilt_spell(action)]
 		if not available_actions:
 			return None
+		self._ensure_provider(entity)
+		from natural20.utils.combat_intelligence import filter_actions
+		from natural20.utils import friendly_fire, pointless_actions
+		available_actions = friendly_fire.filter_actions(battle, entity, available_actions)
+		available_actions = pointless_actions.filter_actions(battle, entity, available_actions)
+		if not available_actions:
+			return None
+		available_actions = filter_actions(battle, entity, available_actions)
 
 		prov = getattr(self, "llm_provider", None)
 		jev_live = prov is not None and JevProvider is not None and isinstance(prov, JevProvider) \
@@ -1497,6 +1591,7 @@ class LlmMcpController(GenericController):
 						return None
 					chosen = self._maybe_enrich_action_targets(battle, entity, chosen)
 					if chosen is not None:
+						self._post_decision_callout(battle, entity, chosen)
 						return chosen
 			except Exception as _e:
 				# Silent fallback; the flat index path below still applies.
@@ -1506,9 +1601,12 @@ class LlmMcpController(GenericController):
 
 		# Try LLM path first, then fallback to heuristic ranking
 		try:
+			self._pending_callout = None
 			idx = self._ask_llm_for_choice(battle, entity, available_actions)
 			if idx is not None and 0 <= idx < len(available_actions):
 				chosen = self._maybe_enrich_action_targets(battle, entity, available_actions[idx])
+				callout, self._pending_callout = self._pending_callout, None
+				self._post_decision_callout(battle, entity, chosen, callout)
 				return chosen
 		except Exception as _e:
 			# Silent fallback; don't spam logs during games
@@ -1555,7 +1653,8 @@ class LlmMcpController(GenericController):
 			try:
 				instructions = (
 					"You are a tactical assistant. Given a list of actions indexed from 0, choose the single best index. "
-					"Respond with ONLY the integer index (no text)."
+					"Respond with ONLY the integer index (no text)"
+					+ (", optionally followed by one CALLOUT line as described." if "CALLOUT <" in prompt else ".")
 				)
 				messages = [
 					{"role": "system", "content": instructions},
@@ -1563,6 +1662,7 @@ class LlmMcpController(GenericController):
 				]
 				from natural20.concurrency import run_blocking
 				text = run_blocking(prov.send_message, messages)  # type: ignore[attr-defined]
+				text, self._pending_callout = self._extract_callout(text)
 				idx = self._local_parse_choice_from_text(text, len(available_actions))
 				if idx is not None:
 					return idx
@@ -1615,7 +1715,7 @@ class LlmMcpController(GenericController):
 				# Names of all non-action tools
 				auxiliary_tool_names = (
 					'set_short_term_goal', 'set_long_term_goal', 'add_memory_note', 'speak',
-					'request_help', 'warn_ally', 'coordinate_attack', 'taunt',
+					'request_help', 'warn_ally', 'coordinate_attack', 'taunt', 'callout',
 					'get_visible_entities', 'get_visible_objects', 'get_terrain_at',
 					'compute_path_to', 'compute_path_to_entity', 'get_reachable_positions', 'get_optimal_ranged_position'
 				)
@@ -1650,6 +1750,7 @@ class LlmMcpController(GenericController):
 			messages=[{"role": "user", "content": prompt}],
 		)
 		text = resp.choices[0].message.content or ""
+		text, self._pending_callout = self._extract_callout(text)
 		return self._local_parse_choice_from_text(text, len(available_actions))
 
 	# ------------------------------------------------------------------ #
@@ -2062,6 +2163,9 @@ class LlmMcpController(GenericController):
 					return f"{idx}. move"
 				if isinstance(a, AttackAction):
 					target = getattr(a, "target", None)
+					if target is None and getattr(a, "target_square", None) is not None:
+						from natural20.utils.jev_decision import _blind_attack_text, _weapon_name
+						return f"{idx}. " + _blind_attack_text(a, _weapon_name(a) or 'weapon')
 					tname = getattr(target, "name", None) if target else None
 					weap = None
 					try:
@@ -2359,9 +2463,10 @@ class LlmMcpController(GenericController):
 			parts.append("Recent conversations:\n" + "\n".join(f"- {c}" for c in conversation_summary) + "\n")
 
 		# Add incoming communications (requests, warnings, directives, taunts)
-		comm_context = self.get_communication_context(entity)
+		comm_context = self.get_communication_context(entity, battle)
 		if comm_context:
 			parts.append(comm_context)
+		callout_hint = self._callout_instruction(battle, entity)
 
 		combat_log_summary = self._get_visible_combat_log_summary(entity, n=8)
 		if combat_log_summary:
@@ -2392,6 +2497,7 @@ class LlmMcpController(GenericController):
 			"- Communication: speak, request_help, warn_ally, coordinate_attack, taunt (communicate with nearby entities)\n",
 			"- Perception: get_visible_entities, get_visible_objects, get_terrain_at (gather battlefield info)\n",
 			"- Pathfinding: compute_path_to, compute_path_to_entity, get_reachable_positions, get_optimal_ranged_position (plan movement)\n",
+			callout_hint,
 			"Return either a single integer index (0-based) or call choose_action with that index.",
 		])
 		prompt = "".join(parts)
@@ -2430,11 +2536,14 @@ class LlmMcpController(GenericController):
 			# Include goals even in compact mode (they're brief)
 			if goals_summary and goals_summary != "(no goals set)":
 				parts_c.append(f"Goals: {goals_summary}\n")
+			if comm_context:
+				parts_c.append(comm_context)
 			parts_c.extend([
 				f"Visible allies: {ally_summ_compact}\n",
 				f"Visible enemies: {enemy_summ_compact}\n\n",
 				f"Available actions (index: description):\n" + "\n".join(action_lines_compact) + "\n\n",
 				f"{instructions}\n",
+				callout_hint,
 				"Return either a single integer index (0-based) or call choose_action with that index.",
 			])
 			prompt = "".join(parts_c)
@@ -2658,7 +2767,8 @@ class LlmMcpController(GenericController):
 		"""
 		If the chosen action lacks required parameters (like target), pick a reasonable default.
 		"""
-		if isinstance(action, AttackAction) and not getattr(action, "target", None):
+		if isinstance(action, AttackAction) and not getattr(action, "target", None) \
+				and getattr(action, "target_square", None) is None:
 			# Pick the first valid target
 			targets = battle.valid_targets_for(entity, action)
 			if targets:
@@ -2879,15 +2989,23 @@ class LlmMcpController(GenericController):
 			return ""
 
 	def to_dict(self) -> dict:
-		"""Serialize controller state including entity contexts for persistence."""
+		"""Serialize controller state including entity contexts for persistence.
+
+		Live provider/client handles are not persisted; ``from_dict`` defers
+		the provider and rebinds it on first use via ``provider_resolver``.
+		"""
 		base = super().to_dict()
-		base['entity_context'] = self._entity_context
+		base['entity_context'] = json.loads(json.dumps(self._entity_context, default=str))
+		base['model'] = self.model
+		base['use_tools'] = self.use_tools
 		return base
 
 	@staticmethod
 	def from_dict(data: dict) -> 'LlmMcpController':
 		"""Restore controller from serialized state."""
-		controller = LlmMcpController(data['session'])
-		controller.battle_data = data.get('battle_data', {})
-		controller._entity_context = data.get('entity_context', {})
+		controller = LlmMcpController(
+			data['session'], model=data.get('model'),
+			use_tools=data.get('use_tools', True), defer_provider=True)
+		controller.state = data.get('state') or {}
+		controller._entity_context = data.get('entity_context') or {}
 		return controller

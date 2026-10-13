@@ -134,7 +134,10 @@ class GenericController(Controller):
             if score > best_score:
                 best_attack, best_score = action, score
         if best_attack is not None:
-            return best_attack
+            from natural20.utils.pointless_actions import _downed, finishes_downed
+            target = getattr(best_attack, 'target', None)
+            if not (moves and target is not None and _downed(target) and not finishes_downed(entity)):
+                return best_attack
         if moves and entity.hp() > entity.max_hp() * 0.25:
             return min(moves, key=lambda a: len(a.move_path))
         return None
@@ -159,7 +162,9 @@ class GenericController(Controller):
         feet = current_map.feet_per_grid or 5
         reach = max(melee_reaches) / feet
 
-        enemies = [e for e in self._get_enemy_positions(battle, entity) if battle.map_for(e) == current_map]
+        from natural20.utils.pointless_actions import _downed, finishes_downed
+        enemies = [e for e in self._get_enemy_positions(battle, entity) if battle.map_for(e) == current_map
+                   and (finishes_downed(entity) or not _downed(e))]
         if not enemies:
             return []
         if any(current_map.distance(entity, e) <= reach for e in enemies):
@@ -224,6 +229,9 @@ class GenericController(Controller):
     def select_reaction(self, entity, battle, map, valid_actions, event) -> Optional[Action]:
         if len(valid_actions) == 0:
             return None
+        if (event or {}).get('type') == 'counterspell':
+            from natural20.utils.counterspell import choose_counterspell
+            return choose_counterspell(entity, battle, valid_actions, event)
         action = self._sort_actions(entity, battle, valid_actions)[0]
         return action
 
@@ -490,7 +498,7 @@ class GenericController(Controller):
             target = getattr(action, 'target', None)
             if target is None:
                 return []
-            if isinstance(target, list):
+            if isinstance(target, (list, tuple)):
                 return [candidate for candidate in target if isinstance(candidate, Entity)]
             if isinstance(target, Entity):
                 return [target]
@@ -536,9 +544,17 @@ class GenericController(Controller):
             spell_name = spell.short_name()
             targets = action_targets(action)
 
-            if action.avg_damage(battle) < 0:
-                expected_heal = -action.avg_damage(battle)
-                return max(score_heal_target(target, expected_heal, prefer_bonus_action=action.casting_time == 'bonus_action') for target in targets)
+            if spell_name == 'revivify':
+                # A fallen ally back in the fight beats almost anything else.
+                return 12.0
+
+            if action.avg_damage(battle) < 0 and targets:
+                expected_heal = -action.avg_damage(battle) / len(targets)
+                bonus = action.casting_time == 'bonus_action'
+                scores = [score_heal_target(target, expected_heal, prefer_bonus_action=bonus) for target in targets]
+                if len(scores) > 1:
+                    return sum(s for s in scores if s > 0)
+                return scores[0]
 
             if spell_name in ('bless', 'guidance', 'resistance', 'shield_of_faith', 'protection_from_poison'):
                 score = 0

@@ -49,6 +49,7 @@ from natural20.actions.find_familiar_action import FindFamiliarAction
 from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.mage_hand_action import MageHandAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
+from natural20.actions.call_lightning_bolt_action import CallLightningBoltAction
 from natural20.actions.pickpocket_action import PickpocketAction, PickpocketBonusAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.actions.disarming_attack_action import DisarmingAttackAction
@@ -122,6 +123,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     SummonFamiliarAction,
     MageHandAction,
     WitchBoltSustainAction,
+    CallLightningBoltAction,
     SpeakAction,
     PickpocketAction,
     PickpocketBonusAction,
@@ -256,16 +258,16 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     initializer = getattr(self, f"initialize_{klass}", None)
     if initializer is None:
       raise ValueError(f"Unsupported character class: {klass}")
-    initializer()
     character_class_properties = load_campaign_resource_path(
       self.session.root_path, f"char_classes/{klass}.yml"
     )
+    self.class_properties[klass] = character_class_properties
+    initializer()
     self.max_hit_die[klass] = level
 
     hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
     die_type = int(hit_die_details.die_type)
     self._current_hit_die[die_type] = self._current_hit_die.get(die_type, 0) + level
-    self.class_properties[klass] = character_class_properties
 
   def _class_hit_die_sides(self, klass):
     properties = self.class_properties.get(klass)
@@ -932,6 +934,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(MageHandAction(session, self, 'mage_hand_command'))
         elif action_type == WitchBoltSustainAction:
           action_list.append(WitchBoltSustainAction(session, self, 'witch_bolt_sustain'))
+        elif action_type == CallLightningBoltAction:
+          if auto_target:
+            action_list.extend(autobuild(session, CallLightningBoltAction, self, battle, map=map))
+          else:
+            action_list.append(CallLightningBoltAction(session, self, 'call_lightning_bolt'))
         elif action_type == SpeakAction:
           action_list.append(SpeakAction(session, self, 'speak'))
         elif action_type == PickpocketAction:
@@ -947,7 +954,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       action_list.extend(collect_class_feature_actions(session, self, battle))
     except Exception:
       pass
-    return action_list
+    from natural20.utils.polymorph import filter_actions
+    return filter_actions(self, action_list)
 
 
 
@@ -1000,6 +1008,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           targeted_action = copy.copy(action)
           targeted_action.target = target
           final_attack_list.append(targeted_action)
+      if not opportunity_attack:
+        from natural20.utils.unseen_targets import blind_attack_variants
+        final_attack_list += blind_attack_variants(battle, self, weapon_attacks)
     else:
       final_attack_list = weapon_attacks
     return final_attack_list
@@ -1068,6 +1079,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           targeted = action.clone()
           targeted.target = target
           final.append(targeted)
+      if not opportunity_attack:
+        from natural20.utils.unseen_targets import blind_attack_variants
+        final += blind_attack_variants(battle, self, actions)
       return final
     return actions
 
@@ -1104,34 +1118,48 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     else:
       raise NotImplementedError(f"unknown action {result['action']}")
 
-  def prepared_spells(self):
-    base = list(self.properties.get('cantrips', []) + self.properties.get('prepared_spells', []))
-    # Auto-merge cleric divine domain spells up to the highest spell slot level the cleric can cast.
+  def domain_spell_ids(self):
+    """Cleric divine domain spells unlocked at the current cleric level."""
     domain = self.properties.get('divine_domain')
     cleric_props = self.class_properties.get('cleric') if hasattr(self, 'class_properties') else None
-    if domain and cleric_props:
-      domain_spells_by_level = (cleric_props.get('divine_domain_spell_list', {}) or {}).get(domain, {}) or {}
-      cleric_level = self.properties.get('classes', {}).get('cleric', 0)
-      for lvl_key, spells in domain_spells_by_level.items():
-        try:
-          required_level = int(str(lvl_key).split('_')[-1])
-        except (ValueError, TypeError):
-          continue
-        # Domain spells become available at the cleric levels listed (1, 3, 5, 7, 9).
-        if cleric_level < required_level:
-          continue
-        for spell in (spells or []):
-          if spell in base:
-            continue
-          # Only merge spells the session knows about so non-comprehensive
-          # spell catalogues (e.g. test fixtures) don't break spell listing.
-          try:
-            details = self.session.load_spell(spell) if hasattr(self, 'session') and self.session is not None else None
-          except Exception:
-            details = None
-          if details is None:
-            continue
-          base.append(spell)
+    if not domain or not cleric_props:
+      return []
+    domain_spells_by_level = (cleric_props.get('divine_domain_spell_list', {}) or {}).get(domain, {}) or {}
+    cleric_level = self.properties.get('classes', {}).get('cleric', 0)
+    unlocked = []
+    for lvl_key, spells in domain_spells_by_level.items():
+      try:
+        required_level = int(str(lvl_key).split('_')[-1])
+      except (ValueError, TypeError):
+        continue
+      # Domain spells become available at the cleric levels listed (1, 3, 5, 7, 9).
+      if cleric_level < required_level:
+        continue
+      unlocked.extend(s for s in (spells or []) if s not in unlocked)
+    return unlocked
+
+  def spell_list_classes_for(self, spell):
+    """Domain spells count as cleric spells even when the SRD lists them for other classes."""
+    keys = super().spell_list_classes_for(spell)
+    spell_id = (spell or {}).get('id')
+    if spell_id and 'cleric' not in keys and spell_id in self.domain_spell_ids():
+      keys.append('cleric')
+    return keys
+
+  def prepared_spells(self):
+    base = list(self.properties.get('cantrips', []) + self.properties.get('prepared_spells', []))
+    for spell in self.domain_spell_ids():
+      if spell in base:
+        continue
+      # Only merge spells the session knows about so non-comprehensive
+      # spell catalogues (e.g. test fixtures) don't break spell listing.
+      try:
+        details = self.session.load_spell(spell) if hasattr(self, 'session') and self.session is not None else None
+      except Exception:
+        details = None
+      if details is None:
+        continue
+      base.append(spell)
 
     # Auto-merge Eldritch Knight spells (Fighter martial archetype)
     martial_archetype = self.properties.get('martial_archetype')
@@ -1177,6 +1205,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     self.spell_slots[character_class][target_level] = max(self.spell_slots[character_class][target_level] - qty, 0)
 
   def class_feature(self, feature):
+    form = getattr(self, '_wild_shape_state', None)
+    if form and form.get('source') == 'polymorph':
+      # Polymorph replaces all game statistics: only the beast's traits apply.
+      return feature in (self.properties.get('attributes') or [])
     if feature in self.properties.get('class_features', []):
       return True
     if feature in self.properties.get('attributes', []):
@@ -1204,6 +1236,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       subclass_feature_fields = {
         'rogue': ('roguish_archetype', 'roguish_archetype_features'),
         'wizard': ('arcane_tradition', 'arcane_tradition_features'),
+        'fighter': ('martial_archetype', 'martial_archetypes'),
       }
       subclass_field, feature_field = subclass_feature_fields.get(klass, (None, None))
       subclass = self.properties.get(subclass_field) if subclass_field else None
@@ -1478,7 +1511,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     return 10 + self.wis_mod() + self.insight_proficiency()
   
   def passive_perception(self):
-    return 10 + self.wis_mod() + self.perception_proficiency()
+    # Same modifiers as a Perception check (expertise, Jack of All Trades).
+    try:
+      return 10 + self.perception_mod()
+    except Exception:
+      return 10 + self.wis_mod() + self.perception_proficiency()
   
   def investigation_proficiency(self):
     return self.proficiency_bonus() if self.investigation_proficient() else 0
@@ -1488,46 +1525,6 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   
   def perception_proficiency(self):
     return self.proficiency_bonus() if self.perception_proficient() else 0
-
-  def take_damage(self, dmg, battle=None, damage_type='piercing', session=None,
-                  item=None, critical=False, roll_info=None, sneak_attack=None):
-    if not _wild_shape.is_wild_shaped(self):
-      return super().take_damage(dmg, battle=battle, damage_type=damage_type,
-                                  session=session, item=item, critical=critical,
-                                  roll_info=roll_info, sneak_attack=sneak_attack)
-
-    # Wild-shaped: damage hits the beast pool first; on 0 HP the druid
-    # reverts and any overflow damage rolls onto the saved druid HP.
-    pre_hp = self.attributes.get('hp', 0)
-    # Estimate post-resistance damage so overflow is computed before the
-    # engine clamps the beast pool to zero.
-    effective_dmg = dmg
-    if self.immune_to(damage_type):
-      effective_dmg = 0
-    elif self.resistant_to(damage_type):
-      effective_dmg = dmg // 2
-    elif self.vulnerable_to(damage_type):
-      effective_dmg = dmg * 2
-    result = super().take_damage(dmg, battle=battle, damage_type=damage_type,
-                                  session=session, item=item, critical=critical,
-                                  roll_info=roll_info, sneak_attack=sneak_attack)
-    if self.attributes.get('hp', 0) <= 0:
-      overflow = max(0, effective_dmg - pre_hp)
-      # If the engine already flagged us unconscious during the beast
-      # take_damage, clear it before reverting so the druid form can be
-      # evaluated cleanly against its restored HP.
-      if 'unconscious' in self.statuses:
-        self.statuses.remove('unconscious')
-      _wild_shape.revert(self, overflow_damage=overflow, battle=battle)
-      if session is None:
-        session = battle.session if battle else getattr(self, 'session', None)
-      if session:
-        session.event_manager.received_event({
-          'source': self,
-          'event': 'wild_shape_revert',
-          'reason': 'beast_dropped',
-        })
-    return result
 
   # ── Journal ────────────────────────────────────────────────────────────
   def add_journal_entry(self, text, kind='note', title=None, source=None,

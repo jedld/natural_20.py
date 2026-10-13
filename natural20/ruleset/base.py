@@ -75,6 +75,17 @@ class Ruleset(ABC):
         """``auto_at_or_above`` (2014) or ``caster_con_save`` (2024)."""
         return self._override("counterspell_resolution", "auto_at_or_above")
 
+    def mirror_image_model(self) -> str:
+        """``d20_redirect`` (2014: d20 per attack, duplicate AC 10 + Dex) or
+        ``d6_on_hit`` (2024: on a hit, d6 per duplicate, any 3+ hits one)."""
+        return self._override("mirror_image_model", "d20_redirect")
+
+    def spells_per_turn_model(self) -> str:
+        """``bonus_action_spell`` (2014: after a bonus-action spell, only a
+        1-action cantrip) or ``one_slot_per_turn`` (2024: at most one spell
+        slot spent per turn; cantrips are free)."""
+        return self._override("spells_per_turn_model", "bonus_action_spell")
+
     def spell_grouping(self) -> str:
         """``per_class`` (2014) or ``arcane_divine_primal`` (2024)."""
         return self._override("spell_grouping", "per_class")

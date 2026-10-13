@@ -240,18 +240,17 @@ class TestPolymorphSpell(TransmutationSpellTestCase):
         result = spell.resolve(self.caster, self.battle, SimpleNamespace(target=self.ally), self.battle_map)
         self.assertEqual(result[0]['type'], 'polymorph')
 
-    def test_polymorph_apply_sets_beast_transition(self):
+    def test_polymorph_apply_transforms_target(self):
         props = self.session.load_spell('polymorph')
         spell = PolymorphSpell(self.session, self.caster, 'PolymorphSpell', props)
-        with patch.object(self.enemy, '_maybe_phase_transition', return_value=True) as transition:
-            PolymorphSpell.apply(self.battle, {
-                'type': 'polymorph',
-                'source': self.caster,
-                'target': self.enemy,
-                'effect': spell,
-            }, self.session)
-            transition.assert_called_once()
-        self.assertEqual(self.enemy.properties['phase_transition']['npc'], 'wolf')
+        PolymorphSpell.apply(self.battle, {
+            'type': 'polymorph',
+            'source': self.caster,
+            'target': self.enemy,
+            'effect': spell,
+            'beast': 'cat',
+        }, self.session)
+        self.assertEqual(self.enemy.properties['polymorph_state']['form'], 'cat')
         self.assertIn('polymorphed', self.enemy.statuses)
 
 

@@ -130,6 +130,23 @@ def acquire_targets(param, entity, battle, map=None):
             if getattr(target, 'humanoid', lambda: False)()
         }
 
+    excluded_statuses = set(param.get("exclude_statuses") or [])
+    if excluded_statuses:
+        possible_targets = {
+            target for target in possible_targets
+            if not excluded_statuses.intersection(getattr(target, 'statuses', None) or [])
+        }
+
+    excluded_races = set(param.get("exclude_races") or [])
+    if excluded_races:
+        def _races(target):
+            race = (getattr(target, 'properties', None) or {}).get('race') or []
+            return [race] if isinstance(race, str) else race
+        possible_targets = {
+            target for target in possible_targets
+            if not excluded_races.intersection(_races(target))
+        }
+
     return possible_targets
 
 def optimize_conal_targets(position_choices, entity, battle, map, range_cone):
@@ -140,17 +157,11 @@ def optimize_conal_targets(position_choices, entity, battle, map, range_cone):
     best_position = None
     best_score = 1
     entity_position = map.position_of(entity)
+    aware = _awareness(entity, battle)
     for i, position in enumerate(position_choices):
         squares = map.squares_in_cone(entity_position, position, range_cone, require_los=True)
         if len(squares) > 0:
-            score = 0
-            for square in squares:
-                entity_at_square = map.entity_at(square[0], square[1])
-                if entity_at_square is not None:
-                    if entity_at_square in battle.opponents_of(entity):
-                        score += 1
-                    elif entity_at_square in battle.allies_of(entity):
-                        score -= 1
+            score = _score_squares(squares, entity, battle, map, aware)
             if score >= best_score:
                 best_score = score
                 best_position = i
@@ -163,17 +174,11 @@ def _optimize_cube_targets(position_choices, entity, battle, map, size_squares):
     best_position = None
     best_score = 1
     entity_position = map.position_of(entity)
+    aware = _awareness(entity, battle)
     for i, position in enumerate(position_choices):
         squares = map.squares_in_adjacent_cube(entity_position, tuple(position), size_squares)
         if len(squares) > 0:
-            score = 0
-            for square in squares:
-                entity_at_square = map.entity_at(square[0], square[1])
-                if entity_at_square is not None:
-                    if entity_at_square in battle.opponents_of(entity):
-                        score += 1
-                    elif entity_at_square in battle.allies_of(entity):
-                        score -= 1
+            score = _score_squares(squares, entity, battle, map, aware)
             if score >= best_score:
                 best_score = score
                 best_position = i
@@ -181,15 +186,37 @@ def _optimize_cube_targets(position_choices, entity, battle, map, size_squares):
         selected_positions.append(position_choices[best_position])
     return selected_positions
 
-def _score_squares(squares, entity, battle, map):
+def _awareness(entity, battle):
+    """Enemies the caster can see, squares where it senses an unseen one, and
+    its allies. AoE placement must not use the true position of a hidden foe."""
+    opponents = battle.opponents_of(entity)
+    allies = set(battle.allies_of(entity))
+    ally_uids = {a.entity_uid for a in allies}
+    seen = {e for e in opponents if battle.can_see(entity, e)}
+    sensed = set()
+    try:
+        from natural20.utils.unseen_targets import sensed_creatures
+        sensed = {tuple(entry['pos']) for entry in sensed_creatures(battle, entity)
+                  if entry.get('uid') not in ally_uids}
+    except Exception:
+        pass
+    return seen, sensed, allies
+
+
+def _score_squares(squares, entity, battle, map, aware=None):
+    seen, sensed, allies = aware if aware is not None else _awareness(entity, battle)
     score = 0
     for sx, sy in squares:
-        ent = map.entity_at(sx, sy)
-        if ent is None:
-            continue
-        if ent in battle.opponents_of(entity):
+        if (sx, sy) in sensed:
             score += 1
-        elif ent in battle.allies_of(entity):
+            continue
+        ent = map.entity_at(sx, sy)
+        if ent is None or (hasattr(ent, 'dead') and ent.dead()):
+            continue
+        if ent in seen:
+            # A downed foe is out of the fight; hitting only those wastes the slot.
+            score += 1 if ent.conscious() else 0.5
+        elif ent in allies:
             score -= 1
     return score
 
@@ -197,9 +224,10 @@ def _optimize_radius_targets(position_choices, entity, battle, map, radius_ft):
     """Pick the center square that maximizes (enemies - allies) inside a sphere."""
     best_position = None
     best_score = 1
+    aware = _awareness(entity, battle)
     for i, position in enumerate(position_choices):
         squares = map.squares_in_radius(tuple(position), radius_ft)
-        score = _score_squares(squares, entity, battle, map)
+        score = _score_squares(squares, entity, battle, map, aware)
         if score >= best_score:
             best_score = score
             best_position = i
@@ -209,13 +237,39 @@ def _optimize_line_targets(position_choices, entity, battle, map, length_ft, wid
     best_position = None
     best_score = 1
     entity_position = map.position_of(entity)
+    aware = _awareness(entity, battle)
     for i, position in enumerate(position_choices):
         squares = map.squares_in_line(entity_position, tuple(position), length_ft, width_ft)
-        score = _score_squares(squares, entity, battle, map)
+        score = _score_squares(squares, entity, battle, map, aware)
         if score >= best_score:
             best_score = score
             best_position = i
     return [position_choices[best_position]] if best_position is not None else []
+
+def _rank_auto_pick(targets, mode):
+    """Order candidates for an ``auto_pick`` multi-target param.
+
+    ``most_wounded``: creatures missing hit points, lowest HP fraction first
+    (downed allies lead); untouched creatures are left out.
+    """
+    if mode != 'most_wounded':
+        return list(targets)
+
+    def missing(t):
+        try:
+            return t.max_hp() - t.hp()
+        except Exception:
+            return 0
+
+    def fraction(t):
+        try:
+            return t.hp() / max(1, t.max_hp())
+        except Exception:
+            return 1.0
+
+    wounded = [t for t in targets if hasattr(t, 'dead') and not t.dead() and missing(t) > 0]
+    return sorted(wounded, key=fraction)
+
 
 def build_params(session, entity, battle, build_info, map=None, auto_target=True, match=None, is_verbose=False):
     """
@@ -247,10 +301,8 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                 if SpellAction.can_cast(entity, battle, spell_name):
                     spell_info = session.load_spell(spell_name)
                     possible_spells.append((spell_name, spell_info["level"]))
-                else:
-                    # If any spell is not castable, 
-                    # original code breaks and sets build_info to None
-                    return None
+            if not possible_spells:
+                return None
 
             if _match:
                 possible_spells = [spell for spell in possible_spells if spell[0] in _match]
@@ -291,6 +343,15 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             combo_func = (
                 combinations_with_replacement if allow_retarget else combinations
             )
+
+            if param.get("auto_pick") and total_targets > 1:
+                # "Up to N creatures": one combination of the best candidates
+                # instead of every subset.
+                ranked = _rank_auto_pick(possible_targets, param["auto_pick"])
+                if ranked:
+                    params_list.append([tuple(ranked[:max_targets])])
+                    continue
+                return None
 
             # Generate all combinations of targets from min to max count
             for n in range(min_targets, max_targets + 1):
@@ -534,7 +595,7 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             spell_range_ft = param.get("range", 60)
             radius_ft = param.get("radius", 20)
             require_los = param.get("require_los", False)
-            cur_x, cur_y = map.position_of(entity)
+            cur_x, cur_y = param.get("origin") or map.position_of(entity)
             max_squares = max(0, int(spell_range_ft) // map.feet_per_grid)
             position_choices = []
             for dx in range(-max_squares, max_squares + 1):
@@ -581,8 +642,13 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                         continue
                     if _match and [nx, ny] not in _match:
                         continue
-                    if corpse_criteria is not None and not corpses_at(map, nx, ny, **corpse_criteria):
-                        continue
+                    if corpse_criteria is not None:
+                        found = corpses_at(map, nx, ny, **corpse_criteria)
+                        if param.get("corpse_allies_only"):
+                            from natural20.utils.corpses import ally_corpses_only
+                            found = ally_corpses_only(found, entity, battle)
+                        if not found:
+                            continue
                     position_choices.append([nx, ny])
             params_list.append(position_choices)
         elif param_type == "select_line":
@@ -665,4 +731,18 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
 
     # Remove any None values which represent invalid/failed builds
     final_actions = [act for act in previous_builds if act is not None]
-    return final_actions
+    return [act for act in final_actions if not _npc_attack_target_blocked(act)]
+
+
+def _npc_attack_target_blocked(action) -> bool:
+    """NPC attacks with ``target_if`` / ``target_creature_types`` (e.g. a
+    vampire's Bite) may only be aimed at targets that satisfy them."""
+    npc_action = getattr(action, 'npc_action', None)
+    target = getattr(action, 'target', None)
+    if not isinstance(npc_action, dict) or target is None or not hasattr(target, 'entity_uid'):
+        return False
+    from natural20.utils.monster_traits import attack_target_issue
+    try:
+        return attack_target_issue(action.source, target, npc_action) is not None
+    except Exception:
+        return False

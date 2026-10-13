@@ -1,6 +1,28 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
 
+
+def _dice_parts(expr, default):
+    try:
+        count, die = str(expr or default).lower().split('d', 1)
+        return int(count or 1), int(die)
+    except (TypeError, ValueError):
+        count, die = default.split('d', 1)
+        return int(count), int(die)
+
+
+def slot_healing_dice(spell, default_dice):
+    """Healing dice for the slot the spell is cast with: YAML ``heal_dice``
+    at the spell's level plus ``heal_dice_per_slot`` for each level above."""
+    props = spell.properties or {}
+    count, die = _dice_parts(props.get('heal_dice'), default_dice)
+    per_slot, _ = _dice_parts(props.get('heal_dice_per_slot') or props.get('heal_dice'), default_dice)
+    base_level = int(props.get('level') or 1)
+    at_level = getattr(getattr(spell, 'action', None), 'at_level', None) or base_level
+    count += per_slot * max(0, int(at_level) - base_level)
+    return f"{count}d{die}"
+
+
 class CureWoundsSpell(Spell):
     def build_map(self, orig_action):
         def set_target(target):
@@ -22,14 +44,8 @@ class CureWoundsSpell(Spell):
 
     def _heal(self, battle, opts=None):
         entity = self.source
-        level = 1
-        if entity.level() >= 5:
-            level += 1
-        if entity.level() >= 11:
-            level += 1
-        if entity.level() >= 17:
-            level += 1
-        return DieRoll.roll(f"{level}d8+{entity.cleric_spell_casting_modifier()}", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
+        dice = slot_healing_dice(self, '1d8')
+        return DieRoll.roll(f"{dice}+{entity.cleric_spell_casting_modifier()}", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
 
     def compute_hit_probability(self, battle, opts=None):
         return 1.0

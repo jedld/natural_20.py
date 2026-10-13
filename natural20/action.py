@@ -89,14 +89,19 @@ class Action:
         self.opts = opts
 
     def add_reaction(self, reaction_type, source, result):
-        if reaction_type not in self.async_reactions:
-            self.async_reactions[reaction_type] = []
-        self.async_reactions[reaction_type] = (source, result)
+        # Keyed per source: several creatures may be asked about the same
+        # reaction type (e.g. Counterspell) while one action resolves.
+        bucket = self.async_reactions.setdefault(reaction_type, [])
+        for index, (existing, _) in enumerate(bucket):
+            if existing == source:
+                bucket[index] = (source, result)
+                return
+        bucket.append((source, result))
 
     def has_async_reaction_for_source(self, source, reaction_type):
-        for key, value in self.async_reactions.items():
-            if key == reaction_type and value[0] == source:
-                return value[1]
+        for existing, result in self.async_reactions.get(reaction_type, []):
+            if existing == source:
+                return result
         return False
 
     def clone(self):

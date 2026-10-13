@@ -1,6 +1,7 @@
 from natural20.die_roll import DieRoll
 import math
 import pdb
+import re
 from natural20.event_manager import EventManager
 from natural20.evaluator.entity_state_evaluator import EntityStateEvaluator
 from typing import List, Tuple
@@ -8,6 +9,7 @@ from natural20.concern.notable import Notable
 from natural20.concern.generic_event_handler import GenericEventHandler
 from natural20.spell.effects.protection_effect import ProtectionEffect
 import uuid
+from contextlib import nullcontext
 from natural20.utils.conversation import delivered_conversations
 from natural20.utils.gibberish import gibberish
 from natural20.utils.language_comprehension import understands_language, understands_language_for_languages
@@ -16,6 +18,10 @@ import i18n
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Consequences of a blow, dispatched after the damage event that caused them.
+DAMAGE_FOLLOWUP_EVENTS = ('unconscious', 'died', 'death_fail', 'relentless_endurance',
+                          'concentration_check', 'concentration_end', 'legendary_resistance')
 
 class Entity(EntityStateEvaluator, Notable):
 
@@ -693,10 +699,20 @@ class Entity(EntityStateEvaluator, Notable):
         if self.conversation_controller:
             self.conversation_controller.process_message(self, source, message, language, self.memory_buffer, directed_to)
 
-    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None, narrative=None, actions=None, segments=None, gallery_image_id=None) -> List[Tuple['Entity', str, List['Entity']]]:
+    @staticmethod
+    def _is_dead_listener(target):
+        dead = getattr(target, 'dead', None)
+        try:
+            return bool(callable(dead) and dead())
+        except Exception:
+            return False
+
+    def send_conversation(self, message, distance_ft=30, targets=None, language=None, volume=None, narrative=None, actions=None, segments=None, gallery_image_id=None, callout=None) -> List[Tuple['Entity', str, List['Entity']]]:
         if language is None:
             language = "common"
         language = language.lower()
+        if isinstance(targets, (list, tuple, set)) and targets:
+            targets = [t for t in targets if not self._is_dead_listener(t)]
         narrative_entries = []
         if isinstance(narrative, str) and narrative.strip():
             narrative_entries = [narrative.strip()]
@@ -735,7 +751,14 @@ class Entity(EntityStateEvaluator, Notable):
         nearby = []
         delivered_entities = set()
 
-        for delivery in delivered_conversations(self, message, entity_map, distance_ft=distance_ft, mode=volume, targets=targets, language=language):
+        deliveries = delivered_conversations(self, message, entity_map, distance_ft=distance_ft, mode=volume, targets=targets, language=language)
+        try:
+            from natural20.utils.combat_comms import record_speech
+            record_speech(self, message, language, deliveries, callout=callout)
+        except Exception:
+            logger.debug("combat comms recording failed", exc_info=True)
+
+        for delivery in deliveries:
             other_entity = delivery['entity']
             rendered_message = delivery['message']
             nearby.append([other_entity, rendered_message, targets])
@@ -1074,7 +1097,11 @@ class Entity(EntityStateEvaluator, Notable):
         )
 
     def token_image(self):
-        return self.properties.get('token_image') or f"token_{(self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name').replace(' ', '_')).lower()}.png"
+        if self.properties.get('token_image'):
+            return self.properties['token_image']
+        base = self.properties.get('kind') or self.properties.get('sub_type') or self.properties.get('name') or ''
+        slug = re.sub(r'[^a-z0-9]+', '_', str(base).lower()).strip('_')
+        return f"token_{slug}.png"
 
     def token_size(self):
         square_size = self.size()
@@ -1336,6 +1363,9 @@ class Entity(EntityStateEvaluator, Notable):
 
             from natural20.utils.death_info import build_death_info
             death_info = build_death_info(self, cause)
+            game_time = getattr(self.session, 'game_time', None)
+            if isinstance(game_time, (int, float)):
+                death_info['game_time'] = game_time
             self.attributes['death_info'] = death_info
             self.session.event_manager.received_event({
                 'source': self, 'event': 'died', 'death_info': death_info,
@@ -1545,6 +1575,9 @@ class Entity(EntityStateEvaluator, Notable):
 
             self.do_prone()
             self.statuses.append('unconscious')
+            # Dropping again starts a new dying state.
+            while 'stable' in self.statuses:
+                self.statuses.remove('stable')
 
             # dismiss all effects
             for effect in self.casted_effects:
@@ -2347,24 +2380,29 @@ class Entity(EntityStateEvaluator, Notable):
                 return before - len(self.casted_effects)
             effect = resolved
 
-        removed_effects = {}
-        if hasattr(effect, 'source') and effect.source:
-            for f in effect.source.casted_effects:
-                if f['effect'].id == effect.id:
-                    removed_effects[f['effect'].id] = f
+        def entry_id(f):
+            return getattr(f.get('effect'), 'id', None)
 
-            effect.source.casted_effects = [f for f in effect.source.casted_effects if f['effect'].id != effect.id]
+        effect_id = getattr(effect, 'id', None)
+
+        removed_effects = {}
+        if effect_id is not None and hasattr(effect, 'source') and effect.source:
+            for f in effect.source.casted_effects:
+                if entry_id(f) == effect_id:
+                    removed_effects[effect_id] = f
+
+            effect.source.casted_effects = [f for f in effect.source.casted_effects if entry_id(f) != effect_id]
 
         dismiss_count = 0
 
         new_effects = {}
         for key, value in self.effects.items():
             for f in value:
-                if f['effect'].id == effect.id:
-                    removed_effects[f['effect'].id] = f
+                if effect_id is not None and entry_id(f) == effect_id:
+                    removed_effects[effect_id] = f
                     dismiss_count += 1
 
-            new_effects[key] = [f for f in value if f['effect'].id not in removed_effects]
+            new_effects[key] = [f for f in value if entry_id(f) is None or entry_id(f) not in removed_effects]
         self.effects = new_effects
 
         new_entity_event_hooks = {}
@@ -2386,6 +2424,13 @@ class Entity(EntityStateEvaluator, Notable):
 
     def has_multiattack(self):
         return self.properties.get('multiattack', None) is not None
+
+    def _turn_start_position(self, battle):
+        try:
+            pos = battle.map_for(self).position_of(self)
+            return [int(pos[0]), int(pos[1])] if pos else None
+        except Exception:
+            return None
 
     def reset_turn(self, battle):
         entity_state = battle.entity_state_for(self)
@@ -2409,7 +2454,9 @@ class Entity(EntityStateEvaluator, Notable):
             'action_surge': None,
             'multiattack_started': False,
             'casted_level_spells': [],
+            'casted_spells': [],
             'positions_entered': {},
+            'turn_start_position': self._turn_start_position(battle),
             'legendary_actions': total_legendary_actions
         })
 
@@ -2434,7 +2481,7 @@ class Entity(EntityStateEvaluator, Notable):
         if 'disengage' in entity_state['statuses']:
             entity_state['statuses'].remove('disengage')
 
-        battle.event_manager.received_event({'source': self, 'event': 'start_of_turn'})
+        battle.event_manager.received_event({'source': self, 'event': 'start_of_turn', 'battle': battle})
         self.resolve_trigger('start_of_turn', {'battle': battle})
         try:
             from natural20.combat_script import process_combat_script
@@ -2442,6 +2489,7 @@ class Entity(EntityStateEvaluator, Notable):
         except Exception:
             pass
         self._cleanup_effects()
+        battle.event_manager.received_event({'source': self, 'event': 'turn_status', 'battle': battle})
 
         if not self.has_multiattack():
             return entity_state
@@ -2554,10 +2602,25 @@ class Entity(EntityStateEvaluator, Notable):
 
     def _cleanup_effects(self):
         self._maybe_expire_swarm_centipede_venom()
-        for _, value in self.effects.items():
-            delete_effects = [f for f in value if f.get('expiration') and f['expiration'] <= self.session.game_time]
-            for effect in delete_effects:
-                self.dismiss_effect(effect)
+        expired = []
+        seen = set()
+        for value in list(self.effects.values()):
+            for f in value:
+                if not (f.get('expiration') and f['expiration'] <= self.session.game_time):
+                    continue
+                entry_effect = f.get('effect')
+                if entry_effect is None or id(entry_effect) in seen:
+                    continue
+                seen.add(id(entry_effect))
+                expired.append(entry_effect)
+        for entry_effect in expired:
+            if isinstance(entry_effect, str):
+                self.effects = {
+                    k: [f for f in v if f.get('effect') != entry_effect]
+                    for k, v in self.effects.items()
+                }
+            else:
+                self.dismiss_effect(entry_effect)
 
         self.entity_event_hooks = {k: [f for f in value if not f.get('expiration') or f['expiration'] > self.session.game_time] for k, value in self.entity_event_hooks.items()}
 
@@ -3086,7 +3149,8 @@ class Entity(EntityStateEvaluator, Notable):
         save_roll = self._roll_save_throw(save_type, battle, opts)
         if opts.get('dc') is not None:
             from natural20.utils.monster_traits import try_legendary_resistance
-            save_roll = try_legendary_resistance(self, save_roll, opts['dc'], save_type, battle=battle)
+            save_roll = try_legendary_resistance(self, save_roll, opts['dc'], save_type, battle=battle,
+                                                 concentration=opts.get('concentration'))
         return save_roll
 
     def _roll_save_throw(self, save_type, battle, opts):
@@ -3469,14 +3533,27 @@ class Entity(EntityStateEvaluator, Notable):
 
         merge_inventory_entry(self.inventory[ammo_type], received, add_qty)
 
+    def spell_list_classes_for(self, spell):
+        """Lower-cased class keys whose slots/modifiers can cast *spell*:
+        the spell's own ``spell_list_classes`` plus classes that borrow
+        another class's list (e.g. an Eldritch Knight casting wizard spells
+        from ``fighter`` slots)."""
+        keys = [str(c).lower() for c in (spell or {}).get('spell_list_classes', []) or []]
+        borrowed = getattr(self, 'borrowed_spell_list_classes', None)
+        mapping = borrowed() if callable(borrowed) else {}
+        for source_list, caster_class in (mapping or {}).items():
+            if source_list in keys and caster_class not in keys:
+                keys.append(caster_class)
+        return keys
+
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        spell_classes = spell.get('spell_list_classes', [])
+        spell_classes = self.spell_list_classes_for(spell)
         class_types = spell_classes if spell_classes else ['wizard']
         attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
         return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        spell_classes = spell.get('spell_list_classes', [])
+        spell_classes = self.spell_list_classes_for(spell)
         class_types = spell_classes if spell_classes else ['wizard']
         attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
         return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Melee Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
@@ -3541,6 +3618,16 @@ class Entity(EntityStateEvaluator, Notable):
             qty, resource = details['casting_time'].split(':')
 
             disable_reason = []
+            from natural20.utils.spell_loader import load_spell_class, resolve_spell_class_key
+            try:
+                load_spell_class(resolve_spell_class_key(spell, details))
+            except Exception:
+                disable_reason.append('not_implemented')
+            from natural20.utils.spell_requirements import environment_issue, missing_materials
+            if missing_materials(self.owner if self.familiar() else self, details):
+                disable_reason.append('missing_materials')
+            if environment_issue(self, details, battle):
+                disable_reason.append('environment')
             if resource == 'action' and battle and battle.ongoing() and self.total_actions(battle) == 0:
                 disable_reason.append('no_action')
             if resource == 'reaction':
@@ -3552,8 +3639,7 @@ class Entity(EntityStateEvaluator, Notable):
                 disable_reason.append('in_battle')
             if details['level'] > 0:
                 slot_available = False
-                for spell_class_type in details.get('spell_list_classes', []):
-                    class_key = spell_class_type.lower()
+                for class_key in self.spell_list_classes_for(details):
                     if hasattr(self, 'next_spell_slot_level'):
                         next_slot = self.next_spell_slot_level(class_key, details['level'])
                         if next_slot is not None:
@@ -3724,12 +3810,22 @@ class Entity(EntityStateEvaluator, Notable):
         self.attributes["hp"] -= total_damage
         instant_death = False
         already_down = bool(self.unconscious() or self.dead())
+        # Beast forms (Polymorph, Wild Shape) revert at 0 HP; excess damage
+        # carries over to the normal form below instead of downing the beast.
+        from natural20.utils.polymorph import has_assumed_form
+        form_overflow = max(0, -self.hp())
+        form_drop = (self.hp() <= 0 and total_damage > 0 and not already_down
+                     and has_assumed_form(self))
         # One attack's damage (e.g. a weapon hit plus its necrotic rider) is a
         # single instance: one death-save failure, one massive-damage check.
         hit_state = item.get('_hit_state') if isinstance(item, dict) else None
         if not isinstance(hit_state, dict):
             hit_state = None
         overflow = max(0, -self.hp())
+        if form_drop:
+            overflow = 0
+            if hit_state is not None:
+                hit_state['overflow'] = 0
         if hit_state is not None and overflow > 0:
             overflow += int(hit_state.get('overflow', 0) or 0)
             hit_state['overflow'] = overflow
@@ -3739,107 +3835,112 @@ class Entity(EntityStateEvaluator, Notable):
             and bool(item and item.get('knock_unconscious'))
         )
 
-        # Half-Orc Relentless Endurance: when reduced to 0 HP but not killed
-        # outright, drop to 1 HP instead. Once per long rest.
-        if (self.hp() <= 0
-                and total_damage > 0
-                and not self.unconscious()
-                and not (self.hp() < 0 and abs(self.hp()) >= self.properties.get('max_hp', 0))
-                and self.class_feature('relentless_endurance')
-                and not getattr(self, 'relentless_endurance_used', False)):
-            self.attributes['hp'] = 1
-            self.relentless_endurance_used = True
-            session.event_manager.received_event({
-                'source': self,
-                'event': 'relentless_endurance',
-            })
+        defer = getattr(session.event_manager, 'deferring', None)
+        with (defer(DAMAGE_FOLLOWUP_EVENTS) if callable(defer) else nullcontext()):
+            # Half-Orc Relentless Endurance: when reduced to 0 HP but not killed
+            # outright, drop to 1 HP instead. Once per long rest.
+            if (self.hp() <= 0
+                    and total_damage > 0
+                    and not form_drop
+                    and not self.unconscious()
+                    and not (self.hp() < 0 and abs(self.hp()) >= self.properties.get('max_hp', 0))
+                    and self.class_feature('relentless_endurance')
+                    and not getattr(self, 'relentless_endurance_used', False)):
+                self.attributes['hp'] = 1
+                self.relentless_endurance_used = True
+                session.event_manager.received_event({
+                    'source': self,
+                    'event': 'relentless_endurance',
+                })
 
-        death_fail_counted = bool(hit_state and hit_state.get('death_fail_counted'))
-        if hit_state is not None and total_damage > 0:
-            hit_state['death_fail_counted'] = True
+            death_fail_counted = bool(hit_state and hit_state.get('death_fail_counted'))
+            if hit_state is not None and total_damage > 0:
+                hit_state['death_fail_counted'] = True
 
-        if self.unconscious() and not death_fail_counted:
-            if 'stable' in self.statuses:
-                self.statuses.remove('stable')
-            self.death_fails += 2 if critical else 1
+            if self.unconscious() and not death_fail_counted:
+                if 'stable' in self.statuses:
+                    self.statuses.remove('stable')
+                self.death_fails += 2 if critical else 1
 
-            complete = False
-            if self.death_fails >= 3:
-                complete = True
-                self.make_dead(battle=battle, cause='damage_while_dying')
-                self.death_saves = 0
-                self.death_fails = 0
-            if battle:
-                session.event_manager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
-                                                    'fails': self.death_fails, 'complete': complete})
+                complete = self.death_fails >= 3
+                if battle:
+                    session.event_manager.received_event({'source': self, 'event': 'death_fail', 'saves': self.death_saves,
+                                                        'fails': min(self.death_fails, 3), 'complete': complete})
+                if complete:
+                    self.make_dead(battle=battle, cause='damage_while_dying')
+                    self.death_saves = 0
+                    self.death_fails = 0
 
-        from natural20.utils.monster_traits import in_mist_form, misty_escape_config
-        misty_escape = bool(
-            self.hp() <= 0 and total_damage > 0 and not already_down and not knock_out
-            and misty_escape_config(self) and not in_mist_form(self)
-        )
+            from natural20.utils.monster_traits import in_mist_form, misty_escape_config
+            misty_escape = bool(
+                self.hp() <= 0 and total_damage > 0 and not already_down and not knock_out
+                and not form_drop and misty_escape_config(self) and not in_mist_form(self)
+            )
 
-        if misty_escape:
-            self.attributes["hp"] = 0
-        elif self.hp() < 0 and overflow >= self.properties['max_hp']:
-            if knock_out:
-                instant_death = False
-                self._apply_knock_unconscious()
-            else:
-                instant_death = True
-                self.make_dead(battle=battle, cause='massive_damage')
-
-        elif self.hp() <= 0:
-            if already_down:
+            if misty_escape or form_drop:
+                self.attributes["hp"] = 0
+            elif self.dead():
                 pass
-            elif knock_out:
-                self._apply_knock_unconscious()
-            elif self.object() or (self.npc() and not self.makes_death_saves()):
-                self.make_dead(battle=battle, cause='killed')
-            else:
-                from natural20.utils.death_info import note_downed
-                note_downed(self)
-                self.make_unconscious()
-            # drop concentration spells
-            if self.concentration:
-                if not self.class_feature('focused_casting'):
-                    self.dismiss_effect(self.concentration)
-            if (not self.npc()
-                    and attacker is not None
-                    and getattr(attacker, 'class_feature', lambda _f: False)('swarm_centipede_venom')):
-                self._apply_swarm_centipede_venom()
-
-        elif self.hp() > 0:
-            if self.concentration and not self.class_feature('focused_casting'):
-                # make a concentration check
-                # Concentration DC is based on damage actually taken.
-                diffculty_class = max([10, total_damage // 2])
-                concentration_check = self.save_throw('constitution', battle, {'dc': diffculty_class})
-                if concentration_check.result() < diffculty_class:
-                    session.event_manager.received_event({'source': self,
-                                                       'event': 'concentration_check',
-                                                       'result': 'failure',
-                                                       'effect' : self.concentration,
-                                                       'roll': concentration_check,
-                                                       'dc': diffculty_class
-                                        })
-                    self.dismiss_effect(self.concentration)
+            elif self.hp() < 0 and overflow >= self.properties['max_hp']:
+                if knock_out:
+                    instant_death = False
+                    self._apply_knock_unconscious()
                 else:
-                    session.event_manager.received_event({'source': self,
-                                                       'event': 'concentration_check',
-                                                       'result': 'success',
-                                                       'effect' : self.concentration,
-                                                       'roll': concentration_check,
-                                                       'dc': diffculty_class
-                                        })
+                    instant_death = True
+                    self.make_dead(battle=battle, cause='massive_damage')
 
-        if self.hp() <= 0:
-            self.attributes["hp"] = 0
+            elif self.hp() <= 0:
+                if already_down:
+                    pass
+                elif knock_out:
+                    self._apply_knock_unconscious()
+                elif self.object() or (self.npc() and not self.makes_death_saves()):
+                    self.make_dead(battle=battle, cause='killed')
+                else:
+                    from natural20.utils.death_info import note_downed
+                    note_downed(self)
+                    self.make_unconscious()
+                # drop concentration spells
+                if self.concentration:
+                    if not self.class_feature('focused_casting'):
+                        self.dismiss_effect(self.concentration)
+                if (not self.npc()
+                        and attacker is not None
+                        and getattr(attacker, 'class_feature', lambda _f: False)('swarm_centipede_venom')):
+                    self._apply_swarm_centipede_venom()
 
-        if item is not None:
-            item['_applied_damage'] = total_damage
+            elif self.hp() > 0:
+                if self.concentration and not self.class_feature('focused_casting'):
+                    # make a concentration check
+                    # Concentration DC is based on damage actually taken.
+                    diffculty_class = max([10, total_damage // 2])
+                    concentration_check = self.save_throw('constitution', battle, {
+                        'dc': diffculty_class, 'concentration': self.concentration})
+                    if concentration_check.result() < diffculty_class:
+                        session.event_manager.received_event({'source': self,
+                                                           'event': 'concentration_check',
+                                                           'result': 'failure',
+                                                           'effect' : self.concentration,
+                                                           'roll': concentration_check,
+                                                           'dc': diffculty_class
+                                            })
+                        self.dismiss_effect(self.concentration)
+                    else:
+                        session.event_manager.received_event({'source': self,
+                                                           'event': 'concentration_check',
+                                                           'result': 'success',
+                                                           'effect' : self.concentration,
+                                                           'roll': concentration_check,
+                                                           'dc': diffculty_class
+                                            })
 
-        session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'damage_threshold_active': damage_threshold_active, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack, 'temp_hp_absorbed': temp_hp_absorbed})
+            if self.hp() <= 0:
+                self.attributes["hp"] = 0
+
+            if item is not None:
+                item['_applied_damage'] = total_damage
+
+            session.event_manager.received_event({'source': self, 'event': 'damage', 'total_damage': total_damage, 'damage_threshold_active': damage_threshold_active, 'value': dmg, 'damage_type': damage_type, 'roll_info': roll_info, 'instant_death': instant_death, 'sneak_attack': sneak_attack, 'temp_hp_absorbed': temp_hp_absorbed})
 
         if total_damage > 0 and item and self.attributes.get('charmed_by'):
             from natural20.utils.monster_traits import on_harmed_while_charmed
@@ -3848,6 +3949,14 @@ class Entity(EntityStateEvaluator, Notable):
         if misty_escape:
             from natural20.utils.monster_traits import try_misty_escape
             try_misty_escape(self, battle=battle, session=session)
+            return
+
+        if form_drop:
+            from natural20.utils.polymorph import end_assumed_form
+            end_assumed_form(self, battle=battle)
+            if form_overflow > 0:
+                self.take_damage(form_overflow, battle=battle, damage_type=damage_type,
+                                 session=session, item=item, critical=critical)
             return
 
         if battle and item and total_damage > 0:
@@ -3936,8 +4045,28 @@ class Entity(EntityStateEvaluator, Notable):
         clear_downed(self)
         if 'unconscious' in self.statuses:
             self.statuses.remove("unconscious")
-        if 'stable' in self.statuses:
+        while 'stable' in self.statuses:
             self.statuses.remove("stable")
+
+    def revive(self, hp=1, battle=None, source=None):
+        """Return a dead creature to life with ``hp`` hit points (Revivify and similar)."""
+        if not self.dead():
+            return False
+        for status in ('dead', 'unconscious', 'stable'):
+            while status in self.statuses:
+                self.statuses.remove(status)
+        self.death_saves = 0
+        self.death_fails = 0
+        self.attributes['hp'] = max(1, min(int(hp), self.max_hp()))
+        info = self.attributes.pop('death_info', None)
+        if info is not None:
+            self.attributes['last_death_info'] = info
+        from natural20.utils.death_info import clear_downed
+        clear_downed(self)
+        self.event_manager.received_event({
+            'source': source or self, 'target': self, 'event': 'revived', 'hp': self.hp(),
+        })
+        return True
 
     def heal(self, original_amt):
         if self.dead():
@@ -4021,16 +4150,13 @@ class Entity(EntityStateEvaluator, Notable):
             else:
                 self.death_fails += 1
 
-            complete = False
-            if self.death_fails >= 3:
-                complete = True
+            complete = self.death_fails >= 3
+            self.event_manager.received_event({'source': self, 'event': 'death_fail', 'roll': roll, 'saves': self.death_saves,
+                                                   'fails': min(self.death_fails, 3), 'complete': complete})
+            if complete:
                 self.make_dead(battle=battle, cause='failed_death_saves')
                 self.death_saves = 0
                 self.death_fails = 0
-                # print(f"{self.name} failed the final death saving throw and died")
-
-            self.event_manager.received_event({'source': self, 'event': 'death_fail', 'roll': roll, 'saves': self.death_saves,
-                                                   'fails': self.death_fails, 'complete': complete})
 
 
     def attach_handler(self, event_name, callback):

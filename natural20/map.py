@@ -1327,6 +1327,12 @@ class Map(SerializableObject):
         if entity is None:
             return is_difficult_due_to_objects(pos_x, pos_y, origin=from_pos)
 
+        # Zones that halve a creature's speed inside them (Spirit Guardians).
+        for zone in (getattr(battle, 'active_zones', None) or []):
+            slows = getattr(zone, 'slows', None)
+            if callable(slows) and not zone.expired() and slows(entity, (pos_x, pos_y)):
+                return True
+
         # Check all squares the entity would occupy
         for pos in self.entity_squares_at_pos(entity, pos_x, pos_y):
             r_x, r_y = pos
@@ -2621,16 +2627,17 @@ class Map(SerializableObject):
         for entity in battle_map.entities:
             for casted_effects in entity.casted_effects:
                 if 'target' in casted_effects:
-                    casted_effects['target'] = battle_map.entity_by_uid(casted_effects['target'])
+                    if isinstance(casted_effects['target'], str):
+                        casted_effects['target'] = battle_map.entity_by_uid(casted_effects['target'])
                     if 'effect' in casted_effects:
                         effect = casted_effects['effect']
-                        if effect.source:
-                            effect.source = battle_map.entity_by_uid(effect.source)
-                        if effect.target:
-                            if isinstance(effect.target, list):
-                                effect.target = [battle_map.entity_by_uid(target) for target in effect.target]
-                            else:
-                                effect.target = battle_map.entity_by_uid(effect.target)
+                        for attr in ('source', 'target'):
+                            value = getattr(effect, attr, None)
+                            if isinstance(value, str):
+                                setattr(effect, attr, battle_map.entity_by_uid(value))
+                            elif isinstance(value, list):
+                                setattr(effect, attr, [battle_map.entity_by_uid(v) if isinstance(v, str) else v
+                                                       for v in value])
 
         return battle_map
 

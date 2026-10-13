@@ -1,0 +1,27 @@
+---
+name: Ilsabet
+race: elf
+subrace: high_elf
+classes:
+  wizard: 5
+description: A wizard who knows Counterspell
+level: 5
+hit_die: inherit
+max_hp: 32
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 18
+  wis: 12
+  cha: 10
+spellbook:
+  - counterspell
+  - magic_missile
+  - shield
+prepared_spells:
+  - firebolt
+  - counterspell
+  - magic_missile
+  - shield
+inventory: []

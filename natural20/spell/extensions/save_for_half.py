@@ -27,6 +27,18 @@ from natural20.spell.extensions.save_check import SaveCheck
 __all__ = ["SaveForHalfMixin"]
 
 
+def _is_wall_segment(target) -> bool:
+    """Standing map walls are scenery, not saving-throw targets for area
+    spells. Doors and windows set in walls still count."""
+    from natural20.item_library.common import StoneWall
+    from natural20.item_library.door_object import DoorObject
+    try:
+        return (isinstance(target, StoneWall) and not isinstance(target, DoorObject)
+                and not target.dead())
+    except Exception:
+        return False
+
+
 class SaveForHalfMixin:
     """Mixin building the standard ``spell_damage`` event list."""
 
@@ -59,6 +71,8 @@ class SaveForHalfMixin:
         roll_factory = damage_roll if callable(damage_roll) else None
 
         for target in targets:
+            if _is_wall_segment(target):
+                continue
             save = SaveCheck.make(target, ability, dc, battle, save_opts,
                                   auto_fail_if_unconscious=True)
             failed = not save.passed

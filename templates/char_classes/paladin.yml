@@ -46,6 +46,7 @@ spell_list:
   level_3:
     - dispel_magic
     - protection_from_energy
+    - revivify
 sacred_oaths:
   oath_of_devotion:
     level_3:

@@ -35,6 +35,7 @@ en:
   attack_status:
     being_helped: Being being_helped
     invisible_attacker: Target is hidden/invisible
+    target_unseen: Target is unseen (hidden or invisible)
     prone: Target Prone
     ranged_with_enemy_in_melee: Ranged weapon with enemy in melee range
     shocking_grasp_metallic: Target wearing metal armor for Shocking Grasp
@@ -45,6 +46,7 @@ en:
     target_is_prone_range: Ranged attack on prone target
     target_long_range: Long range penalty
     unseen_attacker: Attacker is unseen
+    unseen_target: Attacking an unseen square (auto-miss if nothing is there)
   back: Back
   battle_end: Battle ended in %{num} rounds
   battle_simulator: Battle Simulator
@@ -165,6 +167,7 @@ en:
     hit_die_selection: Use a hit die to regain HP for %{name} (%{hp}/%{max_hp})?
     initiative: Roll for initiative
     medicine: Roll for medicine check
+    mirror_image: Rolling to see if the attack targets a Mirror Image duplicate
     perception: Roll for a perception check
     prompt: '%{name} - %{description}'
     roll_attempt: 'roll %{number}/%{total}. Please roll a d%{die_type} [1-%{die_type}]:'
@@ -391,10 +394,13 @@ en:
   spell_slots: Spell Slots
   spells:
     disabled:
+      environment: '- Not possible here'
       in_battle: Cannot be used in combat
+      missing_materials: '- Missing costly material component'
       no_action: '- No more actions'
       no_bonus_action: '- No more bonus actions'
       no_spell_slot: '- No more spell slots'
+      not_implemented: '- Not yet supported'
       reaction_only: ' (Reaction)'
   tpk: The entire party has fallen. Game Over!
   unequip: Unequip
@@ -411,6 +417,14 @@ en:
       invalid_position: Invalid target location.
       occupied: The target square must be empty.
       not_visible: The target is not visible.
+    unseen:
+      disabled: Attacking unseen squares is disabled in this campaign.
+      out_of_bounds: That square is off the map.
+      wall: You can't attack into a wall.
+      self: You can't attack your own square.
+      out_of_range: That square is out of this weapon's range.
+      no_path: Nothing could reach that square from here.
+      needs_sight: This ability needs a target you can see.
     spell:
       tiny_hut:
         no_position: You must be on the map to raise the hut.

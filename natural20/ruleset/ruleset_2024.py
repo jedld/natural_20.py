@@ -37,6 +37,12 @@ class Ruleset2024(Ruleset2014):
     def counterspell_resolution(self) -> str:
         return self._override("counterspell_resolution", "caster_con_save")
 
+    def mirror_image_model(self) -> str:
+        return self._override("mirror_image_model", "d6_on_hit")
+
+    def spells_per_turn_model(self) -> str:
+        return self._override("spells_per_turn_model", "one_slot_per_turn")
+
     def spell_grouping(self) -> str:
         return self._override("spell_grouping", "arcane_divine_primal")
 
