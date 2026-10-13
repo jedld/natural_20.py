@@ -25,7 +25,7 @@ class ActionSurgeAction(Action):
 
     @staticmethod
     def build(session, source):
-        action = ActionSurgeAction(session, source, 'second_wind')
+        action = ActionSurgeAction(session, source, 'action_surge')
         return action.build_map()
 
     def resolve(self, _session, _map, opts=None):

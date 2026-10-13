@@ -321,6 +321,8 @@ cure_wounds:
   duration: instant
   level: 1
   upcast: true
+  heal_dice: 1d8
+  heal_dice_per_slot: 1d8
   name: Cure Wounds
   range: 5
   school: evocation
@@ -455,6 +457,7 @@ find_familiar:
     - Wizard
 mage_hand:
   label: Mage Hand
+  ai_in_combat: false
   casting_time: 1:action
   components:
     - verbal
@@ -553,6 +556,8 @@ healing_word:
   duration: instant
   level: 1
   upcast: true
+  heal_dice: 1d4
+  heal_dice_per_slot: 1d4
   name: Healing Word
   range: 60
   school: evocation
@@ -1116,9 +1121,13 @@ polymorph:
     - somatic
     - material
   description: |
-    You attempt to transform a creature into a beast. An unwilling creature makes a
-    Wisdom saving throw. On a failure (or if willing), the target becomes the
-    configured beast form while you maintain concentration.
+    You transform a creature you can see within range into a beast. An unwilling
+    creature makes a Wisdom saving throw. Shapechangers and creatures at 0 hit
+    points are unaffected. The new form's challenge rating can be no higher than
+    the target's challenge rating or level. The target's game statistics, including
+    mental ability scores, are replaced by the beast's; it can't cast spells or
+    speak. The transformation lasts while you concentrate, or until the target drops
+    to 0 hit points in beast form, reverting with any excess damage carried over.
   duration: 1h
   duration_seconds: 3600
   level: 4
@@ -1128,6 +1137,7 @@ polymorph:
   concentration: true
   type: transmutation
   beast_form: wolf
+  hostile_beast_form: cat
   spell_list_classes:
     - Wizard
     - Sorcerer
@@ -1135,6 +1145,7 @@ polymorph:
   spell_class: Natural20::PolymorphSpell
 detect_magic:
   label: Detect Magic
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: >
@@ -1377,6 +1388,7 @@ aganazzars_scorcher:
   spell_class: Natural20::AganazzarsScorcher
 comprehend_languages:
   label: Comprehend Languages
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic, material]
   description: Understand literal meaning of spoken and written language.
@@ -1392,6 +1404,7 @@ comprehend_languages:
   spell_class: Natural20::ComprehendLanguages
 prestidigitation:
   label: Prestidigitation
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: Perform a minor magical trick.
@@ -2179,6 +2192,7 @@ dissonant_whispers:
   spell_class: Natural20::DissonantWhispers
 druidcraft:
   label: Druidcraft
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: SRD spell catalog entry (implementation pending).
@@ -2387,6 +2401,7 @@ heroism:
   spell_class: Natural20::Heroism
 identify:
   label: Identify
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: SRD spell catalog entry (implementation pending).
@@ -2558,6 +2573,7 @@ magic_weapon:
   spell_class: Natural20::MagicWeapon
 mending:
   label: Mending
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: SRD spell catalog entry (implementation pending).
@@ -2792,6 +2808,7 @@ tensers_floating_disk:
   spell_class: Natural20::TensersFloatingDisk
 thaumaturgy:
   label: Thaumaturgy
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: SRD spell catalog entry (implementation pending).
@@ -2831,6 +2848,7 @@ toll_the_dying:
   spell_class: Natural20::TollTheDying
 unseen_servant:
   label: Unseen Servant
+  ai_in_combat: false
   casting_time: 1:action
   components: [verbal, somatic]
   description: SRD spell catalog entry (implementation pending).
@@ -2868,3 +2886,156 @@ zone_of_truth:
   type: utility
   spell_list_classes: []
   spell_class: Natural20::ZoneOfTruth
+spirit_guardians:
+  label: Spirit Guardians
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a holy symbol
+  description: |
+    You call forth spirits to protect you. They flit around you to a distance of 15 feet for
+    the duration. If you are good or neutral, their spectral form appears angelic or fey (your
+    choice). If you are evil, they appear fiendish.
+
+    When you cast this spell, you can designate any number of creatures you can see to be
+    unaffected by it. An affected creature's speed is halved in the area, and when the creature
+    enters the area for the first time on a turn or starts its turn there, it must make a Wisdom
+    saving throw. On a failed save, the creature takes 3d8 radiant damage (if you are good or
+    neutral) or 3d8 necrotic damage (if you are evil). On a successful save, the creature takes
+    half as much damage.
+
+    At Higher Levels. When you cast this spell using a spell slot of 4th level or higher, the
+    damage increases by 1d8 for each slot level above 3rd.
+  duration: 10m
+  duration_seconds: 600
+  concentration: true
+  level: 3
+  upcast: true
+  name: Spirit Guardians
+  range: self
+  radius: 15
+  save: wisdom
+  damage_type: radiant
+  hostile: true
+  school: conjuration
+  type: damage
+  spell_list_classes: [Cleric]
+  ai_no_recast: true
+  spell_class: Natural20::SpiritGuardians
+revivify:
+  label: Revivify
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: diamonds worth 300 gp, which the spell consumes
+  consumed_materials:
+    - item: diamond
+      qty: 1
+  description: |
+    You touch a creature that has died within the last minute. That creature returns to life
+    with 1 hit point. This spell can't return to life a creature that has died of old age, nor
+    can it restore any missing body parts.
+  duration: instant
+  level: 3
+  name: Revivify
+  range: 5
+  max_dead_seconds: 60
+  hostile: false
+  school: necromancy
+  type: healing
+  spell_list_classes: [Cleric, Paladin]
+  spell_class: Natural20::Revivify
+mass_healing_word:
+  label: Mass Healing Word
+  casting_time: 1:bonus_action
+  components: [verbal]
+  description: |
+    As you call out words of restoration, up to six creatures of your choice that you can see
+    within range regain hit points equal to 1d4 + your spellcasting ability modifier. This spell
+    has no effect on undead or constructs.
+
+    At Higher Levels. When you cast this spell using a spell slot of 4th level or higher, the
+    healing increases by 1d4 for each slot level above 3rd.
+  duration: instant
+  level: 3
+  upcast: true
+  name: Mass Healing Word
+  range: 60
+  max_targets: 6
+  hostile: false
+  school: evocation
+  type: healing
+  spell_list_classes: [Cleric]
+  spell_class: Natural20::MassHealingWord
+call_lightning:
+  label: Call Lightning
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: |
+    A storm cloud appears in the shape of a cylinder that is 10 feet tall with a 60-foot radius,
+    centered on a point you can see 100 feet directly above you. The spell fails if you can't
+    see a point in the air where the storm cloud could appear (for example, if you are in a room
+    that can't accommodate the cloud).
+
+    When you cast the spell, choose a point you can see within range. A bolt of lightning flashes
+    down from the cloud to that point. Each creature within 5 feet of that point must make a
+    Dexterity saving throw. A creature takes 3d10 lightning damage on a failed save, or half as
+    much damage on a successful one. On each of your turns until the spell ends, you can use your
+    action to call down lightning in this way again, targeting the same point or a different one.
+
+    If you are outdoors in stormy conditions when you cast this spell, the spell gives you control
+    over the existing storm instead of creating a new one. Under such conditions, the spell's
+    damage increases by 1d10.
+
+    At Higher Levels. When you cast this spell using a spell slot of 4th or higher level, the
+    damage increases by 1d10 for each slot level above 3rd.
+  duration: 10m
+  duration_seconds: 600
+  concentration: true
+  level: 3
+  upcast: true
+  name: Call Lightning
+  range: 120
+  radius: 5
+  cloud_radius: 60
+  requires: [open_sky]
+  min_ceiling_ft: 100
+  save: dexterity
+  damage_type: lightning
+  require_los: false
+  hostile: true
+  school: conjuration
+  type: damage
+  spell_list_classes: [Druid]
+  ai_no_recast: true
+  spell_class: Natural20::CallLightning
+sleet_storm:
+  label: Sleet Storm
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a pinch of dust and a few drops of water
+  description: |
+    Until the spell ends, freezing rain and sleet fall in a 20-foot-tall cylinder with a
+    40-foot radius centered on a point you choose within range. The area is heavily obscured,
+    and exposed flames in the area are doused.
+
+    The ground in the area is covered with slick ice, making it difficult terrain. When a
+    creature enters the spell's area for the first time on a turn or starts its turn there, it
+    must make a Dexterity saving throw. On a failed save, it falls prone.
+
+    If a creature starts its turn in the spell's area and is concentrating on a spell, the
+    creature must make a successful Constitution saving throw against your spell save DC or lose
+    concentration.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 3
+  name: Sleet Storm
+  range: 150
+  radius: 40
+  save: dexterity
+  target_types: [point]
+  hostile: true
+  school: conjuration
+  type: control
+  spell_list_classes: [Druid, Sorcerer, Wizard]
+  ai_no_recast: true
+  spell_class: Natural20::SleetStorm

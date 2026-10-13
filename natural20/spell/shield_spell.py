@@ -3,6 +3,8 @@ from natural20.action import Action, AsyncReactionHandler
 from natural20.actions.spell_action import SpellAction
 import pdb
 class ShieldSpell(Spell):
+    ends_at_start_of_turn = True
+
     def build_map(self, action):
         return action
 
@@ -17,6 +19,15 @@ class ShieldSpell(Spell):
                 "event": 'spell_buf', "spell": item['effect'],
                 "source": item['source'],
                 "target": item['source']})
+
+    @staticmethod
+    def is_active_on(entity):
+        game_time = entity.session.game_time
+        return any(
+            e.get('handler') is ShieldSpell
+            and (not e.get('expiration') or e['expiration'] > game_time)
+            for e in entity.effects.get('ac_bonus', [])
+        )
 
     @staticmethod
     def ac_bonus(entity, effect):
@@ -44,12 +55,28 @@ class ShieldSpell(Spell):
             if entity_controller is None:
                 return [[], False]
 
-            if entity.has_effect(ShieldSpell):
+            if ShieldSpell.is_active_on(entity):
+                return [[], False]
+
+            if not entity.conscious() or not entity.has_reaction(battle):
+                return [[], False]
+
+            if not SpellAction.can_cast(entity, battle, 'shield'):
                 return [[], False]
 
             shield_spell = ShieldSpell(battle.session, entity, 'ShieldSpell', spell)
             action = SpellAction(battle.session, entity, 'spell')
             action.target = entity
+            action.spell = spell
+            action.at_level = spell.get('level', 1)
+            slot_owner = entity.owner if entity.familiar() else entity
+            if hasattr(slot_owner, 'next_spell_slot_level'):
+                for klass in slot_owner.spell_list_classes_for(spell):
+                    slot_level = slot_owner.next_spell_slot_level(klass.lower(), action.at_level)
+                    if slot_level is not None:
+                        action.at_level = slot_level
+                        action.spellcasting_class = klass.lower()
+                        break
             shield_spell.action = action
             action.spell_action = shield_spell
             valid_actions = [action]
@@ -72,6 +99,7 @@ class ShieldSpell(Spell):
             if hasattr(result, 'send'):
                 raise AsyncReactionHandler(entity, result, original_action, 'shield')
             if result:
+                shield_spell.consume(battle)
                 # The +5 AC already counts against the triggering attack.
                 blocks_attack = (
                     attack_roll is not None

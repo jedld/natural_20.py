@@ -134,8 +134,59 @@ overlays SRD 5.2 text/metadata onto the shared spell catalogue.
 | **Hex** | Same core curse (SRD 5.2 text in catalogue) | Extra 1d6 necrotic on attack hits + ability-check disadv (concentration) |
 | **Searing Smite** | Not offered as post-hit BA | **Bonus action** after melee/unarmed hit; ongoing fire + CON save to end (not concentration) |
 
+| **Cure Wounds** | 1d8 + mod, +1d8 per slot above 1st | 2d8 + mod, +2d8 per slot above 1st |
+| **Healing Word** | 1d4 + mod, +1d4 per slot above 1st | 2d4 + mod, +2d4 per slot above 1st |
+
 Campaign-local `items/spells.yml` entries still win over the overlay for matching keys.
 
+Slot healing dice are YAML-driven: `heal_dice` (base) plus `heal_dice_per_slot` times the levels above the spell's base level (`slot_healing_dice` in `natural20/spell/cure_wounds_spell.py`).
+
+### Spells per turn
+
+`Ruleset.spells_per_turn_model()` sets the limit, and `natural20/utils/spell_requirements.py` `spells_this_turn_issue` enforces it from `SpellAction.can_cast`. Each action or bonus-action cast is recorded in the turn state as `casted_spells` (level and resource).
+
+| Ruleset | Model | Rule |
+|---------|-------|------|
+| `5e-2014` | `bonus_action_spell` | After casting a bonus-action spell, you can only cast a cantrip with a casting time of 1 action. A bonus-action spell is also blocked if you already cast a leveled spell or a non-cantrip with your action this turn. |
+| `5e-2024` | `one_slot_per_turn` | You can spend only one spell slot per turn. Cantrips are unrestricted. |
+
+Reactions (Shield, Counterspell) are not counted.
+
+### Counterspell reaction window
+
+`SpellAction.resolve` runs `natural20/utils/counterspell.py`'s `run_counterspell_window` before a spell takes effect during a battle. Any **hostile** creature on the same map gets a `select_reaction` prompt (event `type: counterspell`, with `caster`, `spell`, `target_spell_level`) if it meets all of these conditions:
+
+- It is conscious.
+- It has `counterspell` prepared.
+- It still has a reaction and a 3rd-level-or-higher slot.
+- It can see the caster within 60 ft.
+
+- **Choices:** one Counterspell action per slot level the creature can spend. The VTT shows them in `reactions/counterspell.html`. `GenericController` (and LLM/JEV, which inherit it) uses `choose_counterspell`: it never counters cantrips. Under 2014 rules it upcasts to the lowest slot that auto-succeeds; under 2024 rules it always uses the lowest slot.
+- **Outcome:** a successful counter replaces the spell's result with the check events plus `spell_countered`. The caster still loses the action. Under 2014 rules the caster's slot is also spent; under 2024 rules it isn't. A failed counter lets the next eligible creature try, then the spell resolves normally.
+- **Async players:** `WebController` prompts raise `AsyncReactionHandler(reaction_type='counterspell')`. Progress is cached on the action (`_counterspell_state`), so re-resolving after the prompt doesn't re-ask or re-charge creatures that already reacted. `Action.add_reaction` stores answers per source, so several creatures can be asked during one action.
+- **Not modelled:** countering a Counterspell (the counter resolves directly, not through `SpellAction.resolve`), and readied spells being released (`skip_consume_at_resolve`).
+
+### Dispel Magic
+
+`DispelMagicSpell` (`natural20/spell/wizard_spells.py`) works the same in both editions. `natural20/utils/dispel.py` `spells_on(target, battle)` finds the leveled spells *on* the target: effects registered on it, plus any combatant's `casted_effects` entry that targets it. That covers a held Polymorph, Bless, Shield and so on. Spells the target cast on others are not included. Each spell at or below the slot level ends. A higher-level spell needs a check with the caster's spellcasting ability (plus proficiency with Improved Abjuration) against DC 10 + the spell's level. `end_spell_on` ends a single-target concentration spell through the caster's `dismiss_effect`, so the caster's concentration drops and a Polymorph reverts. Otherwise it removes the effect from the target only. The log reads "X casts Dispel Magic on Y with a level 3 slot: Polymorph (level 4) holds (check ... vs DC 14)." AI options are dropped unless the target carries a spell cast by an opponent (`worth_dispelling`).
+
+### Casting a second concentration spell
+
+Both editions end your current concentration as soon as you cast another concentration spell, whether or not the new spell lands. `SpellAction.resolve` handles this generically: when a spell with `concentration: true` in its YAML goes off (it isn't countered and didn't fail to cast), it puts a `concentration_replaced` item ahead of the spell's own results. At commit, `SpellAction.apply` dismisses the old effect through `dismiss_effect`, which also lifts it from its targets, so a held Polymorph reverts. This only happens if the caster is still concentrating on that same effect. Spells therefore only need to call `battle.start_concentration` on success, and a passed save still costs the caster the old spell.
+
+
+### Mirror Image
+
+`Ruleset.mirror_image_model()` picks the mechanic; `natural20/spell/mirror_image_spell.py` (`MirrorImageSpell.check_attack`) implements both. Weapon attacks (`AttackAction`) and spell attacks (`evaluate_spell_attack`) call it.
+
+| Ruleset | Model | Behaviour |
+|---------|-------|-----------|
+| `5e-2014` | `d20_redirect` | Every attack rolls a separate d20: 6+ / 8+ / 11+ with 3 / 2 / 1 duplicates redirects it. The attack roll is then compared to the duplicate's AC (10 + caster Dex mod; a natural 20 always hits it, a natural 1 always misses). A hit destroys the duplicate. Either way, a redirected attack never hits the caster. |
+| `5e-2024` | `d6_on_hit` | Only when the attack hits: roll a d6 per remaining duplicate. If any die shows 3+, a duplicate takes the hit and is destroyed. |
+
+Attackers who are blinded, can't see the caster, or perceive the caster with `blindsight` / `truesight` in range are unaffected. A diverted attack logs a `mirror_image_duplicate` event in place of the plain miss line: "...but struck one of X's Mirror Image duplicates instead (duplicate roll ...). The duplicate vanishes (2 left)." The VTT tile carries `mirror_images` (duplicates left). `status_effects.js` draws one drifting, translucent copy of the token per duplicate, and the 3D client shows a pale-blue ring.
+
+Spells that make several attack rolls in one cast (Scorching Ray, Eldritch Blast) pass `opts['attack_index']` to `evaluate_spell_attack`. Each ray then gets its own roll, cached per index for re-resolves. One-shot advantage such as Guiding Bolt's is used up by the first ray only.
 
 ## Changing edition mid-campaign
 

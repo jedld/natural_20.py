@@ -154,8 +154,7 @@ class SpellAction(Action):
         if not as_scroll:
             if spell_details['level'] > 0:
                 has_slot = False
-                for spell_class in spell_details.get("spell_list_classes", []):
-                    class_key = spell_class.lower()
+                for class_key in slot_owner.spell_list_classes_for(spell_details):
                     if hasattr(slot_owner, 'next_spell_slot_level'):
                         if slot_owner.next_spell_slot_level(class_key, at_level) is not None:
                             has_slot = True
@@ -167,6 +166,12 @@ class SpellAction(Action):
                 if not has_slot:
                     return False
 
+        from natural20.utils.spell_requirements import environment_issue, missing_materials
+        if not as_scroll and missing_materials(slot_owner, spell_details):
+            return False
+        if environment_issue(entity, spell_details, battle):
+            return False
+
         if not battle:
             return True
 
@@ -174,9 +179,9 @@ class SpellAction(Action):
         if resource not in ("action", "bonus_action", "reaction") and battle.ongoing():
             return False
 
-        # If a leveled spell has already been cast this turn, do not allow any
-        # further spellcasting that consumes an action/bonus action.
-        if entity.casted_leveled_spells(battle) > 0 and resource in ["action", "bonus_action"]:
+        from natural20.utils.spell_requirements import spells_this_turn_issue
+        if spells_this_turn_issue(entity.owner if entity.familiar() else entity,
+                                  battle, at_level, resource):
             return False
 
         if resource == "action" and entity.total_actions(battle) == 0:
@@ -259,8 +264,7 @@ class SpellAction(Action):
             action.spell_action.action = action
             slot_owner = action.source.owner if action.source.familiar() else action.source
             if action.at_level > 0 and hasattr(slot_owner, 'next_spell_slot_level'):
-                for spell_class_name in spell.get('spell_list_classes', []):
-                    class_key = spell_class_name.lower()
+                for class_key in slot_owner.spell_list_classes_for(spell):
                     slot_level = slot_owner.next_spell_slot_level(class_key, action.at_level)
                     if slot_level is not None:
                         action.at_level = slot_level
@@ -297,7 +301,22 @@ class SpellAction(Action):
             opts = {}
         battle = opts.get("battle", None)
 
-        self.result = self.spell_action.resolve(self.source, battle, self, map)
+        counter_events = []
+        if battle is not None and not getattr(self, 'skip_consume_at_resolve', False):
+            from natural20.utils.counterspell import run_counterspell_window
+            countered, counter_events = run_counterspell_window(battle, self)
+            if countered:
+                self.result = counter_events
+                # 2024: a countered spell's slot is not expended (action still is).
+                keep_slot = self._counterspell_state.get('resolution') == 'caster_con_save'
+                self.spell_action.consume(battle, as_scroll=keep_slot)
+                return self
+
+        prior_concentration = getattr(self.source, 'concentration', None)
+        spell_result = list(self.spell_action.resolve(self.source, battle, self, map) or [])
+        self._tag_mirror_image_misses(spell_result)
+        self.result = counter_events + self._concentration_replaced_items(prior_concentration, spell_result) \
+            + spell_result
 
         for r in self.result:
             if r.get('attack_roll',None) is not None:
@@ -327,6 +346,35 @@ class SpellAction(Action):
         })
 
         return self
+
+    def _tag_mirror_image_misses(self, spell_result):
+        """Mark spell attack misses caused by Mirror Image so the log names the duplicate."""
+        if not getattr(self, 'mirror_image_checks', None):
+            return
+        from natural20.utils.spell_attack_util import mirror_image_outcome_for
+        from natural20.spell.mirror_image_spell import MirrorImageSpell
+        for item in spell_result:
+            if item.get('type') != 'spell_miss' or item.get('attack_roll') is None:
+                continue
+            outcome = mirror_image_outcome_for(self, item['attack_roll'], item.get('target'))
+            if outcome is not None:
+                item['mirror_image'] = MirrorImageSpell.summary(outcome)
+
+    def _concentration_replaced_items(self, prior, spell_result):
+        """Casting a concentration spell ends the caster's current concentration
+        even when every target saves (PHB "Concentration")."""
+        if prior is None or not self.spell_action.properties.get('concentration'):
+            return []
+        if spell_result and all(
+            r.get('type') in ('tiny_hut_failed', 'message_spell_failed') for r in spell_result
+        ):
+            return []
+        return [{
+            'type': 'concentration_replaced',
+            'source': self.source,
+            'effect': prior,
+            'spell': self.spell_action,
+        }]
 
     def compute_advantage_info(self, battle, opts=None):
         if self.spell_action is None:
@@ -375,7 +423,11 @@ class SpellAction(Action):
         item['_spell_action_applied'] = True
         item['_spell_action_result'] = spell_apply_result
 
-        if item['type'] == 'spell_damage':
+        if item['type'] == 'concentration_replaced':
+            caster = item['source']
+            if getattr(caster, 'concentration', None) is item.get('effect'):
+                caster.dismiss_effect(item['effect'])
+        elif item['type'] == 'spell_damage':
             if item['target'].passive():
                 item['target'].is_passive = False
             try:
@@ -404,6 +456,11 @@ class SpellAction(Action):
                 'target': item.get('target'),
                 'effect': item['effect']
             })
+        elif item['type'] == 'spell_miss' and item.get('mirror_image'):
+            if item['target'].passive():
+                item['target'].is_passive = False
+            from natural20.spell.mirror_image_spell import MirrorImageSpell
+            MirrorImageSpell.emit_duplicate_event(battle, item, session)
         elif item['type'] == 'spell_miss':
             if item['target'].passive():
                 item['target'].is_passive = False

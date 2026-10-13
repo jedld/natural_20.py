@@ -25,6 +25,7 @@ from natural20.actions.first_aid_action import FirstAidAction
 from natural20.actions.look_action import LookAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
+from natural20.actions.call_lightning_bolt_action import CallLightningBoltAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction, PushAction
@@ -115,7 +116,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
         StandAction, ShoveAction, HelpAction, HelpBonusAction, UseItemAction, GroundInteractAction,
-        SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction,
+        SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction, CallLightningBoltAction,
         PickpocketAction, SecondWindAction,
     ]
 
@@ -488,6 +489,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                         actions.append(SpeakAction(session, self, "speak"))
                     elif action_class == WitchBoltSustainAction:
                         actions.append(WitchBoltSustainAction(session, self, 'witch_bolt_sustain'))
+                    elif action_class == CallLightningBoltAction:
+                        if auto_target:
+                            actions.extend(autobuild(session, CallLightningBoltAction, self, battle, map=map))
+                        else:
+                            actions.append(CallLightningBoltAction(session, self, 'call_lightning_bolt'))
                     elif action_class == PickpocketAction:
                         actions.append(PickpocketAction(session, self, 'pickpocket'))
                     elif action_class == SpellAction:
@@ -524,7 +530,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                     drop.target = held
                     actions.append(drop)
 
-        return actions
+        from natural20.utils.polymorph import filter_actions
+        return filter_actions(self, actions)
 
     def placeable(self):
         if not self.dead():
@@ -724,6 +731,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                     targeted_action = copy.copy(action)
                     targeted_action.target = target
                     final_attack_list.append(targeted_action)
+            if not opportunity_attack:
+                from natural20.utils.unseen_targets import blind_attack_variants
+                final_attack_list += blind_attack_variants(
+                    battle, self, [a for a in actions if not a.grapple_instead],
+                )
             return final_attack_list
         else:
             return actions
@@ -802,4 +814,6 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             npc._temp_hp = data["temp_hp"]
         from natural20.weapon_mastery import mastery_state_from_dict
         mastery_state_from_dict(npc, data)
+        from natural20.utils.polymorph import reapply_after_load
+        reapply_after_load(npc)
         return npc

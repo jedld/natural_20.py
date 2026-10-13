@@ -232,7 +232,7 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
             advantage.append('unseen_attacker')
 
         if not battle.can_see(source, target, entity_1_pos=source_pos):
-            disadvantage.append('invisible_attacker')
+            disadvantage.append('target_unseen')
 
         distract_helpers = [
             helper

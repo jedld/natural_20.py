@@ -94,6 +94,15 @@ class TestSpeakAction:
         assert last_msg['source'] == npc_a
         assert "Attack the elf!" in last_msg['message']
 
+    def test_dead_creatures_are_not_addressed(self, battle_with_npcs):
+        battle, npc_a, npc_b, fighter = battle_with_npcs
+        events = []
+        battle.session.event_manager.register_event_listener('conversation', events.append)
+        fighter.attributes['hp'] = 0
+        fighter.make_dead()
+        npc_a.send_conversation("Such a fragile shell.", targets=[fighter, npc_b])
+        assert events[-1]['targets'] == [npc_b]
+
     def test_speak_action_no_resource_cost(self, battle_with_npcs):
         """Speaking should not consume any actions or bonus actions."""
         battle, npc_a, npc_b, fighter = battle_with_npcs
@@ -139,65 +148,73 @@ class TestLlmControllerCommunicationTools:
         from natural20.llm_controller import LlmMcpController
         return LlmMcpController(session, llm_client=None, use_tools=False)
 
-    def test_handle_request_help(self, battle_with_npcs):
-        """request_help should store a pending request in the ally's context."""
-        battle, npc_a, npc_b, fighter = battle_with_npcs
-        controller = self._make_controller(battle.session)
+    @staticmethod
+    def _heard(battle, entity):
+        from natural20.utils.combat_comms import heard_callouts
+        return heard_callouts(battle, entity)
 
-        controller._handle_request_help(npc_a, battle, {
+    def test_handle_request_help(self, battle_with_npcs):
+        """request_help reaches the ally's battle inbox, independent of controller instance."""
+        battle, npc_a, npc_b, fighter = battle_with_npcs
+        battle.set_current_turn(npc_a)
+        self._make_controller(battle.session)._handle_request_help(npc_a, battle, {
             "ally_name": "Snix",
             "request": "Help me attack the elf!",
         })
 
-        # Snix should have a pending request
-        ctx = controller._get_entity_context(npc_b)
-        assert len(ctx.get('pending_requests', [])) == 1
-        assert ctx['pending_requests'][0]['from'] == 'Gruk'
-        assert 'attack the elf' in ctx['pending_requests'][0]['request']
+        heard = self._heard(battle, npc_b)
+        assert len(heard) == 1
+        assert heard[0]['from'] == 'Gruk'
+        assert heard[0]['kind'] == 'help'
+        assert 'attack the elf' in heard[0]['text']
 
     def test_handle_warn_ally(self, battle_with_npcs):
-        """warn_ally should store a pending warning in the ally's context."""
         battle, npc_a, npc_b, fighter = battle_with_npcs
-        controller = self._make_controller(battle.session)
-
-        controller._handle_warn_ally(npc_a, battle, {
+        battle.set_current_turn(npc_a)
+        self._make_controller(battle.session)._handle_warn_ally(npc_a, battle, {
             "ally_name": "Snix",
             "warning": "The elf has a longbow!",
         })
 
-        ctx = controller._get_entity_context(npc_b)
-        assert len(ctx.get('pending_warnings', [])) == 1
-        assert ctx['pending_warnings'][0]['from'] == 'Gruk'
-        assert 'longbow' in ctx['pending_warnings'][0]['warning']
+        heard = self._heard(battle, npc_b)
+        assert heard and heard[-1]['kind'] == 'warn'
+        assert 'longbow' in heard[-1]['text']
 
     def test_handle_coordinate_attack(self, battle_with_npcs):
-        """coordinate_attack should store a directive in all allied contexts."""
+        """coordinate_attack becomes a focus callout the ally (and the target) hear."""
         battle, npc_a, npc_b, fighter = battle_with_npcs
-        controller = self._make_controller(battle.session)
-
-        controller._handle_coordinate_attack(npc_a, battle, {
+        battle.set_current_turn(npc_a)
+        self._make_controller(battle.session)._handle_coordinate_attack(npc_a, battle, {
             "directive": "Focus fire on the fighter!",
             "target_name": fighter.name,
         })
 
-        # Snix (ally of Gruk in group 'b') should have the directive
-        ctx_b = controller._get_entity_context(npc_b)
-        assert len(ctx_b.get('pending_directives', [])) == 1
-        assert 'Focus fire' in ctx_b['pending_directives'][0]['directive']
+        heard = self._heard(battle, npc_b)
+        assert heard and heard[-1]['kind'] == 'focus'
+        assert heard[-1]['target_uid'] == fighter.entity_uid
+        assert 'Focus fire' in heard[-1]['text']
 
     def test_handle_taunt(self, battle_with_npcs):
-        """taunt should store a received taunt in the enemy's context."""
         battle, npc_a, npc_b, fighter = battle_with_npcs
-        controller = self._make_controller(battle.session)
-
-        controller._handle_taunt(npc_a, battle, {
+        battle.set_current_turn(npc_a)
+        self._make_controller(battle.session)._handle_taunt(npc_a, battle, {
             "enemy_name": fighter.name,
             "message": "Come and get me, elf!",
         })
 
-        ctx_fighter = controller._get_entity_context(fighter)
-        assert len(ctx_fighter.get('received_taunts', [])) == 1
-        assert ctx_fighter['received_taunts'][0]['from'] == 'Gruk'
+        heard = self._heard(battle, fighter)
+        assert heard and heard[-1]['from'] == 'Gruk'
+        assert heard[-1]['kind'] == 'taunt'
+
+    def test_handlers_rejected_outside_own_turn(self, battle_with_npcs):
+        """5e: brief utterances happen as you take your turn."""
+        battle, npc_a, npc_b, fighter = battle_with_npcs
+        battle.set_current_turn(npc_b)
+        result = self._make_controller(battle.session)._communicate(
+            npc_a, battle, 'focus', None, target=fighter.name)
+        assert result['ok'] is False
+        assert result['reason'] == 'not_your_turn'
+        assert self._heard(battle, npc_b) == []
 
     def test_find_entity_by_name(self, battle_with_npcs):
         """_find_entity_by_name should find entities case-insensitively."""
@@ -328,8 +345,10 @@ class TestCommunicationContextInPrompt:
         assert comm_ctx == ""
 
     def test_process_goal_tool_calls_dispatches_new_tools(self, battle_with_npcs):
-        """_process_goal_tool_calls should dispatch request_help, warn_ally, coordinate_attack, taunt."""
+        """Only the first utterance of a turn goes out (one brief utterance per turn)."""
+        from natural20.utils.combat_comms import heard_callouts
         battle, npc_a, npc_b, fighter = battle_with_npcs
+        battle.set_current_turn(npc_a)
         controller = self._make_controller(battle.session)
 
         tool_calls = [
@@ -341,14 +360,21 @@ class TestCommunicationContextInPrompt:
 
         controller._process_goal_tool_calls(npc_a, battle, tool_calls)
 
-        # Check that Snix has both request and warning
-        ctx_b = controller._get_entity_context(npc_b)
-        assert len(ctx_b.get('pending_requests', [])) == 1
-        assert len(ctx_b.get('pending_warnings', [])) == 1
+        heard = heard_callouts(battle, npc_b)
+        assert len(heard) == 1
+        assert heard[0]['kind'] == 'heal'
+        assert heard_callouts(battle, fighter)[-1]['text'].startswith('Snix, Heal me!')
 
-        # Check that fighter has a taunt
-        ctx_f = controller._get_entity_context(fighter)
-        assert len(ctx_f.get('received_taunts', [])) == 1
+    def test_heard_callouts_in_communication_context(self, battle_with_npcs):
+        battle, npc_a, npc_b, fighter = battle_with_npcs
+        battle.set_current_turn(npc_a)
+        controller = self._make_controller(battle.session)
+        controller._communicate(npc_a, battle, 'focus', None, target=fighter.name)
+
+        comm_ctx = self._make_controller(battle.session).get_communication_context(npc_b, battle)
+        assert 'Incoming communications' in comm_ctx
+        assert '[ally] Gruk' in comm_ctx
+        assert f'focus -> {fighter.name}' in comm_ctx
 
     def test_auxiliary_tool_names_include_new_tools(self, battle_with_npcs):
         """The auxiliary_tool_names should include the new communication tools."""
@@ -409,22 +435,21 @@ class TestEndToEndNpcCommunication:
         """Test: NPC A speaks → NPC B receives → begin_turn processes → appears in memory notes."""
         battle, npc_a, npc_b, fighter = battle_with_npcs
         from natural20.llm_controller import LlmMcpController
-        controller = LlmMcpController(battle.session, llm_client=None, use_tools=False)
+        controller_a = LlmMcpController(battle.session, llm_client=None, use_tools=False)
+        controller_b = LlmMcpController(battle.session, llm_client=None, use_tools=False)
 
-        # Clear buffers
         npc_b.memory_buffer.clear()
-
-        # NPC A requests help from NPC B
-        controller._handle_request_help(npc_a, battle, {
+        battle.set_current_turn(npc_a)
+        controller_a._handle_request_help(npc_a, battle, {
             "ally_name": "Snix",
             "request": "Flank the fighter!",
         })
 
-        # Now it's NPC B's turn
-        controller.begin_turn(npc_b)
+        battle.set_current_turn(npc_b)
+        controller_b.begin_turn(npc_b)
 
-        # NPC B should have the request as a memory note
-        notes = controller.get_memory_notes_summary(npc_b)
+        assert 'Flank the fighter' in controller_b.get_communication_context(npc_b, battle)
+        notes = controller_b.get_memory_notes_summary(npc_b)
         assert any('Flank the fighter' in n for n in notes)
 
 

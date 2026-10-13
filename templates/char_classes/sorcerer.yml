@@ -70,6 +70,7 @@ spell_list:
     - lightning_bolt
     - protection_from_energy
     - slow
+    - sleet_storm
     - stinking_cloud
   level_4:
     - blight

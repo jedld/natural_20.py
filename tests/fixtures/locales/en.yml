@@ -35,6 +35,7 @@ en:
   attack_status:
     being_helped: Being being_helped
     invisible_attacker: Target is hidden/invisible
+    target_unseen: Target is unseen (hidden or invisible)
     prone: Target Prone
     ranged_with_enemy_in_melee: Ranged weapon with enemy in melee range
     shocking_grasp_metallic: Target wearing metal armor for Shocking Grasp
@@ -165,6 +166,7 @@ en:
     hit_die_selection: Use a hit die to regain HP for %{name} (%{hp}/%{max_hp})?
     initiative: Roll for initiative
     medicine: Roll for medicine check
+    mirror_image: Rolling to see if the attack targets a Mirror Image duplicate
     perception: Roll for a perception check
     prompt: '%{name} - %{description}'
     roll_attempt: 'roll %{number}/%{total}. Please roll a d%{die_type} [1-%{die_type}]:'
@@ -403,6 +405,14 @@ en:
       invalid_position: Invalid target location.
       occupied: The target square must be empty.
       not_visible: The target is not visible.
+    unseen:
+      disabled: Attacking unseen squares is disabled in this campaign.
+      out_of_bounds: That square is off the map.
+      wall: You can't attack into a wall.
+      self: You can't attack your own square.
+      out_of_range: That square is out of this weapon's range.
+      no_path: Nothing could reach that square from here.
+      needs_sight: This ability needs a target you can see.
     shove:
       invalid_target_size: The target must be no more than one size larger than you
   waive_opportunity_attack: Waive Opportunity Attack

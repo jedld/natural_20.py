@@ -69,6 +69,11 @@ def build_battle(fighter_pos=None, npc_pos=None):
     return session, battle, m, fighter, npc
 
 
+def _strip_skirmisher(npc):
+    npc.properties['attributes'] = [
+        a for a in npc.properties.get('attributes', []) if a != 'nimble_escape']
+
+
 def Session_for_test(event_manager):
     from natural20.session import Session
     return Session(root_path='tests/fixtures', event_manager=event_manager)
@@ -139,7 +144,10 @@ class TestFlatLeafPlanning:
         assert any(f"with {weapon_name}" in o for o in flat_options)
 
     def test_move_leaves_offer_strategic_destinations(self):
-        session, battle, m, fighter, npc = build_battle()
+        # Out of reach (engaging an adjacent foe is pointless), and without
+        # Nimble Escape (a skirmisher with a bow stays at range).
+        session, battle, m, fighter, npc = build_battle(fighter_pos=[3, 6])
+        _strip_skirmisher(npc)
         prov = FakeJev(['move: engage'])
         action = jev_select_action(prov, battle, npc)
 
@@ -225,6 +233,58 @@ class TestSpellLeaves:
         assert all('level' in o or 'cantrip' in o for o in spell_options)
         assert all('Gomerin' in o or 'Noke' in o or 'empty space' in o
                    for o in spell_options)
+
+
+def build_blaster_battle():
+    """Level 5 wizard with many square-targeted spells vs a goblin 10 ft away."""
+    random.seed(7002)
+    session = Session_for_test(EventManager())
+    m = Map(session, 'large_map')
+    battle = Battle(session, m)
+    wizard = PlayerCharacter.load(session, 'counterspell_wizard.yml')
+    wizard.properties['prepared_spells'] = [
+        'mage_hand', 'misty_step', 'firebolt', 'magic_missile',
+        'burning_hands', 'scorching_ray', 'fireball',
+    ]
+    goblin = session.npc('goblin')
+    battle.add(wizard, 'a', position=[2, 6], token='W')
+    battle.add(goblin, 'b', position=[4, 6], token='g')
+    battle.start()
+    battle.set_current_turn(wizard)
+    wizard.reset_turn(battle)
+    goblin.reset_turn(battle)
+    return session, battle, m, goblin, wizard
+
+
+class TestSpellOptionDiversity:
+    def _spell_options(self):
+        session, battle, m, goblin, wizard = build_blaster_battle()
+        prov = FakeJev(['pass'])
+        jev_select_action(prov, battle, wizard)
+        return [o for o in prov.calls[0] if o.startswith('cast ')], m, wizard, goblin
+
+    def test_square_targeted_spells_do_not_crowd_out_damage_spells(self):
+        spell_options, *_ = self._spell_options()
+        for name in ('Firebolt', 'Magic Missile', 'Scorching Ray', 'Burning Hands',
+                     'Fireball', 'Misty Step'):
+            assert any(f'cast {name} ' in o for o in spell_options), name
+        # Utility spells marked ``ai_in_combat: false`` stay out of fights.
+        assert not any('cast Mage Hand ' in o for o in spell_options)
+
+    def test_each_spell_appears_once_before_any_repeats(self):
+        spell_options, *_ = self._spell_options()
+        names = [o.split(' (')[0] for o in spell_options]
+        first_repeat = next(i for i, n in enumerate(names) if n in names[:i])
+        assert len(set(names[:first_repeat])) == len(set(names))
+
+    def test_fireball_offered_once_at_best_square(self):
+        session, battle, m, goblin, wizard = build_blaster_battle()
+        prov = FakeJev(['cast Fireball'])
+        action = jev_select_action(prov, battle, wizard)
+        assert sum('cast Fireball' in o for o in prov.calls[0]) == 1
+        blast = {tuple(sq) for sq in m.squares_in_radius(tuple(action.target), 20)}
+        assert tuple(m.position_of(goblin)) in blast
+        assert tuple(m.position_of(wizard)) not in blast
 
 
 # --------------------------------------------------------------------------- #
@@ -432,6 +492,7 @@ class TestControllerWiring:
 
     def test_move_for_plans_movement_leaf(self):
         session, battle, m, fighter, npc = build_battle()
+        _strip_skirmisher(npc)
         prov = self.FakeJevProvider(['move:'])
         ctrl = LlmMcpController(session, llm_provider=prov)
         action = ctrl.move_for(npc, battle)
@@ -880,3 +941,92 @@ class TestPovCombatLog:
         assert _pov_witnessed(b, me, _stub_action(foe, target=ally))
         # Nothing visible: not witnessed.
         assert not _pov_witnessed(_StubBattle(), me, _stub_action(foe, target=ally))
+
+
+class TestJevContext:
+    """JEV sees its own resources, every ally, unseen enemies, earlier turns
+    and conversation - not just what is visible this instant."""
+
+    def _party_battle(self):
+        session, battle, m, fighter, npc = build_battle()
+        mage = PlayerCharacter.load(session, 'high_elf_mage.yml')
+        battle.add(mage, 'a', position=[5, 1], token='W')
+        mage.reset_turn(battle)
+        return session, battle, m, fighter, npc, mage
+
+    def test_unseen_enemy_is_listed_with_its_square(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc, mage = self._party_battle()
+        battle.set_current_turn(fighter)
+        npc.statuses.append('invisible')
+        st = state_text(JevActionPlanner, battle, fighter)
+        assert 'visible enemies: none' in st
+        unseen = [l for l in st.splitlines() if l.startswith('unseen enemies')][0]
+        assert npc.name in unseen and '[1, 5]' in unseen
+
+    def test_out_of_sight_and_fallen_allies_are_listed(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc, mage = self._party_battle()
+        assert not battle.can_see(fighter, mage)
+        st = state_text(JevActionPlanner, battle, fighter)
+        allies = [l for l in st.splitlines() if l.startswith('allies:')][0]
+        assert mage.name in allies and 'out of sight' in allies
+        mage.attributes['hp'] = 0
+        mage.make_unconscious()
+        st = state_text(JevActionPlanner, battle, fighter)
+        allies = [l for l in st.splitlines() if l.startswith('allies:')][0]
+        assert 'death saves' in allies
+
+    def test_own_resources_and_round_are_rendered(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc, mage = self._party_battle()
+        battle.set_current_turn(fighter)
+        st = state_text(JevActionPlanner, battle, fighter)
+        assert 'round 1; turn order:' in st
+        res = [l for l in st.splitlines() if l.startswith('own resources:')][0]
+        assert 'reaction ready' in res and 'second wind' in res
+
+    def test_earlier_turns_damage_and_conversation_are_kept(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc, mage = self._party_battle()
+        battle.start_turn()
+        action = jev_select_action(FakeJev(['attack ']), battle, npc)
+        battle.action(action)
+        battle.commit(action)
+        battle.end_turn()
+        fighter.send_conversation("Hold the line!", targets=[mage])
+        battle.set_current_turn(fighter)
+        battle.start_turn()
+        battle.end_turn()
+        battle.set_current_turn(npc)
+        battle.start_turn()
+        st = state_text(JevActionPlanner, battle, npc)
+        # The goblin's own attack is now before its previous turn boundary.
+        assert 'earlier in this fight:' in st or 'since last turn:' in st
+        assert any(npc.name in l and 'attack' in l for l in st.splitlines() if l.startswith('- '))
+        st = state_text(JevActionPlanner, battle, fighter)
+        assert 'earlier conversation:' in st and 'Hold the line!' in st
+
+    def test_state_is_trimmed_oldest_history_first(self, monkeypatch):
+        from natural20.utils.jev_decision import _fit_state
+        lines = ['Entity: x', 'earlier in this fight:'] + [f'- old {i}' for i in range(50)] \
+            + ['since last turn:', '- recent', 'Task: pick']
+        monkeypatch.setenv('N20_JEV_STATE_MAX_CHARS', '120')
+        out = _fit_state(lines)
+        assert len(out) <= 120
+        assert '- recent' in out and out.endswith('Task: pick')
+        assert '- old 0' not in out
+
+    def test_action_surge_is_offered_once_the_action_is_spent(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc = build_battle()
+        battle.set_current_turn(fighter)
+        fighter.reset_turn(battle)
+        fighter.action_surge_count = 1
+        battle.entity_state_for(fighter)['action'] = 0
+        planner = JevActionPlanner(FakeJev([]))
+        planner._battle, planner._entity, planner._session = battle, fighter, session
+        planner._map = battle.map_for(fighter)
+        planner._names = planner._display_names(battle, fighter)
+        leaves = planner._collect_leaves(None)
+        assert any(t == 'action_surge' for t, _, _ in leaves), [(t, d) for t, _, d in leaves]

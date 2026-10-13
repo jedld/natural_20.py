@@ -31,8 +31,12 @@ def consume_resource(battle, source, item, as_scroll=False, cast_level=None, cas
             battle.consume(source, "bonus_action")
 
         # track spell casted
-        if spell_level > 0 and resource in ["action", "bonus_action"]:
-            battle.entity_state_for(source)['casted_level_spells'].append(item)
+        if resource in ["action", "bonus_action"]:
+            state = battle.entity_state_for(source)
+            if spell_level > 0:
+                state['casted_level_spells'].append(item)
+            state.setdefault('casted_spells', []).append(
+                {'level': int(spell_level or 0), 'resource': resource})
 
     # scrolls do not consume spell slots
     if not as_scroll:
@@ -42,6 +46,9 @@ def consume_resource(battle, source, item, as_scroll=False, cast_level=None, cas
         else:
             if spell_level > 0:
                 source.consume_spell_slot(spell_level, character_class=casting_class)
+        if item.get('consumed_materials'):
+            from natural20.utils.spell_requirements import consume_materials
+            consume_materials(source.owner if source.familiar() else source, item)
 
     if (spell_level > 0
             and item.get('school') == 'abjuration'

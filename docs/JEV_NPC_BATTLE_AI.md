@@ -33,14 +33,120 @@ When the controller's attached provider is an available `JevProvider`:
      `Action.can` signatures — subclasses such as `MoveAction`,
      `DodgeAction`, and `HelpAction` override `can(entity, battle)` (2-arg)
      while the base class declares `can(entity, battle, options=None)` (3-arg).
+     The auto-build path only builds classes that
+     `entity.available_actions(..., auto_target=False)` currently offers
+     (`_allowed_action_classes`). That keeps it in line with the battle loop,
+     so a polymorphed or wild-shaped creature gets no spells. Subclasses of
+     the built classes that `available_actions` offers (a beast form's
+     `WildShapeAttackAction`, Cunning Action's `HideBonusAction` /
+     `DashBonusAction` / `DisengageBonusAction`) are added via
+     `_variant_leaves`.
    - Infeasible leaves are rejected (`_is_executable`: action/bonus/reaction
      resources, weapon and range checks, legal targets, usable items/objects).
+   - Harmful options aimed at the actor's own side are dropped
+     (`friendly_fire`), and so are legal but wasteful ones
+     (`natural20/utils/pointless_actions.py`, shared with the generative LLM
+     controller):
+     - Second Wind at full HP.
+     - Looting or picking up items (`InteractAction`
+       loot/take/carry/give/transfer, `GroundInteractAction`) while any
+       conscious enemy is present, even an invisible one.
+     - Look (an active Perception check) unless a conscious enemy is
+       actually *hidden*. Invisible but unhidden creatures are already heard
+       at their square, so Look can't reveal them.
+     - Disengage when no enemy threatens the creature in melee, or when it
+       couldn't move afterwards.
+     - Help on itself, or on an ally that isn't asleep, grappled or
+       restrained. Help aimed at an enemy (distract) is kept.
+     - Dropping prone or pickpocketing while enemies are still up.
+     - Action Surge before the turn's action is spent, or with no enemies
+       left.
+     - Spells marked `ai_in_combat: false` in their YAML (Mage Hand,
+       Prestidigitation, Comprehend Languages, Detect Magic, ...) while
+       enemies are still up.
+     - Recasting a spell marked `ai_no_recast: true` (Spirit Guardians, Call
+       Lightning, Sleet Storm) that the caster is already concentrating on.
+       Recasting would only spend a slot to restart the same effect.
+     - Dash when no enemy position is known: no enemy is visible (even a
+       downed one) and none is heard or remembered (`unseen_targets`). Dash
+       has no destination then; this used to cause endless Dash/Hide loops.
+     - Dash while a foe has the creature in melee reach and it hasn't
+       disengaged, unless it is at or below half HP. The extra movement only
+       buys an opportunity attack; Disengage or attacking is better.
+     - Dash above half HP when every known enemy square is already within
+       reach using the movement the creature has left. The extra speed
+       would go unused (`_dash_without_destination`). Dash to flee while
+       hurt is still offered.
+     - Dash by a caster or skirmisher whose action is already spent and who
+       isn't in melee or hurt (`_dash_after_shooting`). The move planner
+       offers such creatures no advance or reposition, so the Dash would
+       be followed by no movement.
+     - Spare the Dying on a creature that isn't dying, such as an ally a
+       Healing Word already brought up this turn.
+     - Harmful options aimed only at a foe held in a Polymorph cast by the
+       actor's own side, while another standing foe can be targeted.
+
+     After a Dash, JEV's move-phase pick (`move_for`) drops the
+     "pass (end turn)" leaf while dashed movement is unspent and a move
+     leaf exists (`JevActionPlanner._dash_unspent`). This stops it from
+     paying for Dash and then standing still.
+     - Harmful options aimed only at downed (0 HP, not dead) foes while a
+       standing foe can be targeted. Damage past 0 HP only adds death save
+       failures, and the automatic critical used to make finishing a downed
+       PC look like the best attack. A creature with YAML
+       `finish_downed: true` keeps these options. The heuristic
+       `AttackAction.ai_value` weights such attacks by
+       `DOWNED_TARGET_WEIGHT` (0.1), and legendary actions move toward a
+       standing foe instead. JEV attack leaves on a downed target say
+       `target is already down: a hit only adds death save failures`.
+     - Spare the Dying (a cantrip with `type: healing`) on a creature that a
+       slot healing spell on the list (Healing Word, Cure Wounds) would also
+       get back up.
+
+     Once the first attack of a Multiattack spends the action, the class-level
+     `AttackAction.can` is False. The auto-build path still builds the
+     remaining attacks (`_multiattack_follow_up_available`), so a vampire gets
+     its second strike or a Bite instead of only "pass".
+
+     Attack leaves carry their odds, e.g. `attack Velka with Longbow
+     [disadvantage: ranged_with_enemy_in_melee; 41% hit, ~9 dmg]`, so the
+     model can compare weapons. Abilities with no attack roll (Charm) read
+     `[no attack roll; the target saves]`.
+
+     JEV's auto-build path also offers `ActionSurgeAction` (leaf
+     `action surge (free: gain one more action this turn, ...)`). Autobuild
+     drops NPC attacks whose `target_if` / `target_creature_types` the target
+     fails, so a vampire Bite is only offered against a grappled,
+     incapacitated, restrained or charmed target.
+   - **Skirmishers** (`cunning_action` / `nimble_escape`) that have a ranged
+     shot this turn don't get "engage" or "offensive" movement leaves. Their
+     bonus-action Hide leaf is labelled as the follow-up to shooting
+     (`_skirmish_filter`).
 2. **Strategic movement leaves.** Movement is offered as pre-pathed strategic
    options instead of raw neighbour squares:
    - `move -> <enemy>` — close to an enemy so it is in melee range (only
      offered when such a square is reachable and legal);
    - `move -> defensive square` — cover and/or away from enemies, ranked by
      cover, opportunity-attack risk, and distance to the nearest foe;
+   - `move -> retreat to <square>` — up to four OA-free squares outside every
+     visible enemy's reach, farthest first. Offered when the creature is in
+     melee, has taken Disengage this turn, or is a spellcaster within 10 ft of
+     a foe. Without it, open maps (no cover, so no defensive squares) left a
+     creature that had just disengaged with nowhere to go;
+     Outside melee a retreat square must also increase the distance to the
+     nearest foe. Fleeing creatures and creatures that dashed this turn are
+     also offered retreats. A spellcaster or skirmisher (Cunning Action,
+     Nimble Escape) that starts in melee without Disengage is also offered
+     retreats that provoke an opportunity attack, labelled `provokes an
+     opportunity attack` and ranked after safe squares. One OA is cheaper
+     than staying in reach of a multiattack plus legendary actions;
+   - `move -> advance toward <enemy>` — the furthest legal point this turn
+     along the path toward a foe that is beyond reach plus movement, labelled
+     with the distance still to go. It targets visible conscious foes first,
+     then heard or last-known squares, then visible downed foes. Spellcasters
+     only advance when no foe is within 60 ft. Before this, a creature facing a
+     foe more than one move away had no movement leaf at all and wasted turns
+     on Dash or Hide;
    - `move -> hide` — a reachable hiding spot;
    - `move -> offensive square` — in melee reach of at least one foe, ideally
      without provoking an OA.
@@ -48,18 +154,39 @@ When the controller's attached provider is an available `JevProvider`:
    Only intents that currently have legal options are offered (an open map
    with no cover offers no defensive/hide intents, which is correct). Each
    leaf is a `MoveAction` carrying its full path.
+
+   The webapp's AI loop calls `move_for` repeatedly until it returns `None`,
+   so each movement leaf is a fresh decision. These rules stop the creature
+   from jittering back and forth:
+   - Squares already entered this turn, and the square the turn started on
+     (`turn_start_position` in the battle entity state), are never offered
+     again.
+   - A path that would provoke an opportunity attack (`_oa_risk`, which
+     tracks entering *and* leaving each foe's reach) is only offered when the
+     creature is at or below half HP and fleeing is worth the hit.
+   - "Engage" is not offered toward a foe already in reach. Once the action
+     is spent while the creature is in melee, engage and offensive
+     repositioning are dropped entirely. A spellcaster (most levels in
+     wizard, sorcerer, warlock, bard, cleric or druid; `_ranged_combatant`)
+     or a skirmisher (Cunning Action, Nimble Escape) with its action spent
+     never gets engage, offensive or advance moves.
 3. **Guaranteed pass.** A final `pass (end turn)` leaf (`EndTurnAction`) is
    appended *after* capping, so the model can always choose to end the turn
    instead of acting.
- 4. **One question.** `select()` renders a compact state string once (entity
-     HP/position/movement, Armor Class, ability modifiers, visible enemies with
-     HP/AC/distance and unconscious markers, allies with HP/AC, spell slots,
-     usable items, active buffs/effects, spent resources, and the POV combat
-     log of entries witnessed since the entity's last turn — see **State
-     format** below) and makes a **single**
+ 4. **One question.** `select()` renders a compact state string once (the
+     entity's own HP, position, AC, resources and conditions; visible and
+     unseen enemies; every ally; spell slots; items; buffs; damage dealt so
+     far; heard speech and conversation; and the witnessed combat log from
+     earlier turns and since the last turn — see **State format** below) and
+     makes a **single**
    `decide_action(state, options)` call over the
    ranked, capped leaf list (`MAX_JEV_LEAVES` total, `MAX_JEV_OPTIONS` per
-   type). A tree that prunes down to a single leaf — which, since pass is
+   type). Spell leaves are kept varied so every castable spell gets offered:
+   - **Area spells** (Fireball, Burning Hands, ...) keep only the action builder's best anchor (most enemies, fewest allies), not one leaf per square. That comes from `auto_target=True` in `_optimize_area_spells`.
+   - **Ranking** is by weakest target; a group target like Magic Missile counts its weakest member.
+   - **Round-robin by spell** (`_round_robin_by_spell`) gives each distinct spell one leaf before any spell gets a second. Without this, Mage Hand or Misty Step squares can fill the per-type cap on their own.
+
+   A tree that prunes down to a single leaf — which, since pass is
    always offered, means "nothing to do but end the turn" — is auto-selected
    without a round-trip.
 5. **Commit.** The chosen leaf is returned as a fully-parameterized `Action`:
@@ -98,26 +225,61 @@ inherited the non-bonus builder.
 
 ```text
 Entity: Krizzit; HP 7/7; AC 15; pos [1, 5]; movement 30 ft; speed 30 ft
- mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
- statuses: poisoned, prone
- visible enemies: Velka hp 45/45 ac 14 4 ft melee, Gort hp 3/7 ac 13 14 ft (unconscious)
-allies: Noke hp 22/22 ac 14
+statuses: poisoned, prone
+mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
+round 3; turn order: Velka > (you) > Noke > Gort
+own resources: reaction ready, second wind 1 left
+own state: concentrating on Bless
+visible enemies: Velka hp 45/45 ac 14 5 ft melee [concentrating on Haste, resists fire]; Gort hp 0/7 ac 13 15 ft (unconscious) [unconscious, dying (death saves 0 ok / 1 failed)]
+unseen enemies (not visible; attack their square at disadvantage, or use area spells): Mira heard at [4, 2] 15 ft
+allies: Noke hp 22/22 ac 14 10 ft; Sava hp 0/9 ac 12 40 ft (out of sight) [unconscious, dying (death saves 1 ok / 0 failed)]; fallen: Tibb
 spell slots: L3 2/2, L4 1/1
 items: Potion of Healing, Healing Potion x2
 effects: Haste 60s
- resources: action=0, bonus=0
- since last turn:
- - Velka attacked Krizzit (7/7), d6(1) + 2 dmg
- - Noke cast Shield on Noke (22/22)
- Task: choose the single best option index from the full list of actions
+resources: action=0, bonus=0
+tactics: tactical (INT 10)
+damage dealt so far: Velka 21 (9 by you), Gort 7
+heard in this fight:
+- Noke: Focus the big one!
+earlier conversation:
+- Velka: You'll never take the keep.
+earlier in this fight:
+- Mira cast Invisibility on Mira (14/14)
+since last turn:
+- Velka attacked Krizzit (7/7), d6(1) + 2 dmg
+- Noke cast Shield on Noke (22/22)
+Task: choose the single best option index from the full list of actions
 available this turn. Prefer actions that win the fight and keep the entity
 alive.
 ```
 
-Lines are optional and omitted when empty: `statuses: ...` and
-`concentrating` (when active), `spell slots:`, `items:`, `effects:`,
-`resources:`, and the `since last turn:` block. AC is folded into the
-`Entity:` header and each enemy/ally entry rather than given its own line.
+Lines are optional and omitted when empty. AC is folded into the `Entity:`
+header and each enemy/ally entry rather than given its own line. The whole
+state is kept under `N20_JEV_STATE_MAX_CHARS` (default 6000) by `_fit_state`.
+It drops the oldest lines first: "earlier in this fight", then earlier
+conversation, then heard speech, then "since last turn". The final `Task:`
+line is always kept.
+
+- **round / turn order** — the 1-based round and the living initiative
+  order, with the actor shown as `(you)`.
+- **own resources** — whether the reaction is still available, plus
+  limited-use features (Action Surge, Second Wind, Legendary Resistance).
+- **own state** — concentration (spell name), Mirror Image duplicates,
+  temp HP and damage defenses.
+- **unseen enemies** — creatures from `unseen_targets.sensed_creatures`:
+  `heard at [x, y]` (invisible but not hidden) or `last known at [x, y]
+  (N rounds ago, may have moved)`. Without this line, an invisible caster read
+  as "visible enemies: none" and the AI wasted turns.
+- **damage dealt so far** — damage dealt to each enemy across the fight,
+  from `battle_log` damage results, with the actor's own share.
+- **heard in this fight / earlier conversation** — in-battle callouts
+  (`combat_comms.callout_lines`, up to `MAX_JEV_HEARD`), plus the latest
+  `MAX_JEV_CONVERSATION` messages from the entity's memory buffer that
+  weren't already heard. Speech in a language the entity doesn't understand
+  is shown as not understood.
+- **earlier in this fight** — witnessed log lines from before the previous
+  turn (up to `MAX_JEV_EARLIER_LOG`), so the model remembers what happened in
+  earlier rounds as well as since its last turn.
 
 - **mods** — the entity's six ability modifiers, so the model can reason
    about attack/save expectations instead of only seeing HP.
@@ -134,7 +296,9 @@ Lines are optional and omitted when empty: `statuses: ...` and
    one knocked down to 0 HP — is flagged ` (unconscious)`: the enemy filter
    only excludes `dead()` creatures, so without the marker a downed (but
    stable) enemy reads as a healthy target.
- - **allies** — visible non-hostile allies with HP and AC. Previously broken:
+ - **allies** — every ally in the fight with HP, AC and distance. Allies
+   out of sight are tagged `(out of sight)`, downed allies show their death
+   saves or `stable`, and dead allies are listed under `fallen:`. Previously broken:
    the line referenced an undefined variable (`ent` instead of `entity`), the
    `NameError` was silently swallowed, and allies always rendered as
    `none`.
@@ -190,6 +354,27 @@ Lines are optional and omitted when empty: `statuses: ...` and
   label while `short_name()` derives from the slug.
 - **Item leaves** — `use <item>` / `use <item> on <target>` leaves name
   the actual item (`use healing potion`), not a bare `use item`.
+- **No friendly fire.** 5e lets anyone be attacked, and some spells list
+  allies as legal targets (Magic Missile: `[enemies, allies]`). AI option
+  lists (`_cap_leaves`, and `LlmMcpController.select_action`) still drop
+  harmful options aimed at the actor or an ally, via
+  `natural20/utils/friendly_fire.py`. Harmful means attacks, shoves,
+  grapples, spells with a `damage_type`, enemy-only spells, and items that
+  deal damage or cast such spells (scrolls). Override per spell or item with
+  `hostile: true|false`. Without this, a downed ally at 0 HP ranked first
+  under "weakest target first", and an AI wizard that could not see the
+  invisible enemy finished off its own party member.
+- **No back-and-forth movement.** Each `move_for` call is a fresh decision,
+  so move destinations the creature already entered this turn
+  (`positions_entered`) are not offered again.
+- **Coordination and wits.** The state includes `tactics: <tier> (INT n)` and a
+  `heard:` block of allied callouts, plus overheard enemy callouts for
+  tactical or smarter creatures. Instinct-tier creatures (INT ≤ 3) only get
+  hostile leaves aimed at the nearest enemy or their last attacker. After a
+  decision, `jev_select_callout` picks a strategic callout from a menu built
+  from combat data: focus fire, healing, protect or warn about a wounded ally,
+  retreat, or stay silent. The NPC conversation LLM then voices it in
+  character. See [COMBAT_COMMUNICATION.md](COMBAT_COMMUNICATION.md).
 
 ## Guarantees and fallbacks
 
@@ -203,6 +388,14 @@ Lines are optional and omitted when empty: `statuses: ...` and
 - If the SDK or `TYPESAFE_API_KEY` is missing, `JevProvider.is_available` is
   `False` and the JEV path is never entered — the controller degrades to its
   usual behavior.
+- **Save/load.** `LlmMcpController` serializes under its own `!llm_mcp_controller`
+  tag, which saves state, goals, and notes but never the live provider. A
+  restored controller defers its provider until its next turn, then rebinds
+  through `LlmMcpController.provider_resolver`. The webapp installs that
+  resolver in `webapp/ai_config.py`, and it re-applies
+  `combat_llm_provider_for(handler, entity)` (per-NPC `.ai.yaml` profile, then
+  `BATTLE_LLM_PROVIDER`). Without a resolver, the environment default provider
+  is used.
 
 ## Enabling it
 
@@ -712,3 +905,11 @@ python3 scripts/passthrough_to_noul_rows.py \
     --input data/jev/passthrough/interactions.jsonl \
     --out data/jev/dnd_passthrough --emit-soft
 ```
+
+## Area spell placement
+
+`natural20/utils/action_builder.py` scores AoE centers (cone, cube, sphere,
+line) only by what the caster knows: visible enemies (+1, or +0.5 when
+downed), squares where it hears or remembers an unseen enemy (+1), and allies
+(−1). Corpses are ignored. A hidden creature's real square is never used, and a
+blast that would only catch one downed foe isn't offered.

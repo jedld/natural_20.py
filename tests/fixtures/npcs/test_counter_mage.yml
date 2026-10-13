@@ -1,0 +1,46 @@
+---
+kind: Test Counter Mage
+description: Fixture NPC spellcaster that knows Counterspell.
+size: medium
+race:
+  - humanoid
+  - human
+alignment: neutral_evil
+default_ac: 12
+max_hp: 40
+hp_die: 9d8
+speed: 30
+passive_perception: 11
+token:
+  - M
+color: purple
+ability:
+  str: 9
+  dex: 14
+  con: 11
+  int: 17
+  wis: 12
+  cha: 11
+languages:
+  - common
+cr: 6
+xp: 2300
+proficiency_bonus: 3
+spell_ability: intelligence
+prepared_spells:
+  - firebolt
+  - magic_missile
+  - counterspell
+spell_slots:
+  "1": 4
+  "3": 3
+  "4": 3
+actions:
+  - name: Dagger
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 4
+    damage_die: 1d4+2
+    damage_type: piercing

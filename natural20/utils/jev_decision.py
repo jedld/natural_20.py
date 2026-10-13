@@ -56,6 +56,11 @@ logger = logging.getLogger(__name__)
 MAX_JEV_OPTIONS = 24   # per-type cap on leaf options
 MAX_JEV_LEAVES = 60    # total cap for the single flattened question
 MAX_JEV_POV_LOG = 10   # max witnessed battle-log lines rendered into the state
+MAX_JEV_EARLIER_LOG = 12  # witnessed lines from before the entity's last turn
+MAX_JEV_HEARD = 8      # in-battle speech lines
+MAX_JEV_CONVERSATION = 4  # pre-battle conversation memory lines
+# State text budget (N20_JEV_STATE_MAX_CHARS); history is trimmed first.
+DEFAULT_JEV_STATE_MAX_CHARS = 6000
 # Kept for API compatibility; the flattened planner makes at most 1 call/turn.
 DEFAULT_MAX_DECISIONS = 8
 
@@ -148,13 +153,282 @@ def _active_buffs(entity) -> List[str]:
                 if not name or name in seen:
                     continue
                 seen.add(name)
-                if exp is not None:
+                if getattr(d.get('effect'), 'ends_at_start_of_turn', False):
+                    out.append(f"{name} (until the start of its next turn)")
+                elif exp is not None:
                     out.append(f"{name} {max(0, int(exp - now))}s")
                 else:
                     out.append(name)
             except Exception:
                 continue
     return out
+
+
+def _conditions(battle, e) -> List[str]:
+    """Sheet conditions plus per-turn battle markers (dodging, disengaged)."""
+    out: List[str] = []
+    try:
+        out.extend(c.lower() for c in e.sheet_conditions())
+    except Exception:
+        out.extend(str(s) for s in (getattr(e, 'statuses', None) or []))
+    try:
+        st = battle.entity_state_for(e) if battle is not None else None
+        for s in ((st or {}).get('statuses') or ()):
+            s = 'dodging' if s == 'dodge' else str(s)
+            if s not in out:
+                out.append(s)
+    except Exception:
+        pass
+    return [c for c in out if c and c != 'dead']
+
+
+def _creature_details(battle, e, include_conditions: bool = True) -> str:
+    """Conditions, concentration, Mirror Image, dying state and damage
+    defenses of a creature, as a short comma list."""
+    parts = list(_conditions(battle, e)) if include_conditions else []
+    try:
+        conc = e.current_concentration()
+        if conc is not None:
+            parts.append(f"concentrating on {_effect_name(conc) or 'a spell'}")
+    except Exception:
+        pass
+    try:
+        from natural20.spell.mirror_image_spell import MirrorImageSpell
+        images = MirrorImageSpell.images_remaining_for(e)
+        if images:
+            parts.append(f"{images} mirror image duplicates")
+    except Exception:
+        pass
+    try:
+        if e.unconscious() and not e.dead():
+            if e.stable():
+                parts.append("stable")
+            else:
+                parts.append(f"dying (death saves {getattr(e, 'death_saves', 0)} ok / "
+                             f"{getattr(e, 'death_fails', 0)} failed)")
+    except Exception:
+        pass
+    try:
+        temp = int(e.temp_hp() or 0)
+        if temp:
+            parts.append(f"{temp} temp hp")
+    except Exception:
+        pass
+    try:
+        from natural20.utils.monster_traits import regeneration_config
+        regen = regeneration_config(e)
+        if regen and regen['hp'] > 0 and not e.dead():
+            text = f"regenerates {regen['hp']} hp each turn"
+            if regen['suppressed_by']:
+                text += f" unless it took {'/'.join(regen['suppressed_by'])} damage since its last turn"
+            suppressed = (getattr(e, 'attributes', None) or {}).get('regeneration_suppressed')
+            if suppressed:
+                text += f" (blocked next turn: took {suppressed})"
+            parts.append(text)
+    except Exception:
+        pass
+    try:
+        d = e.sheet_defenses() or {}
+        for key, label in (('resistances', 'resists'), ('immunities', 'immune'),
+                           ('vulnerabilities', 'vulnerable')):
+            if d.get(key):
+                parts.append(f"{label} {'/'.join(str(x) for x in d[key][:4])}")
+    except Exception:
+        pass
+    return ", ".join(parts)
+
+
+def _self_context_lines(battle, entity) -> List[str]:
+    """Round, turn order, and the actor's own reaction / limited resources."""
+    lines: List[str] = []
+    try:
+        order = [e for e in (getattr(battle, 'combat_order', None) or []) if not e.dead()]
+        if order:
+            names = ['(you)' if e is entity else _name(e) for e in order]
+            lines.append(f"round {int(getattr(battle, 'round', 0) or 0) + 1}; turn order: " + " > ".join(names))
+    except Exception:
+        pass
+    res = []
+    try:
+        st = battle.entity_state_for(entity) or {}
+        if 'reaction' in st:
+            res.append(f"reaction {'ready' if st.get('reaction') else 'used'}")
+    except Exception:
+        pass
+    for attr, label in (('action_surge_count', 'action surge'), ('second_wind_count', 'second wind')):
+        val = getattr(entity, attr, None)
+        if isinstance(val, int):
+            res.append(f"{label} {val} left")
+    try:
+        from natural20.utils.monster_traits import legendary_resistance_max, legendary_resistance_remaining
+        if legendary_resistance_max(entity):
+            res.append(f"legendary resistance {legendary_resistance_remaining(entity)}/"
+                       f"{legendary_resistance_max(entity)}")
+    except Exception:
+        pass
+    if res:
+        lines.append("own resources: " + ", ".join(res))
+    details = _creature_details(battle, entity, include_conditions=False)
+    if details:
+        lines.append("own state: " + details)
+    return lines
+
+
+def _unseen_enemy_lines(battle, entity, map_, name_fn) -> List[str]:
+    """Enemies the actor can't see but has heard or remembers."""
+    out: List[str] = []
+    try:
+        from natural20.utils.unseen_targets import sensed_creatures, KIND_HEARD
+        sensed = sensed_creatures(battle, entity)
+    except Exception:
+        return out
+    for entry in sensed:
+        try:
+            creature = battle.entity_by_uid(entry['uid'])
+            if creature is None or creature.dead() or not battle.opposing(entity, creature):
+                continue
+            pos = list(entry['pos'])
+            dist = None
+            if map_ is not None:
+                dist = int(map_.distance_to_square(entity, pos[0], pos[1]) * (map_.feet_per_grid or 5))
+            if entry.get('kind') == KIND_HEARD:
+                where = f"heard at {pos}"
+            else:
+                ago = int(getattr(battle, 'round', 0) or 0) - int(entry.get('round') or 0)
+                when = "this round" if ago <= 0 else f"{ago} round{'s' if ago > 1 else ''} ago"
+                where = f"last known at {pos} ({when}, may have moved)"
+            line = f"{name_fn(creature)} {where}"
+            if dist is not None:
+                line += f" {dist} ft"
+            out.append(line)
+        except Exception:
+            continue
+    return out
+
+
+def _ally_lines(battle, entity, map_, name_fn) -> List[str]:
+    """Every ally in the fight, including those out of sight, down or dead."""
+    out: List[str] = []
+    fallen = []
+    try:
+        allies = [a for a in (list(battle.entities.keys()) + list(getattr(battle, 'late_comers', []) or []))
+                  if a is not entity and battle.allies(a, entity)]
+    except Exception:
+        allies = []
+    for a in allies:
+        try:
+            if a.dead():
+                fallen.append(name_fn(a))
+                continue
+            ac = _ac_value(a)
+            dist = _dist_ft(battle, map_, entity, a)
+            line = f"{name_fn(a)} hp {_hp_text(a)}" + (f" ac {ac}" if ac is not None else "")
+            if dist is not None:
+                line += f" {dist} ft"
+            if not battle.can_see(entity, a):
+                line += " (out of sight)"
+            details = _creature_details(battle, a)
+            if details:
+                line += f" [{details}]"
+            out.append(line)
+        except Exception:
+            continue
+    if fallen:
+        out.append("fallen: " + ", ".join(fallen))
+    return out
+
+
+def _fight_summary(battle, entity, name_fn) -> str:
+    """Damage dealt to each enemy so far (and how much of it was ours)."""
+    totals: Dict[Any, List[int]] = {}
+    for action in (getattr(battle, 'battle_log', None) or []):
+        for item in (getattr(action, 'result', None) or []):
+            try:
+                target = item.get('target')
+                dmg = item.get('damage')
+                if target is None or dmg is None or not hasattr(target, 'entity_uid'):
+                    continue
+                if not battle.opposing(entity, target):
+                    continue
+                if item.get('type') not in ('damage', 'spell_damage'):
+                    continue
+                value = dmg.result() if hasattr(dmg, 'result') else int(dmg)
+                if value <= 0:
+                    continue
+                bucket = totals.setdefault(target, [0, 0])
+                bucket[0] += value
+                if item.get('source') is entity:
+                    bucket[1] += value
+            except Exception:
+                continue
+    parts = []
+    for target, (total, mine) in totals.items():
+        part = f"{name_fn(target)} {total}"
+        if mine:
+            part += f" ({mine} by you)"
+        try:
+            if target.dead():
+                part += " (dead)"
+        except Exception:
+            pass
+        parts.append(part)
+    return ", ".join(parts)
+
+
+def _conversation_lines(entity) -> List[str]:
+    """Most recent things said to/around the actor (its memory buffer)."""
+    out: List[str] = []
+    for entry in list(getattr(entity, 'memory_buffer', None) or [])[-MAX_JEV_CONVERSATION:]:
+        try:
+            src = entry.get('source')
+            if src is entity:
+                who = 'you'
+            else:
+                who = _name(src) if src is not None else 'someone'
+            msg = str(entry.get('message') or '').strip().replace('\n', ' ')
+            if not msg:
+                continue
+            lang = str(entry.get('language') or 'common').lower()
+            if src is not entity and lang != 'common':
+                try:
+                    known = [str(l).lower() for l in (entity.languages_understood() or [])]
+                    if known and lang not in known:
+                        msg = f"(speaks in {lang}; you don't understand)"
+                except Exception:
+                    pass
+            if len(msg) > 140:
+                msg = msg[:137] + '...'
+            out.append(f"{who}: {msg}")
+        except Exception:
+            continue
+    return out
+
+
+_TRIM_ORDER = ('earlier in this fight:', 'earlier conversation:', 'heard in this fight:', 'since last turn:')
+
+
+def _fit_state(lines: List[str]) -> str:
+    """Join state lines within ``N20_JEV_STATE_MAX_CHARS``, dropping the
+    oldest history first (then conversation, speech, recent events)."""
+    import os
+    try:
+        budget = int(os.environ.get('N20_JEV_STATE_MAX_CHARS') or DEFAULT_JEV_STATE_MAX_CHARS)
+    except ValueError:
+        budget = DEFAULT_JEV_STATE_MAX_CHARS
+    lines = list(lines)
+    for header in _TRIM_ORDER:
+        while len("\n".join(lines)) > budget and header in lines:
+            i = lines.index(header)
+            if i + 1 < len(lines) and lines[i + 1].startswith('- '):
+                del lines[i + 1]
+            else:
+                del lines[i]
+    text = "\n".join(lines)
+    if len(text) <= budget or not lines:
+        return text
+    task = lines[-1]
+    head = "\n".join(lines[:-1])[:max(0, budget - len(task) - 1)]
+    return head + "\n" + task
 
 
 def _dist_ft(battle, map_, a, b) -> Optional[int]:
@@ -200,10 +474,75 @@ def _oa_risk(battle, entity, path) -> bool:
                 now = d <= reach
                 if in_melee is True and not now:
                     return True
-                in_melee = now if in_melee is None else in_melee
+                in_melee = now
         return False
     except Exception:
         return False
+
+
+def _attack_odds_text(battle, action) -> str:
+    """`` [disadvantage: ranged_with_enemy_in_melee; 45% hit, ~9 dmg]`` for a
+    targeted attack, so the model can compare weapons (a bow at disadvantage
+    in melee vs. a rapier)."""
+    target = getattr(action, 'target', None)
+    if battle is None or target is None or not hasattr(target, 'entity_uid'):
+        return ""
+    from natural20.utils.unseen_targets import makes_attack_roll
+    if not makes_attack_roll(action):
+        return " [no attack roll; the target saves]"
+    parts = []
+    try:
+        mod, info, _ = action.compute_advantage_info(battle)
+        adv, dis = (info or [[], []])[:2]
+        if mod > 0:
+            parts.append("advantage: " + ", ".join(str(a) for a in adv))
+        elif mod < 0:
+            parts.append("disadvantage: " + ", ".join(str(d) for d in dis))
+    except Exception:
+        pass
+    try:
+        parts.append(f"{int(round(action.compute_hit_probability(battle) * 100))}% hit")
+        parts.append(f"~{int(round(action.avg_damage(battle)))} dmg")
+    except Exception:
+        pass
+    try:
+        from natural20.utils.pointless_actions import _downed
+        if action.target is not None and _downed(action.target):
+            parts.append("target is already down: a hit only adds death save failures")
+    except Exception:
+        pass
+    return f" [{'; '.join(parts)}]" if parts else ""
+
+
+_SPELLCASTER_CLASSES = {'wizard', 'sorcerer', 'warlock', 'bard', 'cleric', 'druid'}
+
+
+def _ranged_combatant(entity) -> bool:
+    """True for characters who fight mainly with spells (most of their levels
+    in a full-caster class), so ending a turn in melee only invites attacks."""
+    classes = (getattr(entity, 'properties', None) or {}).get('classes')
+    if not isinstance(classes, dict) or not classes:
+        return False
+    try:
+        total = sum(int(v or 0) for v in classes.values())
+        casting = sum(int(v or 0) for k, v in classes.items() if str(k).lower() in _SPELLCASTER_CLASSES)
+    except (TypeError, ValueError):
+        return False
+    return total > 0 and casting * 2 > total
+
+
+def _multiattack_follow_up_available(action_class, entity, battle) -> bool:
+    """Once the first attack of a Multiattack spends the action, the class-level
+    ``AttackAction.can`` is False; the remaining attacks are only allowed
+    per ``npc_action``."""
+    from natural20.actions.attack_action import AttackAction
+    if action_class is not AttackAction or battle is None:
+        return False
+    for spec in getattr(entity, 'npc_actions', None) or []:
+        if isinstance(spec, dict) and spec.get('multiattack_group') \
+                and AttackAction.can(entity, battle, {'npc_action': spec}):
+            return True
+    return False
 
 
 def _oa_risk_to_square(battle, entity, dest) -> bool:
@@ -407,34 +746,31 @@ class JevActionPlanner:
             except Exception:
                 pass
 
+            lines.extend(_self_context_lines(battle, entity))
+
             enemies = [e for e in battle.opponents_of(entity) if battle.can_see(entity, e) and not e.dead()]
             elines = []
             for e in enemies:
                 d = _dist_ft(battle, m, entity, e)
-                extra = ""
-                try:
-                    if e.incapacitated():
-                        extra = " (unconscious)"
-                except Exception:
-                    pass
                 ac = _ac_value(e)
                 ac_part = f" ac {ac}" if ac is not None else ""
+                details = _creature_details(battle, e)
+                down = ""
+                try:
+                    if e.incapacitated():
+                        down = " (unconscious)" if e.unconscious() else " (incapacitated)"
+                except Exception:
+                    pass
                 elines.append(f"{self._display_name(e)} hp {_hp_text(e)}{ac_part} {d} ft"
-                              + (f" melee" if (d or 99) <= 5 else "") + extra)
-            lines.append("visible enemies: " + (", ".join(elines) or "none"))
+                              + (" melee" if (d or 99) <= 5 else "") + down
+                              + (f" [{details}]" if details else ""))
+            lines.append("visible enemies: " + ("; ".join(elines) or "none"))
+            unseen = _unseen_enemy_lines(battle, entity, m, self._display_name)
+            if unseen:
+                lines.append("unseen enemies (not visible; attack their square at disadvantage, "
+                             "or use area spells): " + "; ".join(unseen))
 
-            allies = []
-            try:
-                allies = [a for a in battle.allies_of(entity)
-                          if a is not entity and battle.can_see(entity, a) and not a.dead()]
-            except Exception:
-                pass
-            alines = []
-            for a in allies:
-                ac = _ac_value(a)
-                ac_part = f" ac {ac}" if ac is not None else ""
-                alines.append(f"{self._display_name(a)} hp {_hp_text(a)}{ac_part}")
-            lines.append("allies: " + (", ".join(alines) or "none"))
+            lines.append("allies: " + ("; ".join(_ally_lines(battle, entity, m, self._display_name)) or "none"))
 
             # spell slots, if any
             try:
@@ -485,12 +821,43 @@ class JevActionPlanner:
             except Exception:
                 pass
 
-            # POV: what the entity witnessed since its previous turn
             try:
-                pov = self._pov_log(battle, entity)
-                if pov:
+                from natural20.utils.combat_intelligence import tactics_tier, intelligence_score
+                lines.append(f"tactics: {tactics_tier(entity)} (INT {intelligence_score(entity)})")
+            except Exception:
+                pass
+
+            try:
+                summary = _fight_summary(battle, entity, self._display_name)
+                if summary:
+                    lines.append("damage dealt so far: " + summary)
+            except Exception:
+                pass
+
+            heard = []
+            try:
+                from natural20.utils.combat_comms import callout_lines
+                heard = callout_lines(battle, entity, max_lines=MAX_JEV_HEARD)
+            except Exception:
+                pass
+            heard_text = " ".join(heard)
+            convo = [c for c in _conversation_lines(entity) if c.split(': ', 1)[-1] not in heard_text]
+            if heard:
+                lines.append("heard in this fight:")
+                lines.extend("- " + h for h in heard)
+            if convo:
+                lines.append("earlier conversation:")
+                lines.extend("- " + c for c in convo)
+
+            # POV: what the entity witnessed earlier and since its last turn
+            try:
+                earlier, recent = self._pov_history(battle, entity)
+                if earlier:
+                    lines.append("earlier in this fight:")
+                    lines.extend(earlier)
+                if recent:
                     lines.append("since last turn:")
-                    lines.extend(pov)
+                    lines.extend(recent)
             except Exception:
                 pass
 
@@ -502,7 +869,34 @@ class JevActionPlanner:
         except Exception as e:
             logger.debug("[JevPlan] state render failed: %s", e)
             lines.append("State unavailable.")
-        return "\n".join(lines)
+        return _fit_state(lines)
+
+    def _pov_history(self, battle, entity) -> Tuple[List[str], List[str]]:
+        """``(earlier, since_last_turn)`` witnessed battle-log lines. The
+        earlier window covers the fight before the entity's previous turn."""
+        start = len(getattr(battle, 'battle_log', None) or [])
+        try:
+            st = battle.entity_state_for(entity)
+            v = st.get('last_turn_log_len') if st is not None else None
+            if isinstance(v, int):
+                start = v
+            else:
+                start = 0
+        except Exception:
+            start = 0
+        log = list(getattr(battle, 'battle_log', None) or [])
+        start = max(0, min(start, len(log)))
+        names = getattr(self, '_names', None)
+        earlier = []
+        for action in log[:start]:
+            try:
+                if _pov_witnessed(battle, entity, action):
+                    line = _pov_line(action, names)
+                    if line:
+                        earlier.append("- " + line)
+            except Exception:
+                continue
+        return earlier[-MAX_JEV_EARLIER_LOG:], self._pov_log(battle, entity)
 
     def _pov_log(self, battle, entity) -> List[str]:
         """One-line POV summaries of the battle-log entries the entity
@@ -601,6 +995,8 @@ class JevActionPlanner:
             t = self._type_key(action)
             if desc is None:
                 desc = _leaf_desc(action, getattr(self, '_names', None))
+                if t == 'attack':
+                    desc += _attack_odds_text(self._battle, action)
             leaves.append((t, action, desc))
 
         if available_actions is not None:
@@ -613,31 +1009,104 @@ class JevActionPlanner:
                     continue
                 self._enrich(self._battle, self._entity, a)  # pre-target defaults
                 add(a)
-            return self._with_pass(self._cap_leaves(leaves))
+            return self._with_pass(self._cap_leaves(self._skirmish_filter(leaves)))
 
         # Full auto-build path (move_for / direct planning): movement gets the
         # rich pathfinding treatment alongside the other action classes.
         for action, desc in self._move_leaves():
             add(action, desc)
 
+        from natural20.actions.spell_action import SpellAction
         session = self._session
+        allowed = self._allowed_action_classes(session)
         for klass in self._action_classes(session):
+            if allowed is not None and klass not in allowed:
+                continue
+            follow_ups_only = False
             try:
                 if not _class_can(klass, self._entity, self._battle):
-                    continue
+                    if not _multiattack_follow_up_available(klass, self._entity, self._battle):
+                        continue
+                    follow_ups_only = True
             except Exception:
                 continue
             try:
                 built = autobuild(session, klass, self._entity, self._battle,
                                   map=self._map, auto_target=False)
+                if follow_ups_only:
+                    built = [a for a in built
+                             if klass.can(self._entity, self._battle,
+                                          {'npc_action': getattr(a, 'npc_action', None)})]
+                if klass is SpellAction:
+                    built = self._optimize_area_spells(built)
             except Exception:
                 continue
             for a in built:
                 add(a)
+        for a in self._variant_leaves(session, allowed):
+            add(a)
+        from natural20.utils.unseen_targets import base_attack_actions, blind_attack_variants
+        try:
+            for a in blind_attack_variants(self._battle, self._entity,
+                                           base_attack_actions(session, self._entity, self._battle)):
+                add(a)
+        except Exception:
+            pass
         from natural20.actions.summon_creatures_action import SummonCreaturesAction
         for a in SummonCreaturesAction.options_for(session, self._entity, self._battle):
             add(a)
-        return self._with_pass(self._cap_leaves(leaves))
+        return self._with_pass(self._cap_leaves(self._skirmish_filter(leaves)))
+
+    def _skirmish_filter(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
+        """Shoot-and-hide tactics for creatures with a bonus-action Hide
+        (Cunning Action, Nimble Escape): with a ranged shot available, don't
+        walk into melee, and point out hiding after the shot."""
+        from natural20.actions.attack_action import AttackAction
+        from natural20.actions.hide_action import HideAction
+        try:
+            if not self._entity.any_class_feature(['cunning_action', 'nimble_escape']):
+                return leaves
+        except Exception:
+            return leaves
+
+        def ranged_shot(a):
+            try:
+                return (isinstance(a, AttackAction) and getattr(a, 'target', None) is not None
+                        and a.ranged_attack())
+            except Exception:
+                return False
+
+        has_shot = any(ranged_shot(a) for _, a, _ in leaves)
+        out = []
+        for t, a, d in leaves:
+            if has_shot and t == 'move' and (d.startswith('move: engage') or d.startswith('move: offensive')):
+                continue
+            if isinstance(a, HideAction) and getattr(a, 'as_bonus_action', False):
+                d = f"{d} (bonus action: hide after shooting so your next attack has advantage)"
+            out.append((t, a, d))
+        return out
+
+    def _optimize_area_spells(self, built: List[Any]) -> List[Any]:
+        """Replace per-square variants of AoE spells with the builder's best anchor.
+
+        Unoptimized autobuild yields one leaf per square in range (Fireball
+        alone can produce hundreds), which crowds every other spell out of
+        the capped option list. The ``auto_target=True`` builder keeps only
+        the square that hits the most enemies and fewest allies (or none
+        when no square is worth it). Creature-targeted spells keep their
+        per-target leaves.
+        """
+        from natural20.utils.action_builder import autobuild
+        from natural20.actions.spell_action import SpellAction
+
+        point_keys = {_spell_key(a) for a in built if _is_point_target(getattr(a, 'target', None))}
+        if not point_keys:
+            return built
+        optimized = autobuild(self._session, SpellAction, self._entity, self._battle,
+                              map=self._map, auto_target=True)
+        result = [a for a in built if _spell_key(a) not in point_keys]
+        result.extend(a for a in optimized if _spell_key(a) in point_keys)
+        return result
 
     def _with_pass(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
         """Always offer "pass (end turn)" as the final top-level option.
@@ -647,6 +1116,9 @@ class JevActionPlanner:
         """
         if any(t == 'end_turn' for t, _, _ in leaves):
             return leaves
+        if self._dash_unspent() and any(t == 'move' for t, _, _ in leaves):
+            # The Dash bought movement for a destination: passing now wastes it.
+            return leaves
         from natural20.actions.end_turn_action import EndTurnAction
         try:
             action = EndTurnAction(self._session, self._entity, 'end_turn')
@@ -654,14 +1126,49 @@ class JevActionPlanner:
             return leaves
         return leaves + [('end_turn', action, 'pass (end turn)')]
 
+    def _dash_unspent(self) -> bool:
+        """The creature Dashed this turn and still has the extra movement."""
+        try:
+            ent, battle = self._entity, self._battle
+            return (ent.available_movement(battle) or 0) > (ent.speed() or 0)
+        except Exception:
+            return False
+
     def _cap_leaves(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
-        """Rank and cap the flat option list for the single JEV question."""
+        """Rank and cap the flat option list for the single JEV question.
+
+        Instinct-tier creatures (INT 1-3) only keep hostile options aimed at
+        the nearest enemy or their last attacker (``combat_intelligence``).
+        """
+        try:
+            from natural20.utils import friendly_fire
+            leaves = friendly_fire.filter_actions(self._battle, self._entity, leaves,
+                                                  action_of=lambda leaf: leaf[1])
+        except Exception:
+            pass
+        try:
+            from natural20.utils import pointless_actions
+            leaves = pointless_actions.filter_actions(self._battle, self._entity, leaves,
+                                                      action_of=lambda leaf: leaf[1])
+        except Exception:
+            pass
+        try:
+            from natural20.utils.combat_intelligence import filter_actions
+            leaves = filter_actions(self._battle, self._entity, leaves, target_of=lambda leaf: leaf[1])
+        except Exception:
+            pass
+
         def hp_key(a):
             t = getattr(a, 'target', None)
-            try:
-                return (t.hp() or 0) if t is not None else 10 ** 6
-            except Exception:
-                return 10 ** 6
+            members = t if isinstance(t, (list, tuple)) else [t]
+            hps = []
+            for m in members:
+                try:
+                    if hasattr(m, 'hp'):
+                        hps.append(m.hp() or 0)
+                except Exception:
+                    continue
+            return min(hps) if hps else 10 ** 6
 
         by_type: Dict[str, List[Tuple[str, Any, str]]] = {}
         for leaf in leaves:
@@ -673,6 +1180,8 @@ class JevActionPlanner:
             if t in ('attack', 'spell'):
                 # Finishers first: prefer the weakest legal target.
                 group.sort(key=lambda l: hp_key(l[1]))
+            if t == 'spell':
+                group = _round_robin_by_spell(group)
             capped.extend(group[:MAX_JEV_OPTIONS])
         for group in by_type.values():
             capped.extend(group[:MAX_JEV_OPTIONS])
@@ -710,6 +1219,10 @@ class JevActionPlanner:
                     if not (getattr(action, 'npc_action', None)
                             or getattr(action, 'using', None)):
                         return False
+                square = getattr(action, 'target_square', None)
+                if square is not None and getattr(action, 'target', None) is None:
+                    from natural20.utils.unseen_targets import blind_attack_issue
+                    return blind_attack_issue(battle, entity, action, tuple(square)) is None
                 return bool(battle.valid_targets_for(entity, action))
             if isinstance(action, HelpAction):
                 if getattr(action, 'target', None) is not None:
@@ -774,6 +1287,40 @@ class JevActionPlanner:
         except Exception:
             return True
 
+    def _allowed_action_classes(self, session):
+        """Action classes the entity may currently use, per ``available_actions``.
+
+        The auto-build path builds classes directly, so it must honor the same
+        gating (polymorph / Wild Shape forms can't cast spells, etc.). Returns
+        None when the list can't be computed.
+        """
+        try:
+            options = self._entity.available_actions(session, self._battle, auto_target=False,
+                                                     map=self._map)
+        except TypeError:
+            options = self._entity.available_actions(session, self._battle, auto_target=False)
+        except Exception:
+            return None
+        return {type(a) for a in options}
+
+    def _variant_leaves(self, session, allowed):
+        """Options whose class specializes one of ``_action_classes`` (a beast
+        form's attacks, Cunning Action's bonus-action Hide/Dash/Disengage)."""
+        if not allowed:
+            return []
+        known = set(self._action_classes(session))
+        extra = {cls for cls in allowed
+                 if cls not in known and any(issubclass(cls, k) for k in known)}
+        if not extra:
+            return []
+        try:
+            options = self._entity.available_actions(session, self._battle)
+        except Exception:
+            return []
+        # Blind-attack variants are added separately by the caller.
+        return [a for a in options
+                if type(a) in extra and getattr(a, 'target_square', None) is None]
+
     def _action_classes(self, session):
         from natural20.actions.attack_action import AttackAction
         from natural20.actions.spell_action import SpellAction
@@ -789,13 +1336,14 @@ class JevActionPlanner:
         from natural20.actions.interact_action import InteractAction
         from natural20.actions.shove_action import ShoveAction
         from natural20.actions.grapple_action import GrappleAction
+        from natural20.actions.action_surge_action import ActionSurgeAction
         # NOTE: MoveAction is deliberately absent: _move_leaves() replaces the
         # builder's raw one-step move leaves with strategic destination leaves.
         return [
             AttackAction, SpellAction, HelpAction, DodgeAction,
             HideAction, DashAction, DisengageAction, StandAction, LookAction,
             SecondWindAction, UseItemAction, InteractAction, ShoveAction,
-            GrappleAction,
+            GrappleAction, ActionSurgeAction,
         ]
 
     @staticmethod
@@ -819,8 +1367,11 @@ class JevActionPlanner:
             from natural20.actions.shove_action import ShoveAction
             from natural20.actions.grapple_action import GrappleAction
             from natural20.actions.end_turn_action import EndTurnAction
+            from natural20.actions.action_surge_action import ActionSurgeAction
             if isinstance(action, EndTurnAction):
                 return 'end_turn'
+            if isinstance(action, ActionSurgeAction):
+                return 'action_surge'
             if isinstance(action, AttackAction):
                 return 'attack'
             if isinstance(action, SpellAction):
@@ -893,10 +1444,59 @@ class JevActionPlanner:
             except Exception:
                 return None
 
-        def dest_ok(dest, path):
+        # Each move_for call is a fresh decision; without this a creature with
+        # movement left steps back and forth between the same squares.
+        try:
+            state = battle.entity_state_for(ent) or {}
+            visited = {tuple(p) for p in state.get('positions_entered') or {}}
+            if state.get('turn_start_position'):
+                visited.add(tuple(state['turn_start_position']))
+        except Exception:
+            visited = set()
+
+        # Provoking an opportunity attack is only worth it to flee when hurt.
+        try:
+            fleeing = ent.hp() <= ent.max_hp() / 2
+        except Exception:
+            fleeing = False
+        try:
+            action_spent = (ent.total_actions(battle) or 0) <= 0
+        except Exception:
+            action_spent = False
+        try:
+            engaged = any(
+                m.distance(ent, e) * (getattr(m, 'feet_per_grid', 5) or 5) <= (ent.melee_distance() or 5)
+                for e in battle.opponents_of(ent)
+                if not e.dead() and e.conscious() and battle.can_see(ent, e))
+        except Exception:
+            engaged = False
+        caster = _ranged_combatant(ent)
+        try:
+            skirmisher = bool(ent.any_class_feature(['cunning_action', 'nimble_escape']))
+        except Exception:
+            skirmisher = False
+        # Already in melee with no action left: shuffling around the foe gains
+        # nothing. A spellcaster or shoot-and-hide skirmisher with its action
+        # spent has no reason to walk into melee at all - that only invites
+        # attacks.
+        reposition_pointless = action_spent and (engaged or caster or skirmisher)
+        disengaged = False
+        try:
+            disengaged = bool(ent.disengage(battle))
+        except Exception:
+            pass
+        # A caster or skirmisher stuck in melee is better off taking one
+        # opportunity attack to get clear than standing in reach all round.
+        oa_retreat_ok = engaged and not disengaged and (caster or skirmisher)
+
+        def dest_ok(dest, path, allow_oa=False):
             if not path or len(path) < 2:
                 return False
             end = tuple(path[-1])
+            if end in visited:
+                return False
+            if not (fleeing or allow_oa) and _oa_risk(battle, ent, path):
+                return False
             if not m.placeable(ent, *end, battle):
                 return False
             try:
@@ -911,8 +1511,11 @@ class JevActionPlanner:
         try:
             enemies = [e for e in battle.opponents_of(ent)
                        if battle.can_see(ent, e) and not e.dead() and e.conscious()]
+            reach_ft = ent.melee_distance() or 5
             for e in enemies:
                 epos = m.position_of(e)
+                if m.distance(ent, e) * (getattr(m, 'feet_per_grid', 5) or 5) <= reach_ft:
+                    continue
                 for dx in range(-1, 2):
                     for dy in range(-1, 2):
                         if dx == 0 and dy == 0:
@@ -937,8 +1540,16 @@ class JevActionPlanner:
             seen.add(cand)
             melee_uniq.append((cand, p))
 
+        # ---- intent 0b: advance toward a foe too far to reach this turn ---- #
+        approach = []
+        if not reposition_pointless:
+            try:
+                approach = self._approach_options(m, ent, battle, pos, move_ft, pc_calc, dest_ok, caster)
+            except Exception:
+                approach = []
+
         # ---- intent 1/3: defensive & offensive squares ---- #
-        def candidate_squares():
+        def candidate_squares(allow_oa=False):
             sqs = []
             maxr = max(1, int(move_ft // (getattr(m, 'feet_per_grid', 5) or 5)))
             for dx in range(-maxr, maxr + 1):
@@ -949,7 +1560,7 @@ class JevActionPlanner:
                     if not _in_battle(m, cand[0], cand[1]):
                         continue
                     p = path_to(cand)
-                    if not dest_ok(cand, p):
+                    if not dest_ok(cand, p, allow_oa):
                         continue
                     sqs.append((cand, p))
             return sqs
@@ -967,16 +1578,40 @@ class JevActionPlanner:
 
         defensive = []
         offensive = []
+        retreat = []
+        feet = getattr(m, 'feet_per_grid', 5) or 5
         try:
             enemies = [e for e in battle.opponents_of(ent)
                        if battle.can_see(ent, e) and not e.dead() and e.conscious()]
-            for cand, p in candidate_squares():
+            current_gap = min((m.distance(ent, e) * feet for e in enemies), default=None)
+            # Step out of reach: when engaged, after Disengage, or a caster
+            # standing too close to a foe.
+            dashed = False
+            try:
+                dashed = move_ft > (ent.speed() or 0)
+            except Exception:
+                pass
+            want_retreat = bool(enemies) and (
+                engaged or disengaged or fleeing or dashed
+                or (caster and current_gap is not None and current_gap <= 10))
+
+            def out_of_reach(cand):
+                return all(m.distance(ent, e, entity_1_pos=cand) * feet > (e.melee_distance() or 5)
+                           for e in enemies)
+
+            for cand, p in candidate_squares(allow_oa=oa_retreat_ok):
+                oa = _oa_risk(battle, ent, p)
+                if want_retreat and out_of_reach(cand) and (not oa or fleeing or oa_retreat_ok):
+                    gap = min(m.distance(ent, e, entity_1_pos=cand) * feet for e in enemies)
+                    if engaged or current_gap is None or gap > current_gap:
+                        retreat.append((cand, p, gap, oa))
+                if oa and not fleeing:
+                    continue
                 cover = 'none'
                 try:
                     cover = m.cover_at(cand[0], cand[1], origin=pos) or 'none'
                 except Exception:
                     pass
-                oa = _oa_risk(battle, ent, p)
                 ds = enemy_dists(cand)
                 min_d = min(ds) if ds else None
                 line = f"{cand}"
@@ -1013,6 +1648,9 @@ class JevActionPlanner:
 
         # ---- offer the intents that have options ---- #
         intents = []  # (label, kind, options)
+        if reposition_pointless:
+            melee_uniq = []
+            offensive = []
         if melee_uniq:
             enemies = [e for e in battle.opponents_of(ent)
                        if battle.can_see(ent, e) and not e.dead()]
@@ -1035,6 +1673,17 @@ class JevActionPlanner:
             ]
             intents.append(("move to a defensive square (cover and/or away from enemies)",
                             'defensive', defensive[:MAX_JEV_OPTIONS], labels[:MAX_JEV_OPTIONS]))
+        if approach:
+            intents.append(("advance toward an enemy that is out of reach this turn", 'approach',
+                            [(cand, p) for cand, p, _ in approach], [label for _, _, label in approach]))
+        if retreat:
+            retreat.sort(key=lambda x: (x[3], -x[2], len(x[1])))
+            picks = retreat[:min(4, MAX_JEV_OPTIONS)]
+            labels = [f"retreat to {cand} (out of reach, "
+                      f"{'provokes an opportunity attack, ' if oa else ''}{int(gap)} ft from nearest foe)"
+                      for cand, p, gap, oa in picks]
+            intents.append(("step out of enemy reach", 'retreat',
+                            [(cand, p) for cand, p, _, _ in picks], labels))
         if hide_opts:
             labels = [f"hide at {cand} ({len(p) - 1} steps)" for cand, p in hide_opts[:MAX_JEV_OPTIONS]]
             intents.append(("move to a hiding spot and become hidden", 'hide',
@@ -1062,6 +1711,74 @@ class JevActionPlanner:
                 action.move_path = list(path)
                 yield action, f"move: {prefix}{label}"
 
+    def _approach_options(self, m, ent, battle, pos, move_ft, pc_calc, dest_ok, caster):
+        """``(square, path, label)`` moves that close on the nearest foes when
+        no melee square is reachable this turn. Falls back to heard /
+        last-known squares of unseen foes, then to downed foes."""
+        feet = getattr(m, 'feet_per_grid', 5) or 5
+        reach = (ent.melee_distance() or 5)
+        visible = [e for e in battle.opponents_of(ent)
+                   if not e.dead() and battle.can_see(ent, e) and m.position_of(e) is not None]
+        up = [e for e in visible if e.conscious()]
+        if caster and any(m.distance(ent, e) * feet <= 60 for e in up):
+            return []
+        goals = []  # (label name, square)
+        for e in sorted(up, key=lambda e: m.distance(ent, e)):
+            if m.distance(ent, e) * feet <= reach + move_ft:
+                continue  # engage already covers a reachable foe
+            goals.append((self._display_name(e), tuple(m.position_of(e))))
+        if not up:
+            try:
+                from natural20.utils.unseen_targets import sensed_creatures
+                for entry in sensed_creatures(battle, ent):
+                    foe = battle.entity_by_uid(entry['uid'])
+                    if foe is not None and battle.opposing(ent, foe) and not foe.dead():
+                        goals.append((f"{self._display_name(foe)}'s {entry.get('kind', 'last known').replace('_', ' ')} position",
+                                      tuple(entry['pos'])))
+            except Exception:
+                pass
+            if not goals:
+                goals = [(f"downed {self._display_name(e)}", tuple(m.position_of(e)))
+                         for e in sorted(visible, key=lambda e: m.distance(ent, e))]
+        steps = int(move_ft // feet)
+        out = []
+        for name, goal in goals[:3]:
+            full = None
+            best = None
+            for dx in range(-1, 2):
+                for dy in range(-1, 2):
+                    cand = (goal[0] + dx, goal[1] + dy)
+                    if (dx or dy) and _in_battle(m, *cand) and m.placeable(ent, *cand, battle):
+                        d = abs(cand[0] - pos[0]) + abs(cand[1] - pos[1])
+                        if best is None or d < best[0]:
+                            best = (d, cand)
+            if best is None:
+                continue
+            try:
+                full = pc_calc.compute_path(pos[0], pos[1], best[1][0], best[1][1])
+            except Exception:
+                full = None
+            if not full or len(full) < 2:
+                continue
+            sub = list(full[:steps + 1])
+            path = None
+            while len(sub) >= 2:
+                try:
+                    path = pc_calc.compute_path(pos[0], pos[1], sub[-1][0], sub[-1][1],
+                                                available_movement_cost=move_ft)
+                except Exception:
+                    path = None
+                if path and dest_ok(tuple(sub[-1]), path):
+                    break
+                path = None
+                sub = sub[:-1]
+            if not path:
+                continue
+            end = tuple(path[-1])
+            left = max(0, int((len(full) - len(path)) * feet))
+            out.append((end, path, f"advance toward {name}: {end} (~{left} ft still to go)"))
+        return out
+
     # -- final enrichment ------------------------------------------------------ #
     def _enrich(self, battle, entity, action) -> Any:
         """Last-ditch defaults if a required param is still unset."""
@@ -1071,7 +1788,8 @@ class JevActionPlanner:
         from natural20.actions.shove_action import ShoveAction
         from natural20.actions.grapple_action import GrappleAction
         try:
-            if isinstance(action, AttackAction) and getattr(action, 'target', None) is None:
+            if isinstance(action, AttackAction) and getattr(action, 'target', None) is None \
+                    and getattr(action, 'target_square', None) is None:
                 targets = battle.valid_targets_for(entity, action, target_types=['enemies'])
                 if targets:
                     action.target = sorted(targets, key=lambda t: (t.hp() or 0))[0]
@@ -1084,14 +1802,17 @@ class JevActionPlanner:
                         action.target = sorted(targets, key=lambda t: (t.hp() or 0))[0]
             if getattr(action, 'target', None) is None:
                 if isinstance(action, HelpAction):
-                    # allies first, then any legal target within reach
-                    try:
-                        targets = battle.valid_targets_for(entity, action,
-                                                           target_types=['allies', 'enemies'])
-                    except Exception:
-                        targets = []
-                    if not targets:
-                        targets = battle.valid_targets_for(entity, action)
+                    # Distracting an enemy (an ally's next attack has
+                    # advantage) beats aiding an ally's ability check.
+                    targets = []
+                    for kinds in (['enemies'], ['allies']):
+                        try:
+                            targets = [t for t in battle.valid_targets_for(entity, action, target_types=kinds)
+                                       if t is not entity]
+                        except Exception:
+                            targets = []
+                        if targets:
+                            break
                     if targets:
                         action.target = sorted(targets, key=lambda t: (t.hp() or 0))[0]
                 elif isinstance(action, (ShoveAction, GrappleAction)):
@@ -1120,6 +1841,36 @@ def _weapon_name(action) -> Optional[str]:
         return opts.get('using')
     except Exception:
         return None
+
+
+def _is_point_target(target) -> bool:
+    """True for a map coordinate (``[x, y]``) rather than creature target(s)."""
+    return (isinstance(target, (list, tuple)) and len(target) == 2
+            and all(isinstance(v, int) and not isinstance(v, bool) for v in target))
+
+
+def _spell_key(action) -> Tuple[Optional[str], int]:
+    return (_spell_name(action), int(getattr(action, 'at_level', 0) or 0))
+
+
+def _round_robin_by_spell(leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
+    """Interleave spell leaves so each distinct spell appears before any repeats.
+
+    Keeps the incoming order within each spell and orders spells by their
+    first (best-ranked) leaf, so one spell with many targets or squares
+    (Mage Hand, Misty Step) cannot fill the per-type cap on its own.
+    """
+    groups: Dict[Any, List[Tuple[str, Any, str]]] = {}
+    for leaf in leaves:
+        groups.setdefault(_spell_key(leaf[1]), []).append(leaf)
+    ordered: List[Tuple[str, Any, str]] = []
+    queues = list(groups.values())
+    depth = 0
+    while queues:
+        queues = [q for q in queues if len(q) > depth]
+        ordered.extend(q[depth] for q in queues)
+        depth += 1
+    return ordered
 
 
 def _spell_name(action) -> Optional[str]:
@@ -1151,6 +1902,15 @@ def _spell_name(action) -> Optional[str]:
             return sp.get('name')
     except Exception:
         return None
+
+
+def _blind_attack_text(action, weapon_name) -> str:
+    """Leaf text for an attack on a square holding an unseen creature."""
+    x, y = action.target_square
+    heard = float(getattr(action, 'blind_confidence', 0) or 0) >= 1.0
+    where = 'heard there now' if heard else 'last known position, it may have moved'
+    return (f"attack unseen creature at square [{x}, {y}] ({where}) with {weapon_name}"
+            f" (disadvantage; misses if nothing is there)")
 
 
 def _target_name(t, names=None) -> str:
@@ -1336,6 +2096,8 @@ def _leaf_desc(action, names=None) -> str:
         if isinstance(action, AttackAction):
             w = _weapon_name(action) or 'weapon'
             t = getattr(action, 'target', None)
+            if t is None and getattr(action, 'target_square', None) is not None:
+                return _blind_attack_text(action, w)
             return f"attack {_target_name(t, names)} with {w}"
         if isinstance(action, SpellAction):
             s = _spell_name(action) or 'spell'
@@ -1349,6 +2111,8 @@ def _leaf_desc(action, names=None) -> str:
             p = getattr(action, 'move_path', None)
             end = p[-1] if p else None
             return f"move to {tuple(end) if end else '?'}"
+        if getattr(action, 'action_type', None) == 'action_surge':
+            return 'action surge (free: gain one more action this turn, e.g. attack again)'
         if getattr(action, 'action_type', None) == 'drop_grapple':
             t = getattr(action, 'target', None)
             return f"release grapple on {_target_name(t, names) if t is not None else 'all held creatures'} (free, restores full speed)"
@@ -1387,3 +2151,43 @@ def jev_select_action(provider, battle, entity,
         return None
     planner = JevActionPlanner(provider, max_decisions=max_decisions)
     return planner.select(battle, entity, available_actions)
+
+
+def jev_select_callout(provider, battle, entity, options: List[dict], action=None) -> Optional[dict]:
+    """Let JEV pick the strategic callout for this turn from *options*.
+
+    *options* come from ``combat_strategy.strategy_options`` (first entry is
+    "stay silent"). The state is the same text the action decision sees, plus
+    the action just chosen. Returns the chosen option, or ``None`` when the
+    model is unavailable or answers out of range (caller falls back).
+    """
+    if provider is None or not getattr(provider, 'is_available', False) or not options:
+        return None
+    planner = JevActionPlanner(provider, max_decisions=1)
+    try:
+        planner._battle = battle
+        planner._entity = entity
+        planner._map = battle.map_for(entity)
+        planner._session = getattr(battle, 'session', None)
+        planner._names = planner._display_names(battle, entity)
+        lines = planner._render_state(battle, entity).splitlines()
+    except Exception as e:
+        logger.debug("[JevPlan] callout state failed: %s", e)
+        return None
+    lines = [ln for ln in lines if not ln.startswith('Task:')]
+    if action is not None:
+        try:
+            lines.append(f"this turn you: {_leaf_desc(action, planner._names)}")
+        except Exception:
+            pass
+    lines.append(
+        "Task: choose what, if anything, to call out to your allies this turn "
+        "(a brief shout enemies may overhear). Pick the callout that most helps "
+        "your side win, or stay silent if nothing is worth saying."
+    )
+    descs = [o.get('desc') or str(o.get('kind')) for o in options]
+    idx = planner._decide("\n".join(lines), descs)
+    if idx is None:
+        return None
+    logger.debug("[JevPlan] %s callout: %r", getattr(entity, 'name', '?'), descs[idx])
+    return options[idx]

@@ -28,6 +28,7 @@ from natural20.spell.bless_spell import BlessSpell
 from natural20.item_library.pit_trap import PitTrap
 from natural20.generic_controller import GenericController
 from natural20.web.web_controller import WebController
+from natural20.llm_controller import LlmMcpController
 from natural20.session import Session
 from natural20.die_roll import DieRollResult
 from typing import Any
@@ -145,6 +146,117 @@ def spell_constructor(loader, node):
     return spell
 
 
+_ZONE_TRANSIENT_SLOTS = {'battle', 'map', '_tile_objects'}
+_restored_zones = []
+
+
+def _zone_slots(klass):
+    names = []
+    for k in klass.__mro__:
+        for name in getattr(k, '__slots__', ()) or ():
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def represent_persistent_zone(dumper, data):
+    """Persistent AoE zones (Spirit Guardians, Stinking Cloud, Grease, ...) use
+    ``__slots__``: save slot values, entities as UIDs; battle/map handles and
+    tile lists are rebuilt by ``relink_persistent_zones`` on load."""
+    from natural20.entity import Entity
+    state, entities = {}, {}
+    for name in _zone_slots(type(data)):
+        if name in _ZONE_TRANSIENT_SLOTS or not hasattr(data, name):
+            continue
+        value = getattr(data, name)
+        if isinstance(value, Entity):
+            entities[name] = value.entity_uid
+        elif isinstance(value, (Session, Battle, Map)):
+            continue
+        else:
+            state[name] = value
+    return dumper.represent_mapping('!persistent_zone', {
+        'class': f"{type(data).__module__}.{type(data).__qualname__}",
+        'state': state,
+        'entities': entities,
+    })
+
+
+def persistent_zone_constructor(loader, node):
+    data = loader.construct_mapping(node, deep=True)
+    module_name, class_name = data['class'].rsplit('.', 1)
+    klass = getattr(importlib.import_module(module_name), class_name)
+    zone = klass.__new__(klass)
+    for name in _zone_slots(klass):
+        if name == '_tile_objects':
+            setattr(zone, name, [])
+        elif name in ('battle', 'map'):
+            setattr(zone, name, None)
+    for key, value in (data.get('state') or {}).items():
+        setattr(zone, key, value)
+    entities = data.get('entities') or {}
+    for key, uid in entities.items():
+        setattr(zone, key, uid)
+    _restored_zones.append((zone, list(entities)))
+    return zone
+
+
+def represent_zone_tile(dumper, data):
+    return dumper.represent_mapping('!zone_tile', {
+        'class': f"{type(data).__module__}.{type(data).__qualname__}",
+        'data': data.to_dict(),
+    })
+
+
+def zone_tile_constructor(loader, node):
+    data = loader.construct_mapping(node, deep=True)
+    module_name, class_name = data['class'].rsplit('.', 1)
+    klass = getattr(importlib.import_module(module_name), class_name)
+    return klass.from_dict(data.get('data') or {})
+
+
+def relink_persistent_zones(session, maps=None, battle=None):
+    """Reattach restored zones to their map and battle and re-register them."""
+    from natural20.environment_zones import register_environment_zone
+    map_list = list(maps.values()) if isinstance(maps, dict) else list(maps or [])
+    pending = list(_restored_zones)
+    _restored_zones.clear()
+    for zone, entity_attrs in pending:
+        for attr in entity_attrs:
+            value = getattr(zone, attr, None)
+            if isinstance(value, str):
+                setattr(zone, attr, session.entity_by_uid(value) or value)
+        anchor = getattr(zone, 'owner', None) or getattr(zone, 'source', None)
+        zone_map = None
+        for m in map_list:
+            if anchor is not None and anchor in getattr(m, 'entities', {}):
+                zone_map = m
+                break
+        if zone_map is None:
+            for m in map_list:
+                if any(getattr(o, 'zone', None) is zone
+                       for col in m.objects for cell in col for o in cell):
+                    zone_map = m
+                    break
+        zone.map = zone_map or (map_list[0] if map_list else None)
+        if zone.map is not None and hasattr(zone, '_tile_objects'):
+            zone._tile_objects = [o for col in zone.map.objects for cell in col for o in cell
+                                  if getattr(o, 'zone', None) is zone]
+            for tile in zone._tile_objects:
+                tile.map = zone.map
+                if isinstance(getattr(tile, 'source', None), str):
+                    tile.source = session.entity_by_uid(tile.source) or tile.source
+        if getattr(zone, '_dismissed', False):
+            continue
+        in_battle = battle is not None and (anchor is None or anchor in battle.entities)
+        if in_battle:
+            zone.battle = battle
+            battle.register_zone(zone)
+        else:
+            zone.battle = None
+            register_environment_zone(zone)
+
+
 def relink_spell_entities(session, maps=None, battle=None):
     """Swap entity_uid strings on restored spell effects (and summoner links) back to live entities."""
     from natural20.spell.spell import Spell
@@ -251,6 +363,7 @@ CLASS_TAG_MAPPING = {
     PitTrap: '!pit_trap',
     GenericController: '!generic_controller',
     WebController: '!web_controller',
+    LlmMcpController: '!llm_mcp_controller',
     AttackAction: '!attack_action',
     ActionRecord: '!action_record',
     MultiSwitch: '!multi_switch',
@@ -277,7 +390,7 @@ def generic_constructor(loader, node):
     # Look up our mapping to find the class associated with this tag.
     for cls, tag in CLASS_TAG_MAPPING.items():
         if node.tag == tag:
-            if tag in ('!generic_controller', '!web_controller'):
+            if tag in ('!generic_controller', '!web_controller', '!llm_mcp_controller'):
                 # Older saves stored controller ``battle_data`` keyed by the
                 # Battle being loaded (a recursive alias); it's transient, drop it.
                 node.value = [(k, v) for k, v in node.value
@@ -319,6 +432,12 @@ def register_yaml_handlers():
     yaml.SafeDumper.add_multi_representer(np.integer, represent_np_integer)
     yaml.SafeDumper.add_multi_representer(np.floating, represent_np_floating)
     yaml.SafeDumper.add_multi_representer(np.bool_, represent_np_bool)
+    from natural20.spell.extensions.persistent_zone import PersistentAoEZone
+    yaml.SafeDumper.add_multi_representer(PersistentAoEZone, represent_persistent_zone)
+    SafeLoaderWithConstructors.add_constructor('!persistent_zone', persistent_zone_constructor)
+    from natural20.spell.objects.zone_tile import ZoneTile
+    yaml.SafeDumper.add_multi_representer(ZoneTile, represent_zone_tile)
+    SafeLoaderWithConstructors.add_constructor('!zone_tile', zone_tile_constructor)
     yaml.SafeDumper.add_multi_representer(object, represent_effect_object)
     SafeLoaderWithConstructors.add_constructor('!effect_object', effect_object_constructor)
     
@@ -357,6 +476,7 @@ class Serialization:
             )
         SafeLoaderWithConstructors.add_constructor(None, no_undefined_constructor)
 
+        _restored_zones.clear()
         state = yaml.load(yaml_data, Loader=SafeLoaderWithConstructors)
         # Ensure registry is populated for the restored session
         try:
@@ -368,4 +488,8 @@ class Serialization:
             relink_battle_log(session, battle)
         except Exception:
             pass
+        try:
+            relink_persistent_zones(state['session'], maps=state.get('maps'), battle=state.get('battle'))
+        except Exception:
+            _restored_zones.clear()
         return state['session'], state['battle'], state['maps']

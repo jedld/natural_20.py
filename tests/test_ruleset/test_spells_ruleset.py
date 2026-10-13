@@ -69,6 +69,42 @@ def test_counterspell_2014_auto_succeeds_at_slot(tmp_path):
     assert results[0]["roll"] is None
 
 
+def test_counterspell_2024_reaction_keeps_countered_casters_slot(tmp_path):
+    from natural20.actions.spell_action import SpellAction
+    from natural20.battle import Battle
+    from natural20.die_roll import DieRoll
+    from natural20.map import Map
+    from natural20.player_character import PlayerCharacter
+
+    root = _campaign(tmp_path, "5e-2024", drop_local_spells=True)
+    session = Session(str(root))
+    battle_map = Map(session, "large_map")
+    battle = Battle(session, battle_map)
+    wizard = PlayerCharacter.load(session, "counterspell_wizard.yml")
+    mage = session.npc("test_counter_mage", {"name": "Hostile Mage"})
+    battle.add(wizard, "a", position=[2, 6])
+    battle.add(mage, "b", position=[6, 6])
+    battle.start(combat_order=[mage, wizard])
+    wizard.reset_turn(battle)
+    mage.reset_turn(battle)
+    battle.set_current_turn(mage)
+
+    class _Accept(Controller):
+        def select_reaction(self, entity, battle, map, valid_actions, event):
+            return valid_actions[0]
+
+    battle.set_controller_for(wizard, _Accept(session))
+    action = SpellAction.build(session, mage)["next"](["magic_missile", 0])["next"]([wizard])
+    DieRoll.fudge(1)  # caster fails the CON save
+    action.resolve(session, battle_map, {"battle": battle})
+    DieRoll.unfudge()
+
+    assert "spell_countered" in [item["type"] for item in action.result]
+    battle.commit(action)
+    assert mage.spell_slots_count(1) == 4
+    assert battle.entity_state_for(mage)["action"] == 0
+
+
 def test_counterspell_2024_uses_con_save(tmp_path):
     from natural20.die_roll import DieRoll
     from natural20.player_character import PlayerCharacter
@@ -314,3 +350,21 @@ def test_searing_smite_2024_consumes_bonus_and_ignites(tmp_path):
     assert paladin.spell_slots["paladin"][1] == initial_slots - 1
     assert battle.entity_state_for(paladin)["bonus_action"] == initial_ba - 1
     assert paladin.has_effect("searing_smite")
+
+
+def test_slot_healing_dice_follow_campaign_ruleset(tmp_path):
+    from types import SimpleNamespace
+
+    from natural20.spell.cure_wounds_spell import CureWoundsSpell, slot_healing_dice
+    from natural20.spell.healing_word_spell import HealingWordSpell
+
+    expected = {"5e-2014": ("2d8", "2d4"), "5e-2024": ("4d8", "4d4")}
+    for ruleset, (cure, word) in expected.items():
+        for drop_local in (True, False):
+            session = Session(str(_campaign(tmp_path / f"{ruleset}-{drop_local}", ruleset,
+                                            drop_local_spells=drop_local)))
+            for cls, name, dice in ((CureWoundsSpell, "cure_wounds", cure),
+                                    (HealingWordSpell, "healing_word", word)):
+                spell = cls(session, None, name, session.load_spell(name))
+                spell.action = SimpleNamespace(at_level=2)
+                assert slot_healing_dice(spell, "1d1") == dice, (ruleset, drop_local, name)

@@ -212,6 +212,7 @@ class TestSecretDoorPerceptionDeathHouse(unittest.TestCase):
     def test_renderer_with_light_and_low_perception(self):
         """Non-darkvision character with light but low perception should NOT see secret door."""
         pc = self._load_character('characters/halfling_rogue.yml', 'test_rogue', 3, 8)
+        pc.properties['expertise'] = []
         self.assertFalse(pc.darkvision(30))
         self.assertLess(pc.passive_perception(), 15)
 

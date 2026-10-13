@@ -22,19 +22,9 @@ class Rogue:
         return maneuver in (self.properties.get('maneuvers') or [])
 
     def sneak_attack_level(self):
-        levels = [
-            "1d6", "1d6",
-            "2d6", "2d6",
-            "3d6", "3d6",
-            "4d6", "4d6",
-            "5d6", "5d6",
-            "6d6", "6d6",
-            "7d6", "7d6",
-            "8d6", "8d6",
-            "9d6", "9d6",
-            "10d6", "10d6",
-        ]
-        return levels[self.rogue_level]
+        # 1d6 at rogue level 1, +1d6 every odd level (10d6 at 19-20).
+        level = max(1, min(20, int(self.rogue_level or 1)))
+        return f"{(level + 1) // 2}d6"
 
     def sneak_attack_available(self, battle):
         if battle is None:

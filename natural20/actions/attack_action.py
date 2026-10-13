@@ -13,6 +13,11 @@ from natural20.spell.effects.engulf_effect import EngulfEffect
 # from natural20.async_reaction_handler import AsyncReactionHandler
 import pdb
 
+# Heuristic weight of an attack on a creature already at 0 HP (YAML
+# ``finish_downed: true`` on the attacker keeps the full value).
+DOWNED_TARGET_WEIGHT = 0.1
+
+
 class AttackAction(Action):
     def __init__(self, session, source, action_type, opts=None):
         super().__init__(session, source, action_type, opts)
@@ -27,6 +32,10 @@ class AttackAction(Action):
         self.hit_result = None
         self.knock_unconscious = False
         self.grapple_instead = False
+        # Blind attack (5e unseen targets): the attacker picks a square instead
+        # of a creature; resolve() decides what, if anything, is there.
+        self.target_square = None
+        self.blind_attack = False
 
     def second_hand(self):
         return False
@@ -48,6 +57,7 @@ class AttackAction(Action):
             'knock_unconscious': bool(self.knock_unconscious),
             'legendary_action': bool(self.legendary_action),
             'grapple_instead': bool(self.grapple_instead),
+            'target_square': list(self.target_square) if self.target_square else None,
         }
 
     @staticmethod
@@ -63,6 +73,8 @@ class AttackAction(Action):
         action.knock_unconscious = bool(hash.get('knock_unconscious'))
         action.legendary_action = bool(hash.get('legendary_action'))
         action.grapple_instead = bool(hash.get('grapple_instead'))
+        square = hash.get('target_square')
+        action.target_square = tuple(square) if square else None
         return action
 
     @staticmethod
@@ -116,12 +128,16 @@ class AttackAction(Action):
         action.legendary_action = bool(self.legendary_action)
         action.advantage_mod = self.advantage_mod
         action.attack_roll = self.attack_roll
+        action.target_square = self.target_square
         return action
 
     def __str__(self):
         weapon = self.npc_action['name'] if self.npc_action else self.using
         base_str = f"{self.source} {'throws' if self.thrown else 'uses'} {weapon}"
-        target_str = f"{'at' if self.thrown else ''} on {self.target}"
+        if self.target is None and self.target_square is not None:
+            target_str = f" on unseen square {list(self.target_square)}"
+        else:
+            target_str = f"{'at' if self.thrown else ''} on {self.target}"
         attack_roll_str = f" ({self.attack_roll} = {self.attack_roll.result()})" if self.attack_roll else ""
 
         full_action = f"{base_str}{target_str}"
@@ -395,17 +411,26 @@ class AttackAction(Action):
             if item.get('maneuver') == 'riposte':
                 item['source'].consume_resource('superiority_dice')
             __class__.consume_resource(battle, item)
-            session.event_manager.received_event({'attack_roll': item['attack_roll'],
-                                                  'attack_name': item['attack_name'],
-                                                  'attack_thrown': item['thrown'],
-                                                  'advantage_mod': item['advantage_mod'],
-                                                  'as_reaction': bool(item['as_reaction']),
-                                                  'adv_info': item['adv_info'],
-                                                  'thrown': item['thrown'],
-                                                  'source': item['source'],
-                                                  'target': item['target'],
-                                                  'as_legendary_action': bool(item['as_legendary_action']),
-                                                  'event': 'miss'})
+            if item.get('blind_square') is not None:
+                __class__._emit_blind_miss(battle, item, session)
+            elif item.get('mirror_image'):
+                from natural20.spell.mirror_image_spell import MirrorImageSpell
+                MirrorImageSpell.emit_duplicate_event(battle, item, session)
+            else:
+                session.event_manager.received_event({'attack_roll': item['attack_roll'],
+                                                      'attack_name': item['attack_name'],
+                                                      'attack_thrown': item['thrown'],
+                                                      'advantage_mod': item['advantage_mod'],
+                                                      'as_reaction': bool(item['as_reaction']),
+                                                      'adv_info': item['adv_info'],
+                                                      'thrown': item['thrown'],
+                                                      'source': item['source'],
+                                                      'target': item['target'],
+                                                      'as_legendary_action': bool(item['as_legendary_action']),
+                                                      'event': 'miss'})
+        elif item['type'] == 'blind_miss':
+            __class__.consume_resource(battle, item)
+            __class__._emit_blind_miss(battle, item, session)
         elif item['type'] == 'disarm':
             target = item['target']
             disarmed_item = item.get('item')
@@ -443,10 +468,28 @@ class AttackAction(Action):
             )
 
     @staticmethod
+    def _emit_blind_miss(battle, item, session):
+        """Log a blind-attack miss without revealing whether anything was there."""
+        session.event_manager.received_event({
+            'event': 'blind_miss',
+            'source': item['source'],
+            'square': list(item['blind_square']),
+            'attack_name': item['attack_name'],
+            'attack_roll': item['attack_roll'],
+            'thrown': item['thrown'],
+            'as_reaction': bool(item['as_reaction']),
+            'as_legendary_action': bool(item['as_legendary_action']),
+        })
+
+    @staticmethod
     def _apply_additional_damage(battle, item, session):
         target, source = item['target'], item['source']
         if target.dead():
             return
+        # Uncanny Dodge halves the whole attack, riders included.
+        if (item.get('_hit_state') or {}).get('uncanny_dodge') and not item.get('_dodged'):
+            item['damage'] = item['damage'].half() if hasattr(item['damage'], 'half') else int(item['damage'] or 0) // 2
+            item['_dodged'] = True
         amount = item['damage'].result() if hasattr(item['damage'], 'result') else int(item['damage'] or 0)
         session.event_manager.received_event({
             'event': 'additional_damage',
@@ -489,7 +532,10 @@ class AttackAction(Action):
             if item['type'] == 'damage':
                 item['target'].add_item(item['weapon'])
             else:
-                ground_pos = item['battle'].entity_or_object_pos(item['target'])
+                if item.get('target') is not None:
+                    ground_pos = item['battle'].entity_or_object_pos(item['target'])
+                else:
+                    ground_pos = tuple(item['blind_square'])
                 ground_object = next((o for o in item['battle'].map_for(item['source']).objects_at(*ground_pos) if isinstance(o, Ground)), None)
                 if ground_object:
                     ground_object.add_item(item['weapon'])
@@ -599,7 +645,13 @@ class AttackAction(Action):
     def with_disadvantage(self):
         return self.advantage_mod < 0
 
+    BLIND_ASSUMED_AC = 14
+
     def compute_hit_probability(self, battle, opts = None):
+        if self.target is None and self.target_square is not None:
+            _, _, attack_mod, _, _ = self.get_weapon_info(opts or {})
+            confidence = float(getattr(self, 'blind_confidence', 0.35))
+            return confidence * DieRoll.roll(f"1d20+{attack_mod}", disadvantage=True).prob(self.BLIND_ASSUMED_AC)
         advantage_mod, adv_info, attack_mod = self.compute_advantage_info(battle, opts)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
 
@@ -633,6 +685,19 @@ class AttackAction(Action):
         follow-up attack a grapple enables (e.g. a bite that needs a grappled
         target), and save-or-condition riders such as Charm.
         """
+        value = self._ai_value(battle)
+        from natural20.utils.pointless_actions import _downed, finishes_downed
+        if self.target is not None and _downed(self.target) and not finishes_downed(self.source):
+            # Damage past 0 HP only adds death save failures (the auto-crit
+            # inflates the raw number); standing foes come first.
+            value *= DOWNED_TARGET_WEIGHT
+        from natural20.utils.polymorph import polymorphed_by_side_of
+        if self.target is not None and polymorphed_by_side_of(self.target, self.source, battle):
+            # Hitting a beast form our side imposed ends that control early.
+            value *= DOWNED_TARGET_WEIGHT
+        return value
+
+    def _ai_value(self, battle):
         from natural20.utils.monster_traits import (
             additional_damage_entries, attack_target_issue, average_roll, is_charmed_by,
         )
@@ -698,6 +763,8 @@ class AttackAction(Action):
         self.forced_miss = False
         battle = opts.get('battle')
         target = opts.get('target') or self.target
+        if target is None and self.target_square is not None and battle is not None:
+            return self._resolve_blind_attack(session, map, battle, opts)
         if target is None:
             raise Exception('target is a required option for :attack')
 
@@ -788,6 +855,59 @@ class AttackAction(Action):
                 self.result.append(event)
 
         return self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+
+    def _resolve_blind_attack(self, session, map, battle, opts):
+        """Attack a square the attacker can't see into (5e unseen targets).
+
+        An unseen occupant is attacked normally (the ``target_unseen``
+        condition supplies disadvantage). An empty square is an automatic
+        miss. Either kind of miss is logged identically so the attacker never
+        learns whether the guess was right.
+        """
+        from natural20.utils.unseen_targets import unseen_occupant
+        square = (int(self.target_square[0]), int(self.target_square[1]))
+        self.blind_attack = True
+        occupant = unseen_occupant(battle, self.source, square)
+        if occupant is not None:
+            self.resolve(session, map, {**opts, 'target': occupant})
+            missed = False
+            for item in self.result:
+                if item.get('type') == 'miss' and item.get('target') is occupant:
+                    item['blind_square'] = square
+                    missed = True
+            self.target = None if missed else occupant
+            return self
+
+        self.result.clear()
+        self.forced_miss = False
+        weapon, attack_name, attack_mod, _damage_roll, ammo_type = self.get_weapon_info(opts)
+        self.advantage_mod = -1
+        self.attack_roll = DieRoll.roll_with_lucky(
+            self.source, f"1d20+{attack_mod}", disadvantage=True,
+            description='dice_roll.attack', battle=battle,
+        )
+        self.result.append({
+            'type': 'blind_miss',
+            'attack_name': attack_name,
+            'source': self.source,
+            'target': None,
+            'blind_square': square,
+            'weapon': self.using,
+            'battle': battle,
+            'thrown': self.thrown,
+            'advantage_mod': self.advantage_mod,
+            'adv_info': [[], ['target_unseen']],
+            'second_hand': self.second_hand(),
+            'attack_roll': self.attack_roll,
+            'as_reaction': bool(self.as_reaction),
+            'as_bonus_action': bool(self.as_bonus_action),
+            'as_legendary_action': bool(self.legendary_action),
+            'ammo': ammo_type,
+            'npc_action': self.npc_action,
+            'multiattack_clear': self.npc_action and self.npc_action.get('multiattack_clear_on_miss'),
+            'multiattack_hits': False,
+        })
+        return self
 
     def _on_hit_riders(self, battle, target, weapon, attack_name, crit):
         """``additional_damage`` and ``grapple_instead`` results for an NPC attack hit."""
@@ -951,6 +1071,7 @@ class AttackAction(Action):
             damage = DieRoll.roll("0")
 
         cover_ac_adjustments = 0
+        mirror_image = None
 
         if attack_roll:
             if attack_roll.nat_20():
@@ -965,13 +1086,17 @@ class AttackAction(Action):
                 )
                 attack_roll = self.attack_roll
                 hit = attack_roll.result() >= target_ac and not getattr(self, 'forced_miss', False)
-                if hit:
-                    try:
-                        from natural20.spell.mirror_image_spell import MirrorImageSpell
-                        if MirrorImageSpell.mirror_image_redirect(target, attack_roll, battle):
-                            hit = False
-                    except Exception:
-                        pass
+            # Re-resolving after an async reaction reuses the attack roll; reuse
+            # its duplicate roll too so a duplicate isn't destroyed twice.
+            cached = getattr(self, '_mirror_image_check', None)
+            if cached is not None and cached[0] is attack_roll and cached[1] is target:
+                mirror_image = cached[2]
+            else:
+                from natural20.spell.mirror_image_spell import MirrorImageSpell
+                mirror_image = MirrorImageSpell.check_attack(self.source, target, attack_roll, hit, battle)
+                self._mirror_image_check = (attack_roll, target, mirror_image)
+            if mirror_image is not None:
+                hit = False
 
         if damage is None:
             raise Exception('damage should is required')
@@ -1166,6 +1291,9 @@ class AttackAction(Action):
             })
             if maneuver:
                 self.result[-1]['maneuver'] = maneuver
+            if mirror_image is not None:
+                from natural20.spell.mirror_image_spell import MirrorImageSpell
+                self.result[-1]['mirror_image'] = MirrorImageSpell.summary(mirror_image)
 
             try:
                 from natural20.weapon_mastery import resolve_mastery_on_hit

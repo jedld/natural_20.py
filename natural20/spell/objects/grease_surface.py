@@ -1,9 +1,9 @@
 import uuid
 
-from natural20.item_library.object import Object
+from natural20.spell.objects.zone_tile import ZoneTile
 
 
-class GreaseSurface(Object):
+class GreaseSurface(ZoneTile):
     """Invisible placeable terrain object used for Grease difficult terrain.
 
     Rendering is handled procedurally by the web UI via marker metadata,

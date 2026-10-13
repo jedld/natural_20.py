@@ -129,3 +129,25 @@ class TestEffects(unittest.TestCase):
 
         character.long_rest()
         self.assertEqual(character.strength(), 10)
+
+    def test_expired_effect_cleanup_dismisses_effect_object(self):
+        session = self.make_session()
+        character = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+
+        class TimedEffect:
+            id = 'timed-effect'
+            source = None
+            dismissed = False
+
+            def dismiss(self, entity, entry, opts=None):
+                TimedEffect.dismissed = True
+
+        effect = TimedEffect()
+        character.register_effect('ac_bonus', effect, effect=effect, duration=6)
+        character.register_effect('speed_override', effect, effect=effect, duration=6)
+        session.game_time += 12
+
+        character._cleanup_effects()
+
+        self.assertTrue(TimedEffect.dismissed)
+        self.assertEqual(sum(len(v) for v in character.effects.values()), 0)

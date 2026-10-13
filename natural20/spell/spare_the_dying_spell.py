@@ -3,6 +3,16 @@ from natural20.die_roll import DieRoll
 from natural20.npc import Npc
 from natural20.player_character import PlayerCharacter
 
+
+def is_dying(target):
+    """At 0 HP, unconscious, not yet stable and not dead."""
+    try:
+        return (not target.dead() and target.unconscious() and not target.stable()
+                and target.hp() <= 0)
+    except Exception:
+        return False
+
+
 class SpareTheDyingSpell(Spell):
     def build_map(self, orig_action):
         def set_target(target):
@@ -56,7 +66,7 @@ class SpareTheDyingSpell(Spell):
         if target is not None and not target.unconscious():
             self.errors.append("target is not unconscious")
 
-        if target.hp() > 0:
+        if target is not None and target.hp() > 0:
             self.errors.append("target is not unconscious")
 
         if not (isinstance(target, Npc) or isinstance(target, PlayerCharacter)):
@@ -65,10 +75,21 @@ class SpareTheDyingSpell(Spell):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'spare_the_dying':
-           item['target'].make_stable()
-           battle.event_manager.received_event({ "event" : 'first_aid',
-                                                  "target": item['target'],
-                                                  "source": item['source'],
-                                                  "success": True,
-                                                  "roll" : item['roll'] })
-           battle.consume(item['source'], 'action')
+            if session is None and battle is not None:
+                session = battle.session
+            # The spell only works on a living creature at 0 HP; anyone else
+            # (e.g. healed earlier this turn) is unaffected.
+            if not is_dying(item['target']):
+                return
+            item['target'].make_stable()
+            if session is not None:
+                # No roll: the spell stabilizes automatically. SpellAction
+                # already spent the action when the spell resolved.
+                session.event_manager.received_event({
+                    "event": 'first_aid',
+                    "target": item['target'],
+                    "source": item['source'],
+                    "success": True,
+                    "roll": None,
+                    "spell": (item.get('spell') or {}).get('label') or 'Spare the Dying',
+                })

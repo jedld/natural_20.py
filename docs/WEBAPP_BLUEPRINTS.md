@@ -236,7 +236,7 @@ Bottom-of-map chrome is stacked in two docks so panels do not cover each other: 
 
 The hamburger (`#floating-menu`) uses the same dark chrome. DM entries are grouped as Combat, Table, Spawn, Authoring (edit mode, map pins, AI assistant), then Session (notes, journal, combat log, world time, log out). Icons are Glyphicons already used elsewhere in the VTT.
 
-`POST /edit/session` with `{ "enabled": true|false }` toggles `session['edit_mode']`. YAML mutations (`/edit/move`, place/remove, etc.) still write `maps/*.yml` via `natural20/map_editor.py` and reload the live map, so the world changes are shared — only the authoring UI is session-scoped.
+`POST /edit/session` with `{ "enabled": true|false }` toggles `session['edit_mode']`. YAML mutations (`/edit/move`, place/remove, etc.) still write `maps/*.yml` via `natural20/map_editor.py` and reload the live map, so the world changes are shared — only the authoring UI is session-scoped. Tokens with no YAML entry (party members added with `/add`, spawned NPCs) are moved live instead (`_move_live_entity`; the response has `persisted: false`), so the position lasts until the map reloads unless the game is saved.
 
 `GET /edit/overlay` is rebuilt from map YAML on each request. It must not call `Session.load_object()` for NPC/PC legend types: those names are missing from `items/objects.yml`, and a catalog miss used to reload the whole YAML file once per entity (about 1.5s on tavern). The client also coalesces overlay reloads so a tile refresh does not fire the endpoint twice.
 
@@ -353,6 +353,45 @@ or goes straight to `next_turn()` (end of turn), checking `battle_ends()`
 first so a reaction-window knockout can still end the fight. Tests:
 `tests/webapp/test_reaction_resume.py`.
 
+## Battle pacing: DM ends AI turns
+
+Optional pause so the DM can narrate before combat moves on. When enabled, an
+AI/LLM/JEV combatant (anything not a `WebController`) acts as usual, but its
+turn is *held* instead of ended. The hold does not depend on a DM being
+online: a human DM is assumed, and the turn waits until a DM logs in and ends
+it.
+
+- Setting: `GameManagement.dm_ends_ai_turns()`. The runtime toggle in
+  `session_state['battle_pacing']['dm_ends_ai_turns']` (saved with the game)
+  overrides the campaign default in `game.yml`:
+
+  ```yaml
+  battle_pacing:
+    dm_ends_ai_turns: true
+  ```
+
+- Hold: `_run_turns` and the mid-turn branch of `resume_after_reaction` call
+  `_hold_for_dm(battle, entity)` after `ai_loop()`. It sets
+  `GameManagement.dm_turn_hold` (entity UID, not persisted) and returns before
+  `_finish_turn`. While held, `game_loop()` and `resume_after_reaction()` are
+  no-ops, so nothing replays the turn. Dead/unconscious combatants are not held.
+- Release: `release_dm_turn_hold()` runs `_finish_turn` and `_run_turns` in a
+  background task (waits for the game-loop task slot). Triggers: `/end_turn` or
+  `/next_turn` from a DM (players get 409), MCP `actions.end_turn` and
+  `dm.battle_admin` `next_turn`, and turning the toggle off. A DM
+  disconnecting does not release it. Battle end and save load clear the hold.
+- Routes: DM-only `GET/POST /battle_pacing` (`{dm_ends_ai_turns: bool}`) returns
+  `{dm_ends_ai_turns, dm_connected, held_uid}`. MCP: `dm.battle_admin`
+  `op=pacing` (optional `enabled`).
+- SocketIO `message` types: `dm_turn_hold` (`{id, label}`),
+  `dm_turn_hold_end` (`{id}`), `battle_pacing` (state); the client refreshes the
+  turn order panel.
+- UI: `battle.html` renders a DM-only pacing bar (checkbox
+  `.dm-pacing-toggle`, and during a hold a banner with `.end-held-turn`);
+  players see "Waiting for the DM to end this turn…". The existing **Next Turn** button also
+  ends a held turn.
+- Tests: `tests/webapp/test_dm_turn_hold.py`.
+
 ## Legendary action phase (manual legendary creatures)
 
 When a legendary creature uses the manual (`WebController`) controller, the
@@ -388,6 +427,20 @@ of advancing initiative (AI/LLM controllers still auto-pick in the engine).
   items during the phase.
 - Tests: `tests/test_legendary_actions.py::TestManualLegendaryPhase`,
   `n20-webapp/tests/webapp/test_legendary_phase.py`.
+
+## Attacking unseen squares (blind attacks)
+
+`blueprints/battle.py` lets attack target mode aim at a square instead of a creature (5e unseen targets; engine side in `docs/UNSEEN_TARGETS.md`).
+
+- `_blind_attack_target_square(...)` decides when a hover or click is a blind attack: no creature the attacker can see is there, and there is no targetable object. The decision never depends on what is actually in the square.
+- `/target` returns `_blind_attack_preview(...)`. It has `blind_attack`, `sensed`, `adv_info: [[], ['unseen_target']]` and `blind_hint`, or the `validation.unseen.*` reason the square can't be attacked (out of range, wall, no path).
+- `/action`: a coordinate target becomes `AttackAction.target_square`. The `select_target` step returns `unseen_squares` (squares the attacker hears) and `blind_attacks` (whether the campaign allows blind attacks).
+- `engine.js`:
+  - `highlightUnseenTargetSquares` outlines the sensed squares while in target mode.
+  - The validation cache keeps `blind_attack` / `sensed` / `blind_hint`.
+  - `confirmBlindAttackGuess` asks before attacking a square where the player neither sees nor hears anything.
+- `map.html` renders `tile.unseen_presence` as `.unseen-presence-marker` (heard: pulsing; last known: faded).
+- Tests: `n20-webapp/tests/webapp/test_unseen_target_attack_route.py`, `tests/test_unseen_targets.py`.
 
 ## Grapple indicators (who is grappling whom)
 

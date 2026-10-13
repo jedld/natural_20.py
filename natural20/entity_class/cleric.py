@@ -41,10 +41,6 @@ class Cleric:
             self.channel_divinity_max = 3
         # Initialize Tempest Domain: Wrath of the Storm uses.
         self._init_wrath_of_the_storm()
-        # Register reactive effect for Tempest Domain.
-        if self.class_feature('wrath_of_the_storm'):
-            tempest_wrath = TempestWrathEffect(self)
-            self.register_event_hook('on_damage_target', tempest_wrath, 'on_damage_target')
 
     def channel_divinity(self):
         self.channel_divinity_count -= 1
@@ -110,14 +106,8 @@ class Cleric:
 
 
 class TempestWrathEffect:
-    """Reaction effect for Tempest Domain: Wrath of the Storm.
-
-    When a creature within 5 feet of the cleric that the cleric can see hits
-    the cleric with a melee attack, the cleric can use their reaction to make
-    the attacker make a Dexterity saving throw. On a failed save the attacker
-    takes 2d8 lightning or thunder damage (cleric's choice), or half as much
-    on a successful save.
-    """
+    """Legacy hook kept so older saves load; Wrath of the Storm now fires
+    from ``wrath_of_the_storm_reaction`` in the damage-reaction hook."""
 
     def __init__(self, owner):
         self.owner = owner
@@ -126,65 +116,4 @@ class TempestWrathEffect:
         return 'wrath_of_the_storm'
 
     def on_damage_target(self, entity, opts=None):
-        """Handle the reactive Wrath of the Storm when the cleric is hit.
-
-        This is called when the cleric takes damage from an attack.
-        """
-        if opts is None:
-            opts = {}
-
-        if entity != self.owner:
-            return []
-
-        damage_opts = opts.get('result') or opts
-        if not damage_opts:
-            return []
-
-        attacker = damage_opts.get('attacker')
-        if attacker is None:
-            attacker = damage_opts.get('source')
-        if attacker is None or attacker is self.owner:
-            return []
-
-        battle = damage_opts.get('battle')
-        if battle is None:
-            return []
-
-        # Check if the cleric has charges remaining.
-        if not self.owner.class_feature('wrath_of_the_storm'):
-            return []
-        uses = getattr(self.owner, 'wrath_of_the_storm_uses', 0)
-        if uses <= 0:
-            return []
-
-        # Only melee attacks within 5 feet.
-        weapon = damage_opts.get('weapon') or damage_opts.get('npc_action') or {}
-        if isinstance(weapon, dict):
-            weapon_type = weapon.get('type', '')
-        else:
-            weapon_type = str(weapon).lower() if weapon else ''
-        if weapon_type == 'ranged_attack':
-            return []
-
-        # Check if the cleric has a reaction available.
-        if not self.owner.has_reaction(battle):
-            return []
-
-        # Get the chosen damage type (default: lightning).
-        damage_type = getattr(self.owner, '_wrath_chosen_damage_type', None)
-        if damage_type not in ('lightning', 'thunder'):
-            damage_type = 'lightning'
-
-        damage_dice = getattr(self.owner, '_wrath_damage_dice', 2)
-
-        # Resolve the saving throw and damage.
-        damage_events = WrathOfTheStormAction.resolve_save_and_damage(
-            self.owner.session,
-            self.owner,
-            attacker,
-            battle,
-            damage_opts,
-            damage_type_override=damage_type,
-        )
-
-        return damage_events
+        return []

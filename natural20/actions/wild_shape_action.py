@@ -131,7 +131,7 @@ class RevertWildShapeAction(Action):
 
     @staticmethod
     def can(entity, battle, options=None):
-        if not ws.is_wild_shaped(entity):
+        if not ws.is_wild_shaped(entity) or ws.form_source(entity) != 'wild_shape':
             return False
         if battle is None:
             return True

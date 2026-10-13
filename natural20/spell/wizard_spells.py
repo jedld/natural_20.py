@@ -334,11 +334,12 @@ class ScorchingRaySpell(AttackSpell):
                 'next': set_target}
 
     def resolve(self, entity, battle, spell_action, battle_map):
-        targets = spell_action.target if isinstance(spell_action.target, list) else [spell_action.target]
+        targets = list(spell_action.target) if isinstance(spell_action.target, (list, tuple)) else [spell_action.target]
         events = []
-        for target in targets:
+        for index, target in enumerate(targets):
             hit, attack_roll, advantage_mod, cover_ac, adv_info, hook_events = evaluate_spell_attack(
-                self.session, entity, target, self.properties, battle=battle, opts={'action': spell_action})
+                self.session, entity, target, self.properties, battle=battle,
+                opts={'action': spell_action, 'attack_index': index})
             events.extend(hook_events)
             if hit:
                 damage_roll = DieRoll.roll('2d6', crit=attack_roll.nat_20(), battle=battle, entity=entity,
@@ -394,7 +395,7 @@ class ChainLightningSpell(Spell):
                 'next': set_target}
 
     def resolve(self, entity, battle, spell_action, battle_map):
-        targets = spell_action.target if isinstance(spell_action.target, list) else [spell_action.target]
+        targets = list(spell_action.target) if isinstance(spell_action.target, (list, tuple)) else [spell_action.target]
         damage_roll = DieRoll.roll('10d8', battle=battle, entity=entity,
                                    description='dice_roll.spells.chain_lightning')
         spell = AreaSaveSpell(self.session, entity, self.name, self.properties)
@@ -440,9 +441,14 @@ class CounterspellSpell(UtilityWizardSpell):
         return DieRoll.roll(f"1d20{sign}{bonus}", battle=battle, entity=entity,
                             description=f"dice_roll.spells.{self.properties.get('id', self.name)}")
 
+    @staticmethod
+    def _target_spell_level(spell_action):
+        level = (getattr(spell_action, 'opts', {}) or {}).get('target_spell_level')
+        return 3 if level is None else int(level)
+
     def _resolve_2014(self, entity, battle, spell_action):
         """2014: auto-succeed at/above slot level; else INT check DC 10 + spell level."""
-        target_spell_level = int((getattr(spell_action, 'opts', {}) or {}).get('target_spell_level', 3) or 3)
+        target_spell_level = self._target_spell_level(spell_action)
         cast_level = int(getattr(spell_action, 'at_level', self.properties.get('level', 3)) or 3)
         dc = 10 + target_spell_level
         check = None
@@ -466,7 +472,7 @@ class CounterspellSpell(UtilityWizardSpell):
     def _resolve_2024_con_save(self, entity, battle, spell_action):
         """2024 / SRD 5.2: target caster makes a CON save vs your spell save DC."""
         target = spell_action.target
-        target_spell_level = int((getattr(spell_action, 'opts', {}) or {}).get('target_spell_level', 3) or 3)
+        target_spell_level = self._target_spell_level(spell_action)
         cast_level = int(getattr(spell_action, 'at_level', self.properties.get('level', 3)) or 3)
         try:
             dc = _spell_dc(entity, spell_action)
@@ -511,12 +517,32 @@ class CounterspellSpell(UtilityWizardSpell):
 
     @staticmethod
     def apply(battle, item, session=None):
-        if item.get('type') != 'abjuration_check':
+        if item.get('type') not in ('abjuration_check', 'spell_countered'):
             return
         if battle and session is None:
             session = battle.session
+        if session and item.get('type') == 'spell_countered':
+            session.event_manager.received_event({
+                'event': 'spell_countered',
+                'source': item.get('source'),
+                'target': item.get('target'),
+                'spell_label': (item.get('spell') or {}).get('label')
+                or (item.get('spell') or {}).get('name', 'a spell'),
+            })
+            return
         if session:
-            if item.get('resolution') == 'caster_con_save':
+            if item.get('roll') is None and item.get('resolution') != 'caster_con_save':
+                session.event_manager.received_event({
+                    'event': 'counterspell',
+                    'resolution': 'auto_at_or_above',
+                    'success': item.get('success'),
+                    'source': item.get('source'),
+                    'target': item.get('target'),
+                    'cast_level': item.get('cast_level'),
+                    'target_spell_level': item.get('target_spell_level'),
+                    'spell_label': (item.get('spell') or {}).get('label', 'Counterspell'),
+                })
+            elif item.get('resolution') == 'caster_con_save':
                 session.event_manager.received_event({
                     'event': 'save_success' if not item.get('success') else 'save_fail',
                     'source': item.get('target'),
@@ -535,22 +561,81 @@ class CounterspellSpell(UtilityWizardSpell):
                 })
             else:
                 session.event_manager.received_event({
-                    'event': 'ability_check',
-                    'ability': 'intelligence',
+                    'event': 'counterspell',
+                    'resolution': 'ability_check',
                     'roll': item.get('roll'),
                     'dc': item.get('dc'),
                     'success': item.get('success'),
                     'source': item.get('source'),
                     'target': item.get('target'),
+                    'spell_label': (item.get('spell') or {}).get('label', 'Counterspell'),
                 })
 
 
 class DispelMagicSpell(CounterspellSpell):
-    TARGET_TYPES = ['enemies', 'allies']
+    """Ends spells on one creature: those at or below the slot level end
+    outright, higher ones need a spellcasting check vs DC 10 + spell level."""
+
+    TARGET_TYPES = ['enemies', 'allies', 'self']
+
+    def _dispel_check(self, entity, battle, spell_action):
+        from natural20.spell.hold_person_spell import HoldPersonSpell
+        ability = HoldPersonSpell._caster_spell_ability(entity, spell_action)
+        bonus = entity.ability_mod(ability) if ability else None
+        if bonus is None:
+            bonus = entity.int_mod()
+        if entity.class_feature('improved_abjuration'):
+            bonus += entity.proficiency_bonus()
+        sign = '+' if bonus >= 0 else ''
+        return DieRoll.roll(f"1d20{sign}{bonus}", battle=battle, entity=entity,
+                            description=f"dice_roll.spells.{self.properties.get('id', self.name)}")
 
     def resolve(self, entity, battle, spell_action, battle_map):
-        # Dispel Magic is not Counterspell — keep 2014-style check regardless of ruleset.
-        return self._resolve_2014(entity, battle, spell_action)
+        from natural20.utils.dispel import creature_target, spell_level, spells_on
+        target = creature_target(spell_action.target) or entity
+        cast_level = int(getattr(spell_action, 'at_level', None) or self.properties.get('level', 3))
+        outcomes = []
+        for effect, caster in spells_on(target, battle):
+            level = spell_level(effect)
+            check = None
+            ended = level <= cast_level
+            if not ended:
+                check = self._dispel_check(entity, battle, spell_action)
+                ended = check.result() >= 10 + level
+            outcomes.append({'effect': effect, 'caster': caster, 'level': level,
+                             'roll': check, 'dc': 10 + level, 'ended': ended})
+        return [{
+            'type': 'dispel_magic',
+            'source': entity,
+            'target': target,
+            'effect': self,
+            'spell': self.properties,
+            'cast_level': cast_level,
+            'outcomes': outcomes,
+        }]
+
+    @staticmethod
+    def apply(battle, item, session=None):
+        if item.get('type') != 'dispel_magic':
+            return CounterspellSpell.apply(battle, item, session)
+        if session is None:
+            session = battle.session if battle else item['source'].session
+        from natural20.utils.dispel import end_spell_on
+        target = item['target']
+        session.event_manager.received_event({
+            'event': 'dispel_magic',
+            'source': item['source'],
+            'target': target,
+            'cast_level': item.get('cast_level'),
+            'outcomes': [
+                {'label': o['effect'].label(), 'level': o['level'], 'ended': o['ended'],
+                 'roll': o.get('roll'), 'dc': o.get('dc')}
+                for o in item.get('outcomes') or []
+            ],
+        })
+        for outcome in item.get('outcomes') or []:
+            if outcome['ended']:
+                end_spell_on(target, outcome['effect'], outcome.get('caster'))
 
 
 class BanishmentSpell(CounterspellSpell):
@@ -571,10 +656,6 @@ class OtilukesResilientSphereSpell(CounterspellSpell):
 
 class KnockSpell(UtilityWizardSpell):
     TARGET_TYPES = ['point']
-
-
-class MirrorImageSpell(UtilityWizardSpell):
-    pass
 
 
 class HideousLaughterSpell(UtilityWizardSpell):

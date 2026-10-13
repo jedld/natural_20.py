@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import uuid
 
-from natural20.item_library.object import Object
+from natural20.spell.objects.zone_tile import ZoneTile
 
 
-class StinkingCloudGas(Object):
+class StinkingCloudGas(ZoneTile):
     """Invisible terrain marker for a single square of Stinking Cloud."""
 
     def __init__(self, session, battle_map, source, zone, *, seed=None):

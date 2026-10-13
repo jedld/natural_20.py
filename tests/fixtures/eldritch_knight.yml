@@ -1,0 +1,38 @@
+---
+name: Ekrin
+race: elf
+subrace: high_elf
+classes:
+  fighter: 5
+level: 5
+hit_die: inherit
+max_hp: 44
+ability:
+  str: 12
+  dex: 18
+  con: 14
+  int: 16
+  wis: 12
+  cha: 10
+martial_archetype: eldritch_knight
+saving_throw_proficiencies:
+- strength
+- constitution
+skills:
+- arcana
+- athletics
+weapon_proficiencies:
+- martial
+- simple
+cantrips:
+- shocking_grasp
+- firebolt
+prepared_spells:
+- shield
+- magic_missile
+token:
+- E
+equipped:
+- rapier
+- leather_armor
+inventory: []

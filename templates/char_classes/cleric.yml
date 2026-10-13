@@ -34,12 +34,14 @@ spellcasting_ability: wisdom
 divine_domain_spell_list:
   tempest:
     level_1:
+      - fog_cloud
       - thunderwave
     level_3:
-      - lightning_bolt
+      - gust_of_wind
       - shatter
     level_5:
-      - flaming_sphere
+      - call_lightning
+      - sleet_storm
   life:
     level_1:
       - bless
@@ -118,6 +120,9 @@ spell_list:
   level_3:
     - dispel_magic
     - protection_from_energy
+    - mass_healing_word
+    - revivify
+    - spirit_guardians
 proficiency_bonuses:
 - 2
 - 2

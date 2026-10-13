@@ -31,9 +31,15 @@ class HideAction(Action):
             opts = {}
         stealth_roll = self.source.stealth_check(opts.get('battle', None))
 
-        source_map = self.session.map_for_entity(self.source)
-
         battle = opts.get('battle')
+
+        def map_of(entity):
+            # session.map_for_entity filters by the active map set and can
+            # miss both maps, which used to skip every visibility check.
+            found = battle.map_for(entity) if battle else None
+            return found or self.session.map_for_entity(entity)
+
+        source_map = map_of(self.source) or map
         if battle:
             opponents = [opp for opp in battle.opponents_of(self.source) if opp.conscious()]
         else:
@@ -47,18 +53,26 @@ class HideAction(Action):
 
         opponent_passive_perception = 0
 
-        for opp in opponents:
-            opponent_map = self.session.map_for_entity(opp)
-            if source_map != opponent_map:
-                continue
-            if source_map and source_map.can_see(opp, self.source):
-                opponent_passive_perception = opp.passive_perception()
-                if heavily_obscured:
-                    opponent_passive_perception -= 5
-                if opp.class_feature('keen_sight_and_smell'):
-                    opponent_passive_perception += 5
-                if stealth_roll < opponent_passive_perception:
-                    hide_failed_reasons.append(f"{opp.name} can see {self.source.name}")
+        # Re-hiding is judged on the new roll, not hidden by the old one.
+        was_hidden = 'hidden' in self.source.statuses
+        if was_hidden:
+            self.source.statuses.remove('hidden')
+        try:
+            for opp in opponents:
+                opponent_map = map_of(opp)
+                if source_map != opponent_map:
+                    continue
+                if source_map and source_map.can_see(opp, self.source):
+                    opponent_passive_perception = opp.passive_perception()
+                    if heavily_obscured:
+                        opponent_passive_perception -= 5
+                    if opp.class_feature('keen_sight_and_smell'):
+                        opponent_passive_perception += 5
+                    if stealth_roll < opponent_passive_perception:
+                        hide_failed_reasons.append(f"{opp.label()} can see {self.source.label()}")
+        finally:
+            if was_hidden:
+                self.source.statuses.append('hidden')
 
         if hide_failed_reasons:
             self.result = [{

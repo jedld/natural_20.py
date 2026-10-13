@@ -20,10 +20,10 @@ class WrathOfTheStormAction(Action):
     """Reaction: thunderously rebuke a creature that hits you with an attack.
 
     This action is both:
-    - A "ready" action the cleric can select on their turn (builds_map →
-      resolve immediately) to declare they will use the reaction.
-    - A reactive effect applied when the cleric is hit by a melee attack
-      (via TempestWrathEffect), consuming a use and resolving the save.
+    - An on-turn choice of damage type (lightning or thunder) for later
+      uses; it spends nothing.
+    - The reaction offered by ``wrath_of_the_storm_reaction`` when the
+      cleric is hit, which spends the reaction and a use.
 
     The feature is registered with the class-feature registry so it appears
     automatically in ``PlayerCharacter.available_actions`` for Tempest
@@ -66,34 +66,14 @@ class WrathOfTheStormAction(Action):
         return self
 
     def resolve(self, session, battle_map, opts=None):
+        # Only picks the damage type; the reaction and a use are spent when
+        # the cleric is actually hit (``wrath_of_the_storm_reaction``).
         battle = (opts or {}).get('battle')
-        damage_dice = self._damage_dice_count()
-        damage_roll = DieRoll.roll(
-            f"{damage_dice}d8",
-            battle=battle,
-            entity=self.source,
-            description='dice_roll.features.wrath_of_the_storm',
-        )
-
-        # Consume the reaction and one use of the feature.
-        if battle:
-            battle.consume(self.source, 'reaction')
-        self._consume_use()
-
-        session.event_manager.received_event({
-            'source': self.source,
-            'event': 'wrath_of_the_storm_ready',
-            'damage_type': self.chosen_damage_type,
-            'damage_dice': damage_dice,
-        })
-
         self.result = [{
             'type': 'wrath_of_the_storm',
             'source': self.source,
             'damage_type': self.chosen_damage_type,
-            'damage_roll': damage_roll,
-            'damage': damage_roll,
-            'damage_dice': damage_dice,
+            'damage_dice': self._damage_dice_count(),
             'battle': battle,
         }]
         return self
@@ -139,8 +119,7 @@ class WrathOfTheStormAction(Action):
     def resolve_save_and_damage(session, source, target, battle, hit_result, damage_type_override=None):
         """Resolve the saving throw and damage for Wrath of the Storm.
 
-        This is called by TempestWrathEffect when the cleric is hit by a
-        melee attack and has a pending Wrath of the Storm.
+        Called by ``wrath_of_the_storm_reaction`` when the cleric is hit.
 
         Args:
             session: Session instance.
@@ -154,9 +133,6 @@ class WrathOfTheStormAction(Action):
         Returns:
             List of damage event dicts, or empty list if the save succeeds.
         """
-        if battle is None:
-            session = battle.session if battle else None
-
         # Determine damage type: explicit > stored > default lightning.
         damage_type = (
             damage_type_override
@@ -170,8 +146,8 @@ class WrathOfTheStormAction(Action):
         damage_dice = getattr(source, '_wrath_damage_dice', 2)
 
         # Roll Dexterity saving throw for the attacker.
-        spell_dc = source.spell_save_dc()
-        save_roll = target.save_throw('dexterity', battle, {'dc': spell_dc})
+        spell_dc = source.spell_save_dc('wisdom')
+        save_roll = target.save_throw('dexterity', battle, {'dc': spell_dc, 'is_magical': True})
         save_success = save_roll.result() >= spell_dc
 
         # Roll damage.
@@ -183,13 +159,7 @@ class WrathOfTheStormAction(Action):
             description='dice_roll.features.wrath_of_the_storm',
         )
 
-        # Consume the feature use.
-        source._consume_use()
-
-        # Clear pending state.
-        source._wrath_pending = False
-        source._wrath_chosen_damage_type = None
-        source._wrath_damage_dice = 2
+        source.wrath_of_the_storm_uses = max(0, getattr(source, 'wrath_of_the_storm_uses', 0) - 1)
 
         damage_result = damage_roll.result()
         half_damage = damage_result // 2
@@ -232,6 +202,53 @@ class WrathOfTheStormAction(Action):
             })
 
         return damage_events
+
+
+def wrath_of_the_storm_reaction(battle, cleric, attacker, damage_opts):
+    """Offer Wrath of the Storm when ``cleric`` is hit by an attack from a
+    creature within 5 feet that it can see; applies the save and damage."""
+    if battle is None or attacker is None or attacker is cleric:
+        return []
+    if not cleric.class_feature('wrath_of_the_storm') or getattr(cleric, 'wrath_of_the_storm_uses', 0) <= 0:
+        return []
+    if not cleric.conscious() or not cleric.has_reaction(battle):
+        return []
+    if damage_opts.get('attack_roll') is None or damage_opts.get('source_spell') == 'wrath_of_the_storm':
+        return []
+    if attacker.dead():
+        return []
+    bmap = battle.map_for(cleric)
+    try:
+        if bmap is None or bmap.distance(cleric, attacker) * bmap.feet_per_grid > 5:
+            return []
+        if not bmap.can_see(cleric, attacker):
+            return []
+    except Exception:
+        return []
+
+    action = WrathOfTheStormAction(cleric.session, cleric, 'wrath_of_the_storm')
+    action.target = attacker
+    controller = battle.controller_for(cleric)
+    chosen = action
+    if controller is not None and hasattr(controller, 'select_reaction'):
+        try:
+            chosen = controller.select_reaction(cleric, battle, bmap, [action], {
+                'trigger': 'wrath_of_the_storm', 'type': 'wrath_of_the_storm',
+                'attacker': attacker, 'target': cleric,
+            })
+        except Exception:
+            chosen = action
+    if not chosen:
+        return []
+
+    battle.consume(cleric, 'reaction')
+    events = WrathOfTheStormAction.resolve_save_and_damage(
+        cleric.session, cleric, attacker, battle, damage_opts)
+    for ev in events:
+        ev['source_spell'] = 'wrath_of_the_storm'
+        attacker.take_damage(int(ev['damage']), battle=battle, damage_type=ev['damage_type'],
+                             session=cleric.session, item=ev)
+    return events
 
 
 # Register the class feature so WrathOfTheStormAction is picked up

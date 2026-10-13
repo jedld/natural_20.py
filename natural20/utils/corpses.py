@@ -89,11 +89,27 @@ def restore_animated_remains(undead, battle=None):
     return remains
 
 
-def is_corpse(entity, *, humanoid: bool = False, sizes: Optional[Iterable[str]] = None) -> bool:
+def seconds_since_death(entity) -> Optional[float]:
+    """Game seconds since ``entity`` died, or None when the time wasn't recorded."""
+    info = (getattr(entity, 'attributes', None) or {}).get('death_info') or {}
+    died_at = info.get('game_time')
+    session = getattr(entity, 'session', None)
+    now = getattr(session, 'game_time', None)
+    if not isinstance(died_at, (int, float)) or not isinstance(now, (int, float)):
+        return None
+    return max(0, now - died_at)
+
+
+def is_corpse(entity, *, humanoid: bool = False, sizes: Optional[Iterable[str]] = None,
+              max_age_seconds: Optional[int] = None) -> bool:
     if entity is None or not callable(getattr(entity, 'dead', None)) or not entity.dead():
         return False
     if is_animated_remains(entity):
         return False
+    if max_age_seconds is not None:
+        age = seconds_since_death(entity)
+        if age is None or age > max_age_seconds:
+            return False
     if humanoid and not is_humanoid_remains(entity):
         return False
     if sizes:
@@ -116,8 +132,19 @@ def corpses_at(battle_map, x, y, **criteria) -> List:
 
 
 def corpse_criteria_from_param(param: dict) -> dict:
-    """Translate ``build_map`` params (``require_humanoid``, ``corpse_sizes``) into criteria."""
-    return {
+    """Translate ``build_map`` params (``require_humanoid``, ``corpse_sizes``,
+    ``corpse_max_age_seconds``) into criteria."""
+    criteria = {
         'humanoid': bool(param.get('require_humanoid')),
         'sizes': param.get('corpse_sizes'),
     }
+    if param.get('corpse_max_age_seconds') is not None:
+        criteria['max_age_seconds'] = int(param['corpse_max_age_seconds'])
+    return criteria
+
+
+def ally_corpses_only(corpses, entity, battle=None) -> List:
+    """Drop corpses of creatures hostile to ``entity`` (``corpse_allies_only`` param)."""
+    if battle is None:
+        return list(corpses)
+    return [c for c in corpses if c is entity or not battle.opposing(entity, c)]

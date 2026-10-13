@@ -1,4 +1,6 @@
+import re
 import os
+from contextlib import contextmanager
 from typing import List, Union
 import i18n
 from collections import deque
@@ -39,6 +41,19 @@ def format_pickpocket_roll_text(event):
         text += f" vs passive Insight {passive}"
     text += ')'
     return text
+
+def _spell_label(spell):
+    """Display name for a spell object, YAML dict or id."""
+    label = getattr(spell, 'label', None)
+    if callable(label):
+        try:
+            return label()
+        except Exception:
+            pass
+    if isinstance(spell, dict):
+        return spell.get('label') or spell.get('name') or 'spell'
+    return getattr(spell, 'name', None) or str(spell)
+
 
 class EventLogger:
     """
@@ -112,7 +127,27 @@ class EventManager:
             if callable not in self.event_listeners[event]:
                 self.event_listeners[event].append(callable)
 
+    @contextmanager
+    def deferring(self, event_types):
+        """Hold back *event_types* raised inside the block and dispatch them,
+        in order, when it exits (e.g. "X falls unconscious" after the damage
+        line that caused it)."""
+        stack = self.__dict__.setdefault('_deferred', [])
+        frame = (frozenset(event_types), [])
+        stack.append(frame)
+        try:
+            yield
+        finally:
+            stack.remove(frame)
+            for queued in frame[1]:
+                self.received_event(queued)
+
     def received_event(self, event):
+        deferred = self.__dict__.get('_deferred')
+        if deferred and event.get('event') in deferred[-1][0]:
+            deferred[-1][1].append(event)
+            return
+
         def process_event(event):
             set_context = getattr(self.output_logger, 'set_event_context', None)
             clear_context = getattr(self.output_logger, 'clear_event_context', None)
@@ -132,7 +167,10 @@ class EventManager:
             prev = getattr(self, 'previous_move_event', None)
 
             if prev and prev['source'] == event['source']:
-                prev['position'].append(event['position'])
+                steps = list(event.get('path') or [event['position']])
+                if prev['position'] and steps and list(steps[0]) == list(prev['position'][-1]):
+                    steps = steps[1:]
+                prev['position'].extend(steps)
                 prev['move_cost'] += event['move_cost']
                 return
             else:
@@ -141,7 +179,7 @@ class EventManager:
                     process_event(prev)
 
             # Initialize move event positions as a list
-            event['position'] = event['path']
+            event['position'] = list(event['path'])
             self.previous_move_event = event
             return
 
@@ -170,12 +208,17 @@ class EventManager:
 
         def handle_use_item(event):
             item = event["item"]
-            # Simple log entry or any additional logic needed
-            f_item = self.t(f"item.{item.name}")
-            # self.output_logger.log(f"{self.show_name(event)} used {f_item} on {self.show_target_name(event)}")
+            label = item.label() if hasattr(item, 'label') else str(getattr(item, 'name', 'an item'))
+            msg = f"{self.show_name(event)} uses {label}"
+            if event.get('target') is not None:
+                msg += f" on {self.show_target_name(event)}"
+            roll = event.get('hp_gain_roll')
+            if roll is not None:
+                msg += f", regaining {roll} = {roll.result()} hit points"
+            self.output_logger.log(msg + ".")
 
         def attack_roll(event):
-            msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.t(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
+            msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.attack_label(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
             if event['as_legendary_action']:
                 msg = "[legendary action] " + msg
             if event['attack_roll']:
@@ -189,17 +232,60 @@ class EventManager:
             self.output_logger.log(f"{msg}.")
 
         def miss(event):
-            msg = f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {event['attack_name']}{'(thrown)' if event['thrown'] else ''}"
+            msg = f"{self.show_name(event)} tried to attack {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.attack_label(event['attack_name'])}{'(thrown)' if event['thrown'] else ''}"
             if event.get('as_legendary_action'):
                 msg = "[legendary action] " + msg
 
             if event.get('spell_save'):
-                self.output_logger.log(f"{msg} but {self.show_target_name(event)} succeeded on save with {event['spell_save']} > DC: {event['dc']}.")
+                save = event['spell_save']
+                cast = f"{self.show_name(event)} cast {self.attack_label(event['attack_name'])} on {self.show_target_name(event)}"
+                if event.get('as_legendary_action'):
+                    cast = "[legendary action] " + cast
+                self.output_logger.log(f"{cast} but {self.show_target_name(event)} succeeded on the save with {save} = {save.result()} >= DC {event['dc']}.")
             else:
                 self.output_logger.log(f"{msg} but missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
 
+        def blind_miss(event):
+            x, y = event['square']
+            msg = (f"{self.show_name(event)} attacked an unseen spot at [{x}, {y}] with {self.attack_label(event['attack_name'])}"
+                   f"{'(thrown)' if event.get('thrown') else ''}{' as a reaction' if event.get('as_reaction') else ''}"
+                   f" (disadvantage) and missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
+            if event.get('as_legendary_action'):
+                msg = "[legendary action] " + msg
+            self.output_logger.log(msg)
+
+        def mirror_image_duplicate(event):
+            target = self.show_target_name(event)
+            roll = event.get('roll')
+            attack_roll = event.get('attack_roll')
+            msg = f"{self.show_name(event)} attacked {target}"
+            if event.get('attack_name'):
+                msg += f" with {self.attack_label(event['attack_name'])}"
+            if attack_roll is not None:
+                msg += f" ({attack_roll} = {attack_roll.result()})"
+            if event.get('model') == 'd6_on_hit':
+                msg += (f" and hit, but one of {target}'s Mirror Image duplicates took the blow instead"
+                        f" (duplicate roll {roll}, a {event.get('threshold')}+ on any die).")
+            elif event.get('destroyed'):
+                msg += (f" but struck one of {target}'s Mirror Image duplicates instead"
+                        f" (duplicate roll {roll} = {roll.result()} >= {event.get('threshold')}).")
+            else:
+                msg += (f" but was drawn to one of {target}'s Mirror Image duplicates"
+                        f" (duplicate roll {roll} = {roll.result()} >= {event.get('threshold')})"
+                        f" and missed it (duplicate AC {event.get('duplicate_ac')}).")
+            remaining = int(event.get('remaining') or 0)
+            if event.get('destroyed'):
+                msg += (" The duplicate vanishes; Mirror Image ends." if remaining <= 0
+                        else f" The duplicate vanishes ({remaining} left).")
+            if event.get('as_legendary_action'):
+                msg = "[legendary action] " + msg
+            self.output_logger.log(msg)
+
         def concentration_check(event):
-            if event['result'] == 'success':
+            roll = event['roll']
+            if event['result'] == 'success' and (getattr(roll, 'metadata', None) or {}).get('legendary_resistance'):
+                self.output_logger.log(f"{self.show_name(event)} keeps concentration through Legendary Resistance.")
+            elif event['result'] == 'success':
                 self.output_logger.log(f"{self.show_name(event)} makes a concentration check and succeeds: {event['roll']} >= {event['dc']}")
             else:
                 self.output_logger.log(f"{self.show_name(event)} makes a concentration check and fails: {event['roll']} < {event['dc']}")
@@ -291,10 +377,13 @@ class EventManager:
             else:
                 damage = event['value']
             keyword = ""
+            sneak_attack = event.get('sneak_attack')
             if event.get('roll_info'):
-                if (event.get('roll_info').result() > damage):
+                # ``value`` already includes any Sneak Attack dice.
+                rolled = event.get('roll_info').result() + (sneak_attack.result() if sneak_attack else 0)
+                if (rolled > damage):
                     keyword = "reduced to"
-                elif (event.get('roll_info').result() < damage):
+                elif (rolled < damage):
                     keyword = "increased to"
                 else:
                     keyword = "="
@@ -306,17 +395,24 @@ class EventManager:
             elif event.get('total_damage') > event.get('value'):
                 msg += f" {self.show_name(event)} seems to be vulnerable to {event['damage_type']} damage."
 
-            if event.get('sneak_attack'):
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage and {event['sneak_attack']}={event['sneak_attack'].result()} sneak attack damage. {msg}")
+            roll_info = event.get('roll_info')
+            if roll_info and sneak_attack:
+                breakdown = f"{roll_info} + {sneak_attack} sneak attack {keyword} "
+            elif roll_info:
+                breakdown = f"{roll_info} {keyword} "
             else:
-                self.output_logger.log(f"{self.show_name(event)} took {event.get('roll_info','')} {keyword} {damage} {event['damage_type']} damage. {msg}")
+                breakdown = ""
+            self.output_logger.log(f"{self.show_name(event)} took {breakdown}{damage} {event['damage_type']} damage. {msg}".rstrip())
 
             if event.get('instant_death'):
                 self.output_logger.log(f"{self.show_name(event)} died instantly.")
 
         def first_aid(event):
+            if event.get('spell'):
+                self.output_logger.log(f"{self.show_name(event)} casts {event['spell']} on {self.show_target_name(event)} and stabilizes them.")
+                return
             if event['success']:
-                if event['roll']:
+                if event.get('roll'):
                     self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and stabilizes them with a {event['roll']}={event['roll'].result()} medicine check.")
                 else:
                     self.output_logger.log(f"{self.show_name(event)} performs first aid on {self.show_target_name(event)} and stabilizes them using a healer's kit.")
@@ -331,6 +427,24 @@ class EventManager:
 
             self.output_logger.log(f"Combat begins with {len(players)} players.")
             self.output_logger.log("Players: " + '\n'.join(players))
+            from natural20.utils.combat_roster import start_of_combat_lines
+            battle = event.get('battle') or self.battle
+            for line in start_of_combat_lines(battle, event.get('combat_order')):
+                self.output_logger.log(line, event=event, visibility='dm')
+            from natural20.utils.combat_roster import party_briefings
+            for briefing in party_briefings(battle, event.get('combat_order')):
+                visibility = {'kind': 'entities', 'entity_uids': briefing['entity_uids']}
+                for line in briefing['lines']:
+                    self.output_logger.log(line, event=event, visibility=visibility)
+
+        def start_of_turn(event):
+            self.output_logger.log(f"======== {self.show_name(event)} starts their turn. ========")
+
+        def turn_status(event):
+            from natural20.utils.combat_roster import turn_status_line
+            line = turn_status_line(event.get('battle') or self.battle, event.get('source'))
+            if line:
+                self.output_logger.log(line, event=event, visibility='dm')
 
         def ice_knife(event):
             if event['success']:
@@ -475,6 +589,9 @@ class EventManager:
                 self.output_logger.log(f"{prefix} {gibberish(message, language)}", visibility=not_understands_vis)
 
         def died(event):
+            # Massive damage is reported by the damage line ("died instantly").
+            if (event.get('death_info') or {}).get('cause') == 'massive_damage':
+                return
             if event['source'].object():
                 self.output_logger.log(f"{self.show_name(event)} is destroyed.")
             else:
@@ -497,7 +614,13 @@ class EventManager:
             'misty_escape': lambda event: self.output_logger.log(f"{self.show_name(event)} drops to 0 hit points and dissolves into a cloud of mist, escaping toward its resting place."),
             'misty_escape_failed': lambda event: self.output_logger.log(f"{self.show_name(event)} cannot turn to mist ({str(event['reason']).replace('_', ' ')}) and is destroyed!"),
             'misty_escape_recovered': lambda event: self.output_logger.log(f"{self.show_name(event)} regains 1 hit point in its resting place."),
-            'additional_damage': lambda event: self.output_logger.log(f"{self.show_target_name(event)} takes {event['value']} additional {event['damage_type']} damage from {self.show_name(event)}'s {event['attack_name']}."),
+            'polymorph': lambda event: self.output_logger.log(f"{self.show_name(event)} is transformed into a {str(event.get('form')).replace('_', ' ')}."),
+            'polymorph_end': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} reverts to their normal form"
+                + (" as the beast form drops to 0 hit points." if event.get('reason') == 'dropped_to_zero' else ".")),
+            'polymorph_unaffected': lambda event: self.output_logger.log(f"Polymorph has no effect on {self.show_target_name(event)} ({str(event.get('reason')).replace('_', ' ')})."),
+            'wild_shape_revert': lambda event: self.output_logger.log(f"{self.show_name(event)} reverts from Wild Shape to their normal form."),
+            'additional_damage': lambda event: self.output_logger.log(f"{self.show_target_name(event)} takes {event['value']} additional {event['damage_type']} damage from {self.show_name(event)}'s {self.attack_label(event['attack_name'])}."),
             'life_drain': lambda event: self.output_logger.log(f"{self.show_name(event)} drains {event['value']} life from {self.show_target_name(event)}: its hit point maximum is reduced and {self.show_name(event)} regains that many hit points."),
             'grappled_on_hit': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)} (escape DC {event['escape_dc']}) instead of dealing {event['damage_type']} damage."),
             'charmed': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is charmed by {self.show_name(event)}."),
@@ -510,6 +633,9 @@ class EventManager:
             'disengage': lambda event: self.output_logger.log(f"{self.show_name(event)} disengages."),
             'disarm': lambda event: self.output_logger.log(f"{self.show_name(event)} disarms {self.show_target_name(event)} of {event.get('item')}."),
             'uncanny_dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} uses Uncanny Dodge."),
+            'arcane_ward_absorb': lambda event: self.output_logger.log(
+                f"{self.show_name(event)}'s Arcane Ward absorbs {event.get('damage')} damage ({event.get('remaining')} left)."),
+            'turn_status': turn_status,
             'dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} dodges."),
             'died': died,
             'summon_called': lambda event: self.output_logger.log(
@@ -536,6 +662,8 @@ class EventManager:
             'spell_damage': spell_damage,
             'spell_miss': miss,
             'miss': miss,
+            'blind_miss': blind_miss,
+            'mirror_image_duplicate': mirror_image_duplicate,
             'hide': hide,
             'pickpocket': pickpocket,
             'pickpocket_failed': pickpocket_failed,
@@ -558,7 +686,7 @@ class EventManager:
                 f"{self.show_name(event)} drops grapple on {self.show_target_name(event)}"
                 + (f" ({event['reason']})" if event.get('reason') else "")),
             'initiative': lambda event: self.output_logger.log(f"{self.show_name(event)} rolled initiative {event['roll']} value {event['value']}"),
-            'start_of_turn': lambda event: self.output_logger.log(f"======== {self.show_name(event)} starts their turn. ========"),
+            'start_of_turn': start_of_turn,
             'detect_magic': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} senses magic within {event.get('range_ft', 30)} feet."
             ),
@@ -568,11 +696,40 @@ class EventManager:
                 f"({event.get('old_roll')} → {event.get('new_roll')}"
                 f"{', using the lower result' if event.get('replaced') else ', keeping the lower original result'})."
             ),
+            'counterspell': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts {event.get('spell_label', 'Counterspell')} at "
+                f"{self.show_target_name(event)}"
+                + (f" with a level {event['cast_level']} slot (target spell level {event['target_spell_level']})"
+                   if event.get('resolution') == 'auto_at_or_above' and event.get('cast_level') is not None else "")
+                + (f", spellcasting check {event['roll']} = {event['roll'].result()} vs DC {event['dc']}"
+                   if event.get('resolution') == 'ability_check' and event.get('roll') is not None else "")
+                + (": it succeeds." if event.get('success') else ": it fails.")
+            ),
+            'wrath_of_the_storm': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses Wrath of the Storm on {self.show_target_name(event)}: "
+                f"Dexterity save {event.get('save_roll')} vs DC {event.get('save_dc')} "
+                f"{'succeeds' if event.get('save_success') else 'fails'}, "
+                f"{event.get('damage')} {event.get('damage_type')} damage."
+            ),
+            'dispel_magic': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Dispel Magic on {self.show_target_name(event)}"
+                + (f" with a level {event['cast_level']} slot" if event.get('cast_level') else "")
+                + (": " + "; ".join(
+                    f"{o['label']} (level {o['level']}) "
+                    + ("ends" if o['ended'] else "holds")
+                    + (f" (check {o['roll']} = {o['roll'].result()} vs DC {o['dc']})" if o.get('roll') is not None else "")
+                    for o in event['outcomes']) + "."
+                   if event.get('outcomes') else ": no spells to dispel.")
+            ),
+            'spell_countered': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} counters {self.decorate_name(event['target'])}'s "
+                f"{event.get('spell_label', 'spell')}! The spell fails and has no effect."
+            ),
             'silvery_barbs_advantage': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} grants advantage on the next roll to "
                 f"{self.show_target_name(event)} ({event.get('spell_label', 'Silvery Barbs')})."
             ),
-            'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {event['spell'].name if hasattr(event['spell'], 'name') else event['spell']} on {self.show_target_name(event)}"),
+            'spell_buf': lambda event: self.output_logger.log(f"{self.show_name(event)} cast {_spell_label(event['spell'])} on {self.show_target_name(event)}"),
             'spell_debuff': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} cast {event['spell'].label() if hasattr(event.get('spell'), 'label') else (event['spell'].name if hasattr(event.get('spell'), 'name') else event.get('spell'))} on {self.show_target_name(event)}"
             ),
@@ -583,7 +740,7 @@ class EventManager:
             'use_item': handle_use_item,
             'interact': interact,
             'negative_heal': lambda event: self.output_logger.log(f"An effect is preventing {self.show_name(event)} from receiving the full amount of healing. {event['previous']} -> {event['new']}"),
-            'dismiss_effect': lambda event: self.output_logger.log(f"{self.show_name(event)}: {event['effect']} effect has been dismissed."),
+            'dismiss_effect': lambda event: self.output_logger.log(f"{self.show_name(event)}: {_spell_label(event['effect'])} effect has been dismissed."),
             'resummon_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} summons {event['familiar'].name}"),
             'dismiss_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} dismisses {event['familiar'].name}"),
             'find_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} creates a familiar {event['familiar'].name}"),
@@ -643,6 +800,33 @@ class EventManager:
                 f"{self.show_target_name(event)} "
                 f"{'resists the nauseating gas' if event.get('success') else 'retches and reels, losing their action'} "
                 f"in Stinking Cloud ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')})."
+            ),
+            'spirit_guardians': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Spirit Guardians: {event.get('damage_type', 'radiant')} spirits "
+                f"circle within 15 ft, slowing and harming enemies."
+            ),
+            'sleet_storm': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Sleet Storm at {event.get('target')}: freezing sleet blankets "
+                f"{len(event.get('squares') or [])} squares (heavily obscured, icy difficult terrain)."
+            ),
+            'sleet_storm_save': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} "
+                f"{'keeps footing' if event.get('success') else 'slips and falls prone'} "
+                f"in the Sleet Storm ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')})."
+            ),
+            'call_lightning': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Call Lightning"
+                f"{' and takes command of the storm' if event.get('stormy') else ''}; "
+                f"a bolt strikes {event.get('target')}."
+            ),
+            'call_lightning_bolt': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} calls another lightning bolt down at {event.get('target')}."
+            ),
+            'revived': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} brings {self.show_target_name(event)} back to life "
+                f"with {event.get('hp', 1)} hit point."
+                if event.get('source') is not event.get('target')
+                else f"{self.show_target_name(event)} returns to life with {event.get('hp', 1)} hit point."
             ),
             'rage_start': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} flies into a rage! ({event.get('rounds', 10)} rounds remaining)"
@@ -775,6 +959,23 @@ class EventManager:
             else:
                 return ", ".join(decorated_names[:-1]) + " and " + decorated_names[-1]
         return entity.label()
+
+    def attack_label(self, name):
+        """Readable attack name: translates ``spell.*`` keys and turns raw
+        stat-block ids (``unarmed_strike2``) into ``Unarmed Strike``."""
+        if not name:
+            return ''
+        name = str(name)
+        try:
+            translated = self.t(name)
+        except Exception:
+            translated = name
+        if translated and translated != name:
+            return translated
+        base = name.split('.', 1)[1] if name.startswith('spell.') else name
+        if '_' in base or name.startswith('spell.'):
+            base = re.sub(r'\d+$', '', base).replace('_', ' ').strip().title()
+        return base
 
     def t(self, token, **options):
         return i18n.t(token, **options)

@@ -2,30 +2,30 @@ from collections import OrderedDict
 from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.action_surge_action import ActionSurgeAction
 
-# Eldritch Knight spell slot progression (third-caster: starts at Fighter level 3)
-# Levels 1-2: no slots; level 3+: half caster slots / 3 (rounded up)
+# Eldritch Knight spell slots (PHB/SRD third-caster table), one row per
+# Fighter level. Index 0 of each row is the cantrip placeholder; index n is
+# the number of level-n slots.
 ELDRITCH_KNIGHT_SPELL_SLOT_TABLE = [
-    # Fighter level 1 - no spellcasting
-    [0, 0],  # index 0: level 1
-    [0, 0],  # index 1: level 2
-    [0, 2],  # index 2: level 3 - 2 first-level slots
-    [0, 3],  # index 3: level 4
-    [0, 4, 2],  # index 4: level 5
-    [0, 4, 2],  # index 5: level 6
-    [0, 4, 3],  # index 6: level 7
-    [0, 4, 3],  # index 7: level 8
-    [0, 4, 3, 2],  # index 8: level 9
-    [0, 4, 3, 2],  # index 9: level 10
-    [0, 4, 3, 3],  # index 10: level 11
-    [0, 4, 3, 3],  # index 11: level 12
-    [0, 4, 3, 3, 1],  # index 12: level 13
-    [0, 4, 3, 3, 1],  # index 13: level 14
-    [0, 4, 3, 3, 2],  # index 14: level 15
-    [0, 4, 3, 3, 2],  # index 15: level 16
-    [0, 4, 3, 3, 3, 1],  # index 16: level 17
-    [0, 4, 3, 3, 3, 1],  # index 17: level 18
-    [0, 4, 3, 3, 3, 2],  # index 18: level 19
-    [0, 4, 3, 3, 3, 2],  # index 19: level 20
+    [0],              # level 1
+    [0],              # level 2
+    [0, 2],           # level 3
+    [0, 3],           # level 4
+    [0, 3],           # level 5
+    [0, 3],           # level 6
+    [0, 4, 2],        # level 7
+    [0, 4, 2],        # level 8
+    [0, 4, 2],        # level 9
+    [0, 4, 3],        # level 10
+    [0, 4, 3],        # level 11
+    [0, 4, 3],        # level 12
+    [0, 4, 3, 2],     # level 13
+    [0, 4, 3, 2],     # level 14
+    [0, 4, 3, 2],     # level 15
+    [0, 4, 3, 3],     # level 16
+    [0, 4, 3, 3],     # level 17
+    [0, 4, 3, 3],     # level 18
+    [0, 4, 3, 3, 1],  # level 19
+    [0, 4, 3, 3, 1],  # level 20
 ]
 
 
@@ -110,10 +110,15 @@ class Fighter():
 
     def max_slots_for_eldritch_knight(self, level):
         """Return max slots for a given spell level."""
+        if self.eldritch_knight_level() <= 0:
+            return 0
         table = ELDRITCH_KNIGHT_SPELL_SLOT_TABLE[min(self.eldritch_knight_level() - 1, 19)]
-        if level <= len(table):
-            return table[level - 1]
-        return 0
+        return table[level] if 0 <= level < len(table) else 0
+
+    def max_slots_for_fighter(self, level):
+        if getattr(self, 'martial_archetype', None) != 'eldritch_knight':
+            return 0
+        return self.max_slots_for_eldritch_knight(level)
 
     def reset_eldritch_knight_spell_slots(self):
         """Reset spell slots to full based on current Fighter level."""
@@ -133,6 +138,15 @@ class Fighter():
         spells = list(getattr(self, 'cantrips_known', []))
         spells.extend(getattr(self, 'spells_known', []))
         return spells
+
+    def borrowed_spell_list_classes(self):
+        """Eldritch Knights cast wizard-list spells with fighter slots."""
+        if getattr(self, 'martial_archetype', None) == 'eldritch_knight':
+            return {'wizard': 'fighter'}
+        return {}
+
+    def fighter_spell_attack_modifier(self):
+        return self.eldritch_knight_attack_modifier()
 
     def can_cast_spells_for_fighter(self):
         """Check if this Fighter can cast spells (Eldritch Knight)."""

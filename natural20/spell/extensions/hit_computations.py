@@ -30,12 +30,25 @@ class AttackSpell(Spell):
         if opts is None:
             opts = {}
 
-        _, attack_roll, _, _, _ , _= evaluate_spell_attack(self.session, self.source, self.action.target, self.properties, battle=battle, opts=opts)
-        target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
+        target = self._primary_target()
+        if target is None:
+            return 0.0
+        _, attack_roll, _, _, _ , _= evaluate_spell_attack(self.session, self.source, target, self.properties, battle=battle, opts=opts)
+        target_ac, _cover_ac = effective_ac(battle, self.source, target)
         return attack_roll.prob(target_ac)
 
+    def _primary_target(self):
+        """Multi-target selections (e.g. Scorching Ray rays) arrive as a list or tuple."""
+        target = self.action.target if self.action else None
+        if isinstance(target, (list, tuple)):
+            return next((t for t in target if hasattr(t, 'entity_uid')), None)
+        return target
+
     def compute_advantage_info(self, battle, opts=None):
-        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, self.action.target, self.properties, battle=battle, overrides=opts)
+        target = self._primary_target()
+        if target is None:
+            return 0, [[], []], 0
+        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, target, self.properties, battle=battle, overrides=opts)
         return advantage_mod, adv_info, 0
 
     def avg_damage(self, battle, opts=None):

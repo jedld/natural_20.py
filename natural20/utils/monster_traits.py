@@ -3,6 +3,10 @@
 NPC YAML keys (all optional)::
 
     legendary_resistance: 3          # uses per day; or list it under `attributes`
+    legendary_resistance_policy:     # when to burn a use on a concentration check
+      concentration: auto            # auto | always | never
+      concentration_min_level: 3     # auto: only protect spells of this level or higher
+      concentration_reserve: 1       # auto: uses always kept back for real saves
     regeneration:
       hp: 20                         # regained at the start of the creature's turn
       suppressed_by: [radiant]       # damage types that stop it at its next turn start
@@ -138,11 +142,109 @@ def reset_legendary_resistance(entity):
         entity.attributes['legendary_resistance_used'] = 0
 
 
-def try_legendary_resistance(entity, save_roll, dc, save_type, battle=None):
+DEFAULT_LEGENDARY_RESISTANCE_POLICY = {
+    'concentration': 'auto',
+    'concentration_min_level': 3,
+    'concentration_reserve': 1,
+    'concentration_per_round': 1,
+}
+
+
+def legendary_resistance_policy(entity):
+    policy = dict(DEFAULT_LEGENDARY_RESISTANCE_POLICY)
+    custom = _props(entity).get('legendary_resistance_policy')
+    if isinstance(custom, dict):
+        policy.update(custom)
+    return policy
+
+
+def _effect_spell_level(effect):
+    for props in (
+        getattr(effect, 'properties', None),
+        getattr(getattr(getattr(effect, 'action', None), 'spell_action', None), 'properties', None),
+    ):
+        if isinstance(props, dict) and props.get('level') is not None:
+            try:
+                return int(props['level'])
+            except (TypeError, ValueError):
+                return 0
+    return 0
+
+
+def _effect_targets(effect):
+    target = getattr(getattr(effect, 'action', None), 'target', None)
+    members = target if isinstance(target, (list, tuple)) else [target]
+    return [m for m in members if m is not None and hasattr(m, 'entity_uid')]
+
+
+def _affects_enemy(entity, effect, battle):
+    targets = _effect_targets(effect)
+    if not targets or battle is None:
+        return True
+    for t in targets:
+        if t is entity:
+            continue
+        try:
+            if not battle.allies(entity, t) and not t.dead():
+                return True
+        except Exception:
+            return True
+    return False
+
+
+def _concentration_uses_this_round(entity, battle) -> int:
+    record = _attrs(entity).get('legendary_resistance_concentration') or {}
+    if record.get('round') != getattr(battle, 'round', None):
+        return 0
+    return int(record.get('count', 0) or 0)
+
+
+def _note_concentration_use(entity, battle):
+    if battle is None:
+        return
+    count = _concentration_uses_this_round(entity, battle) + 1
+    entity.attributes['legendary_resistance_concentration'] = {
+        'round': getattr(battle, 'round', None), 'count': count}
+
+
+def worth_resisting_concentration(entity, effect, battle=None):
+    """Whether a concentration check on *effect* deserves a Legendary Resistance use.
+
+    Legendary Resistance is a limited daily pool best kept for saves against
+    debilitating effects; burning it to keep a minor buff up is a waste.
+    """
+    policy = legendary_resistance_policy(entity)
+    mode = str(policy.get('concentration', 'auto')).lower()
+    if mode == 'always':
+        return True
+    if mode == 'never':
+        return False
+    try:
+        reserve = int(policy.get('concentration_reserve', 1) or 0)
+        min_level = int(policy.get('concentration_min_level', 3) or 0)
+    except (TypeError, ValueError):
+        reserve, min_level = 1, 3
+    if legendary_resistance_remaining(entity) <= reserve:
+        return False
+    # A volley (Magic Missile, Scorching Ray) forces one check per hit;
+    # rescuing each of them drains the pool in a single turn.
+    try:
+        per_round = int(policy.get('concentration_per_round', 1))
+    except (TypeError, ValueError):
+        per_round = 1
+    if per_round >= 0 and battle is not None and _concentration_uses_this_round(entity, battle) >= per_round:
+        return False
+    if effect is None or _effect_spell_level(effect) < min_level:
+        return False
+    return _affects_enemy(entity, effect, battle)
+
+
+def try_legendary_resistance(entity, save_roll, dc, save_type, battle=None, concentration=None):
     """Turn a failed save into a success by spending a Legendary Resistance use.
 
-    Returns the (possibly adjusted) roll. The creature always chooses to use
-    it when available ("can choose to succeed instead").
+    Returns the (possibly adjusted) roll. Saves against effects always use it
+    when available ("can choose to succeed instead"); concentration checks
+    (*concentration* = the effect at stake) follow ``legendary_resistance_policy``.
     """
     try:
         total = save_roll.result()
@@ -153,9 +255,13 @@ def try_legendary_resistance(entity, save_roll, dc, save_type, battle=None):
         return save_roll
     if hasattr(entity, 'conscious') and not entity.conscious():
         return save_roll
+    if concentration is not None and not worth_resisting_concentration(entity, concentration, battle):
+        return save_roll
 
     from natural20.die_roll import DieRoll
     entity.attributes['legendary_resistance_used'] = int(_attrs(entity).get('legendary_resistance_used', 0) or 0) + 1
+    if concentration is not None:
+        _note_concentration_use(entity, battle)
     adjusted = save_roll + DieRoll.roll(f"+{dc - total}", description='legendary_resistance', entity=entity, battle=battle)
     if not hasattr(adjusted, 'metadata') or adjusted.metadata is None:
         adjusted.metadata = {}

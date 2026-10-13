@@ -500,6 +500,13 @@ class TestAcidSplashSpell(unittest.TestCase):
         action.resolve(self.session, self.map, {'battle': self.battle})
         self.assertEqual(len(action.result), 1)
 
+    def test_acid_splash_tuple_targets_from_autobuild(self):
+        """autobuild passes multi-target combos as tuples."""
+        action = SpellAction.build(self.session, self.caster)['next'](['acid_splash', 0])['next']((self.enemy,))
+        self.assertGreater(action.compute_hit_probability(self.battle), 0.0)
+        action.resolve(self.session, self.map, {'battle': self.battle})
+        self.assertEqual([r['target'] for r in action.result], [self.enemy])
+
     def test_acid_splash_build_map(self):
         """build_map returns select_target with num=2."""
         build = SpellAction.build(self.session, self.caster)['next'](['acid_splash', 0])

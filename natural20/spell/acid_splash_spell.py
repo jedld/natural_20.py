@@ -69,22 +69,30 @@ class AcidSplashSpell(Spell):
     def avg_damage(self, battle, opts=None):
         return self._damage(battle).expected()
 
-    def compute_hit_probability(self, battle, opts=None):
-        target = self.action.target if self.action else None
-        if isinstance(target, list):
-            target = target[0] if target else None
+    @staticmethod
+    def _targets(target):
         if target is None:
+            return []
+        if isinstance(target, (list, tuple)):
+            return [t for t in target if t is not None]
+        return [target]
+
+    def _spell_dc(self, entity, spell_action=None):
+        from natural20.spell.hold_person_spell import HoldPersonSpell
+        return entity.spell_save_dc(HoldPersonSpell._caster_spell_ability(entity, spell_action))
+
+    def compute_hit_probability(self, battle, opts=None):
+        targets = self._targets(self.action.target if self.action else None)
+        if not targets:
             return 0.0
-        result = target.save_throw('dexterity', battle, {'is_magical': True})
-        return 1.0 - result.prob(self.source.spell_save_dc('intelligence'))
+        result = targets[0].save_throw('dexterity', battle, {'is_magical': True})
+        return 1.0 - result.prob(self._spell_dc(self.source, self.action))
 
     def resolve(self, entity, battle, spell_action, _battle_map):
-        targets = spell_action.target
-        if not isinstance(targets, list):
-            targets = [targets]
+        targets = self._targets(spell_action.target)
 
         results = []
-        spell_dc = entity.spell_save_dc('intelligence')
+        spell_dc = self._spell_dc(entity, spell_action)
         for target in targets:
             save = target.save_throw('dexterity', battle, {'is_magical': True, 'dc': spell_dc})
             if save < spell_dc:

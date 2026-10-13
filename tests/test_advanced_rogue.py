@@ -108,5 +108,14 @@ class TestAdvancedRogue(unittest.TestCase):
         self.assertTrue(any(item.get('maneuver') == 'riposte' for item in action.result))
 
 
+class TestSneakAttackDice(unittest.TestCase):
+    def test_matches_phb_table(self):
+        from types import SimpleNamespace
+        from natural20.entity_class.rogue import Rogue
+        expected = {1: '1d6', 2: '1d6', 3: '2d6', 4: '2d6', 5: '3d6', 11: '6d6', 19: '10d6', 20: '10d6'}
+        for level, dice in expected.items():
+            self.assertEqual(Rogue.sneak_attack_level(SimpleNamespace(rogue_level=level)), dice, level)
+
+
 if __name__ == '__main__':
     unittest.main()

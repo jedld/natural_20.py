@@ -107,3 +107,19 @@ chromatic_orb:
     type. If you roll the same number on two or more of the d8s, the orb leaps to
     a different creature of your choice within 10 feet of the target (once per cast).
     At Higher Levels. The damage increases by 1d8 for each slot level above 1st.
+
+cure_wounds:
+  heal_dice: 2d8
+  heal_dice_per_slot: 2d8
+  description: >-
+    A creature you touch regains a number of Hit Points equal to 2d8 plus your
+    spellcasting ability modifier. Using a Higher-Level Spell Slot. The healing
+    increases by 2d8 for each spell slot level above 1.
+
+healing_word:
+  heal_dice: 2d4
+  heal_dice_per_slot: 2d4
+  description: >-
+    A creature of your choice that you can see within range regains Hit Points
+    equal to 2d4 plus your spellcasting ability modifier. Using a Higher-Level
+    Spell Slot. The healing increases by 2d4 for each spell slot level above 1.

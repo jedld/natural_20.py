@@ -72,7 +72,8 @@ class EldritchBlastSpell(AttackSpell):
         # Resolve each beam separately
         for i, target in enumerate(targets[:num_beams]):
             hit, attack_roll, advantage_mod, cover_ac_adjustments, adv_info, events = evaluate_spell_attack(
-                self.session, entity, target, self.properties, battle=battle, opts={"action": spell_action}
+                self.session, entity, target, self.properties, battle=battle,
+                opts={"action": spell_action, "attack_index": i}
             )
 
             for event in events:
