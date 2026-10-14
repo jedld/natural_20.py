@@ -15,7 +15,27 @@ from natural20.map_stack import MapStack
 from natural20.utils.movement import compute_actual_moves
 
 
-def preview_fall_damage(entity, damage_die: Optional[str]) -> dict[str, Any]:
+def glide_reduction_ft(entity) -> int:
+    """Feet subtracted from a fall by a gliding creature (NPC or race YAML
+    ``glide: {fall_reduction_ft: 100}``; ``glide: true`` means 100 ft). The
+    creature must not be incapacitated."""
+    sources = [getattr(entity, 'properties', None) or {}, getattr(entity, 'race_properties', None) or {}]
+    for props in sources:
+        glide = props.get('glide')
+        if not glide:
+            continue
+        try:
+            if entity.incapacitated():
+                return 0
+        except Exception:
+            pass
+        if isinstance(glide, dict):
+            return int(glide.get('fall_reduction_ft', 100) or 0)
+        return 100
+    return 0
+
+
+def preview_fall_damage(entity, damage_die: Optional[str], fall_ft: Optional[float] = None) -> dict[str, Any]:
     """Return fall damage die and whether it is mitigated for ``entity``."""
     if not damage_die:
         return {'die': None, 'mitigated': True, 'reason': 'no_damage'}
@@ -26,6 +46,12 @@ def preview_fall_damage(entity, damage_die: Optional[str]) -> dict[str, Any]:
     statuses = getattr(entity, 'statuses', []) or []
     if 'feather_fall' in statuses:
         return {'die': None, 'mitigated': True, 'reason': 'feather_fall'}
+    reduction = glide_reduction_ft(entity) if fall_ft is not None else 0
+    if reduction:
+        dice = min(20, max(0, int(fall_ft - reduction) // 10))
+        if dice <= 0:
+            return {'die': None, 'mitigated': True, 'reason': 'glide'}
+        return {'die': f'{dice}d6', 'mitigated': False, 'reason': 'glide'}
     return {'die': damage_die, 'mitigated': False, 'reason': None}
 
 

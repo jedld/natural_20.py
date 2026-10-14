@@ -1,9 +1,25 @@
 import pdb
 
-def effective_ac(battle, source, target):
+def effective_ac(battle, source, target, weapon=None, thrown=False, spell_attack=False):
+    """``[AC with cover, cover bonus]``. Pass the attack's ``weapon`` so feats
+    that ignore cover (``weapon_attack_rules`` ``ignore_cover``) apply, and
+    ``spell_attack=True`` for gear such as a Wand of the War Mage (item YAML
+    ``spell_attack_ignore_cover: [half]``)."""
     cover_ac_adjustments = 0
     if battle:
         cover_ac_adjustments = calculate_cover_ac(battle.map_for(source), source, target)
+        if cover_ac_adjustments and weapon is not None:
+            from natural20.utils.feat_mechanics import ignored_cover_ac
+            if cover_ac_adjustments <= ignored_cover_ac(source, weapon, thrown=bool(thrown)):
+                cover_ac_adjustments = 0
+        if cover_ac_adjustments and spell_attack:
+            from natural20.utils.feat_mechanics import COVER_AC
+            ignored = 0
+            for level in (source.equipped_item_list('spell_attack_ignore_cover')
+                          if hasattr(source, 'equipped_item_list') else []):
+                ignored = max(ignored, COVER_AC.get(str(level), 0))
+            if cover_ac_adjustments <= ignored:
+                cover_ac_adjustments = 0
         ac = target.armor_class() + cover_ac_adjustments  # calculate AC with cover
     else:
         ac = target.armor_class()

@@ -1,0 +1,14 @@
+# Wayfarer background (Player's Handbook 2024, not SRD).
+# Ability increases (Dex/Wis/Cha) are chosen on the sheet; the origin feat is Lucky.
+name: Wayfarer
+label: Wayfarer
+description: >
+  You grew up on the road and in back alleys, getting by on quick wits,
+  a light step and whatever odd jobs came your way.
+skill_proficiencies:
+  - insight
+  - stealth
+tool_proficiencies:
+  - thieves_tools
+ability_choices: [dexterity, wisdom, charisma]
+origin_feat: lucky

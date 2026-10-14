@@ -469,3 +469,27 @@ def option_ai_value(entity, config, option, enemy_count=1):
 def summoner_of(creature):
     uid = _props(creature).get('summoner_uid')
     return _resolve(getattr(creature, 'session', None), uid)
+
+
+def vanish_on_death(creature, battle=None):
+    """NPC YAML ``vanish_on_death: true`` (summoned spirits): at 0 HP the
+    creature disappears instead of leaving a body, and a summoner's spell
+    that keeps it (e.g. Summon Fiend) ends."""
+    if not _props(creature).get('vanish_on_death'):
+        return False
+    session = getattr(creature, 'session', None)
+    summoner = summoner_of(creature)
+    if summoner is not None:
+        for entry in list(getattr(summoner, 'casted_effects', None) or []):
+            effect = entry.get('effect')
+            if getattr(effect, 'creature_uid', None) == creature.entity_uid:
+                summoner.dismiss_effect(effect)
+                return True
+    creature_map = _creature_map(creature, battle, session)
+    if battle is not None and creature in getattr(battle, 'entities', {}):
+        battle.remove(creature)
+    if creature_map is not None:
+        creature_map.remove(creature, battle=battle)
+    _emit(creature, {'source': summoner or creature, 'event': 'summons_dismissed', 'count': 1,
+                     'reason': 'destroyed'})
+    return True

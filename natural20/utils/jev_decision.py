@@ -936,6 +936,10 @@ class JevActionPlanner:
     def select(self, battle, entity, available_actions: Optional[List] = None) -> Optional[Any]:
         """Flatten the action space to executable leaves and let JEV pick one."""
         try:
+            # An incapacitated creature (banished, stunned, paralyzed, ...)
+            # can't act; ending the turn is its only legal move.
+            if getattr(entity, 'incapacitated', lambda: False)():
+                return None
             self._battle = battle
             self._entity = entity
             self._map = battle.map_for(entity)

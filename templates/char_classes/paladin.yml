@@ -42,16 +42,27 @@ spell_list:
     - locate_object
     - magic_weapon
     - protection_from_poison
+    - shining_smite
     - zone_of_truth
   level_3:
+    - aura_of_vitality
+    - daylight
     - dispel_magic
     - protection_from_energy
+    - remove_curse
     - revivify
 sacred_oaths:
   oath_of_devotion:
     level_3:
       - channel_divinity
       - sacred_weapon
+      - turn_the_unholy
+    level_7:
+      - aura_of_devotion
+    level_15:
+      - purity_of_spirit
+    level_20:
+      - holy_nimbus
   oath_of_the_ancients:
     level_3:
       - channel_divinity
@@ -64,6 +75,7 @@ progression:
   level_3:
     class_features:
       - divine_smite
+      - divine_health
       - sacred_oath
   level_4:
     class_features:
@@ -71,6 +83,36 @@ progression:
   level_5:
     class_features:
       - extra_attack
+  level_6:
+    class_features:
+      - aura_of_protection
+  level_8:
+    class_features:
+      - ability_score_improvement
+  level_10:
+    class_features:
+      - aura_of_courage
+  level_11:
+    class_features:
+      - improved_divine_smite
+  level_12:
+    class_features:
+      - ability_score_improvement
+  level_14:
+    class_features:
+      - cleansing_touch
+  level_16:
+    class_features:
+      - ability_score_improvement
+  level_18:
+    class_features:
+      - aura_expansion
+  level_19:
+    class_features:
+      - ability_score_improvement
+# Channel Divinity uses per rest, keyed by the paladin level they apply from.
+channel_divinity_uses:
+  3: 1
 proficiency_bonuses:
 - 2
 - 2

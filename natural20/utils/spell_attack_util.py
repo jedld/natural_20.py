@@ -75,6 +75,7 @@ def evaluate_spell_attack(session, entity, target, spell_properties, battle=None
     advantage_mod, adv_info = target_advantage_condition(session, entity, target, spell_properties, battle=battle, overrides=opts)
 
     attack_roll = _cached_roll(action, attack_index)
+    fresh_roll = attack_roll is None
 
     if attack_roll is None:
         if spell_properties.get('type') == 'melee_attack':
@@ -91,18 +92,30 @@ def evaluate_spell_attack(session, entity, target, spell_properties, battle=None
         if entity.has_effect('bless'):
             bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=entity, battle=battle)
             attack_roll += bless_roll
+        from natural20.effects.consumable_buff_effect import attack_roll_dice
+        for extra_die in attack_roll_dice(entity, battle):
+            attack_roll += extra_die
         if entity.has_effect('bane'):
             bane_roll = DieRoll.roll("1d4", description='dice_roll.bane', entity=entity, battle=battle)
             attack_roll += DieRoll.roll("-" + str(bane_roll.result()), battle=battle, entity=entity)
+        from natural20.utils.attack_penalties import apply_targeted_penalties
+        attack_roll = apply_targeted_penalties(attack_roll, entity, target, battle)
 
         _store_roll(action, attack_index, attack_roll)
 
-    target_ac, _cover_ac = effective_ac(battle, entity, target)
+    target_ac, _cover_ac = effective_ac(battle, entity, target, spell_attack=True)
+
+    if fresh_roll and battle is not None and target is not None and hasattr(target, 'entity_uid'):
+        from natural20.utils.luck_points import luck_against_attack, luck_on_own_roll
+        attack_roll = luck_on_own_roll(entity, attack_roll, target_ac, battle=battle, target=target)
+        attack_roll = luck_against_attack(target, entity, attack_roll, target_ac, battle=battle)
+        _store_roll(action, attack_index, attack_roll)
 
     entity.resolve_trigger('attack_resolved', { "target" : target})
 
     force_miss, events = after_attack_roll_hook(battle, target,
-                                        entity, attack_roll, target_ac, { "spell" : spell_properties})
+                                        entity, attack_roll, target_ac, { "spell" : spell_properties,
+                                                                          "hit_reaction_action": action})
     if attack_index is not None:
         _consume_one_shot_effects(events)
     if not force_miss:

@@ -116,6 +116,14 @@ cure_wounds:
     spellcasting ability modifier. Using a Higher-Level Spell Slot. The healing
     increases by 2d8 for each spell slot level above 1.
 
+aura_of_vitality:
+  casting_time: 1:bonus_action
+  spell_list_classes: [Cleric, Druid, Paladin]
+  description: >-
+    Restorative energy surrounds you in a 30-foot Emanation that moves with you. When you cast
+    the spell, and as a Bonus Action on each later turn while it lasts, one creature in the aura
+    (yourself included) regains 2d6 Hit Points.
+
 healing_word:
   heal_dice: 2d4
   heal_dice_per_slot: 2d4
@@ -123,3 +131,53 @@ healing_word:
     A creature of your choice that you can see within range regains Hit Points
     equal to 2d4 plus your spellcasting ability modifier. Using a Higher-Level
     Spell Slot. The healing increases by 2d4 for each spell slot level above 1.
+
+ensnaring_strike:
+  weapon_hit:
+    weapon: any
+    timing: after_hit
+  description: >-
+    Cast as a Bonus Action right after you hit a creature with a weapon. Grasping vines lash
+    the target, which makes a Strength saving throw (with Advantage if it is Large or larger).
+    On a failure it has the Restrained condition until the spell ends and takes 1d6 Piercing
+    damage at the start of each of its turns. The target, or a creature within reach of it, can
+    take an action to make a Strength (Athletics) check against your spell save DC, freeing it
+    and ending the spell on a success. Using a Higher-Level Spell Slot: the damage increases by
+    1d6 for each slot level above 1.
+
+magic_weapon:
+  concentration: false
+  bonus_by_slot: [[2, 1], [3, 2], [6, 3]]
+  description: >-
+    You touch a nonmagical weapon that you or a willing creature has equipped. For the duration
+    it is a magic weapon with a +1 bonus to attack and damage rolls. Using a Higher-Level Spell
+    Slot: the bonus becomes +2 with a level 3-5 slot and +3 with a level 6+ slot.
+
+false_life:
+  temp_hp_dice: 2d4
+  spell_list_classes: [Sorcerer, Wizard, Warlock]
+  description: >-
+    You gain 2d4 + 4 Temporary Hit Points. Using a Higher-Level Spell Slot. You
+    gain 5 additional Temporary Hit Points for each spell slot level above 1.
+
+phantasmal_force:
+  condition_save:
+    save: intelligence
+    conditions: [phantasm]
+    per_turn_damage:
+      dice: 2d8
+      damage_type: psychic
+  description: >-
+    You attempt to craft an illusion in the mind of a creature you can see within range. The
+    target makes an Intelligence saving throw. On a failure it perceives a phantasmal object,
+    creature or other phenomenon as real, and on each of your turns the phantasm deals 2d8
+    Psychic damage to it.
+
+blink:
+  blink:
+    die: d6
+    success_min: 4
+  description: >-
+    Roll 1d6 at the end of each of your turns for the duration. On a 4–6 you vanish to the
+    Ethereal Plane. At the start of your next turn, or when the spell ends, you return to an
+    unoccupied space within 10 feet of where you vanished.

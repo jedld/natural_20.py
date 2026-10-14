@@ -330,6 +330,91 @@ _SPELL_VISUAL_HINTS: dict[str, str] = {
     "wrath_of_the_storm": (
         "cleric storm wrath symbol, blue-white lightning bolt through a storm cloud"
     ),
+    "shining_smite": (
+        "sword strike bursting with brilliant golden radiant light, glowing halo outline, paladin smite"
+    ),
+    "beacon_of_hope": (
+        "radiant lighthouse beacon of warm golden light, rising hopeful rays, divine blessing"
+    ),
+    "daylight": (
+        "blazing miniature sun orb radiating bright daylight rays"
+    ),
+    "remove_curse": (
+        "dark chains of a curse shattering around a glowing holy rune"
+    ),
+    "aura_of_vitality": (
+        "soft green and gold healing aura ring with rising life sparkles"
+    ),
+    "ensnaring_strike": (
+        "arrow wrapped in thorny green vines lashing outward, binding briar coils"
+    ),
+    "hail_of_thorns": (
+        "arrowhead bursting into a spray of sharp wooden thorns, scattering barbs"
+    ),
+    "spike_growth": (
+        "patch of ground bristling with sharp brown thorns and spikes, hazardous terrain"
+    ),
+    "silence": (
+        "translucent pale blue sphere with a crossed-out sound wave, muted stillness"
+    ),
+    "magic_weapon": (
+        "plain steel sword glowing with blue arcane runes along the blade, enchantment"
+    ),
+    "pass_without_trace": (
+        "faint footprints fading into soft grey shadow and mist, stealth"
+    ),
+    "disguise_self": (
+        "theatrical mask shimmering with violet illusion sparkles, changing face"
+    ),
+    "rope_trick": (
+        "coiled rope rising straight up into a glowing rectangular doorway in the air"
+    ),
+    "fear": (
+        "dark purple cone of swirling nightmare shapes with a screaming shadow face"
+    ),
+    "zephyr_strike": (
+        "swift white wind swirl wrapped around an arrow, gust trails, speed"
+    ),
+    "gust": (
+        "curling pale blue wind gust with leaves blowing sideways, push of air"
+    ),
+    # Effect-tile slugs (status icons on tokens)
+    "sacred_weapon": (
+        "longsword glowing with holy white light and radiant aura, consecrated blade"
+    ),
+    "no_healing": (
+        "withered black necrotic wound with broken red heart, healing blocked symbol"
+    ),
+    "next_attack_advantage": (
+        "golden upward double chevron above a sword, advantage symbol"
+    ),
+    "attack_option": (
+        "knight crest sword with focused golden spark, special combat technique"
+    ),
+    "giant_ancestry": (
+        "stone giant rune carved in grey granite, ancestral giant power"
+    ),
+    "large_form": (
+        "growing silhouette with upward arrows, size enlarge symbol"
+    ),
+    "consumable_buff": (
+        "small glass vial with glowing swirling liquid and rising sparkles, drunk potion boon"
+    ),
+    "acid_arrow": (
+        "green acid droplets sizzling and eating into skin, lingering acid burn"
+    ),
+    "ray_of_sickness": (
+        "sickly green nauseous swirl over a pale face, poisoned symbol"
+    ),
+    "silence_ward": (
+        "muted mouth with a translucent blue sound-blocking bubble, silenced"
+    ),
+    "disguise_self": (
+        "theatrical mask shimmering with illusion sparkles, magical disguise"
+    ),
+    "rope_trick": (
+        "rope rising into a shimmering hidden doorway in the air, extradimensional refuge"
+    ),
 }
 
 _FIRE_SPELL_SLUGS = frozenset(
@@ -421,6 +506,54 @@ _ACTION_VISUAL_HINTS: dict[str, str] = {
     ),
     "push": (
         "open palm shove symbol, forceful push maneuver"
+    ),
+    "abjure_foes": (
+        "radiant holy symbol blazing outward, enemies recoiling in fear, paladin divine warding"
+    ),
+    "aura_of_vitality_heal": (
+        "green healing pulse from a glowing aura ring, plus sign of life"
+    ),
+    "channel_divinity_sacred_weapon": (
+        "upright sword wreathed in holy white light, paladin sacred weapon"
+    ),
+    "large_form": (
+        "giant silhouette growing taller with upward arrows, enlarge size"
+    ),
+    "clouds_jaunt": (
+        "swirl of white cloud mist with teleport arrow, cloud step"
+    ),
+    "break_free": (
+        "hands tearing apart thorny vines and snapped bindings, escape restraint"
+    ),
+    "attack_surge": (
+        "sword thrust riding a white wind swirl with speed lines, empowered strike"
+    ),
+    "attack_option": (
+        "precise sword thrust with golden target spark, special attack technique"
+    ),
+    "call_lightning_bolt": (
+        "lightning bolt striking down from a dark storm cloud"
+    ),
+    "end_turn": (
+        "hourglass with circular arrow, end turn symbol"
+    ),
+    "craft_item": (
+        "bubbling alchemy flask over a small flame with a tiny wrench, crafting symbol"
+    ),
+    "tireless": (
+        "glowing green vigor shield over a hiker silhouette, renewed stamina"
+    ),
+    "extinguish_flames": (
+        "hand patting out flames on a cloak with puffs of smoke, put out fire"
+    ),
+    "dancing_weapon_toss": (
+        "sword tossed into the air spinning with magical blue glow, animated blade"
+    ),
+    "dancing_weapon_command": (
+        "floating enchanted sword slashing on its own with blue magic trails"
+    ),
+    "dancing_weapon_catch": (
+        "open gauntlet hand catching a glowing floating sword"
     ),
 }
 
@@ -522,6 +655,33 @@ _ITEM_VISUAL_HINTS: dict[str, str] = {
     "steel_mirror": "small polished steel hand mirror plate",
     "bullseye_lantern": "hooded brass bullseye lantern throwing a cone of light",
     "playing_cards": "deck of painted playing cards in a leather sleeve",
+    "playing_card_set": "deck of painted playing cards in a leather sleeve",
+    "dice_set": "handful of carved bone dice beside a small drawstring bag",
+    "dragonchess_set": "three-tiered folding game board with lacquered dragon chess pieces",
+    "three_dragon_ante_set": "fanned deck of dragon-themed playing cards with stacked ante tokens",
+    "sprig_of_mistletoe": "sprig of green mistletoe with white berries tied with thread",
+    "totem": "carved wooden druid totem hung with feathers and animal teeth",
+    "wooden_staff": "plain gnarled wooden druid staff",
+    "yew_wand": "slim yew wood wand with a curl of bark at the tip",
+    "dancing_longsword": "magic longsword hovering upright in the air, faint glowing runes, motion swirls",
+    "dancing_shortsword": "magic shortsword hovering in the air, faint glowing runes, motion swirls",
+    "dancing_scimitar": "magic curved scimitar hovering in the air, faint glowing runes, motion swirls",
+    "dancing_greatsword": "magic greatsword hovering upright in the air, faint glowing runes, motion swirls",
+    "dancing_rapier": "magic rapier hovering in the air, faint glowing runes, motion swirls",
+    "ioun_stone_of_absorption": "small pale lavender ellipsoid gemstone floating with a soft glow",
+    "ioun_stone_of_agility": "small deep red sphere gemstone floating with a soft glow",
+    "ioun_stone_of_awareness": "small dark blue rhomboid gemstone floating with a soft glow",
+    "ioun_stone_of_fortitude": "small pink rhomboid gemstone floating with a soft glow",
+    "ioun_stone_of_greater_absorption": "small marbled lavender and green ellipsoid gemstone floating with a soft glow",
+    "ioun_stone_of_insight": "small incandescent blue sphere gemstone floating with a soft glow",
+    "ioun_stone_of_intellect": "small marbled scarlet and blue sphere gemstone floating with a soft glow",
+    "ioun_stone_of_leadership": "small marbled pink and green sphere gemstone floating with a soft glow",
+    "ioun_stone_of_mastery": "small pale green prism gemstone floating with a soft glow",
+    "ioun_stone_of_protection": "small dusty rose prism gemstone floating with a soft glow",
+    "ioun_stone_of_regeneration": "small pearly white spindle gemstone floating with a soft glow",
+    "ioun_stone_of_reserve": "small vibrant purple prism gemstone floating with a soft glow",
+    "ioun_stone_of_strength": "small pale blue rhomboid gemstone floating with a soft glow",
+    "ioun_stone_of_sustenance": "small clear spindle crystal floating with a soft glow",
     "tavern_skeleton_key": "worn iron master skeleton key with ornate clover bow",
     "tavern_room_key_1": "simple brass inn key with round wooden fob",
     "tavern_room_key_2": "brass inn key with square wooden fob",
@@ -572,6 +732,12 @@ def item_visual_hint(
     subtype_l = subtype.replace("_", " ").lower()
     label_l = (label or name).strip()
 
+    if slug.startswith("dragon_scale_mail_"):
+        color = slug[len("dragon_scale_mail_"):].replace("_", " ")
+        return (
+            f"{_ARMOR_TORSO}, armor made of overlapping glossy {color} dragon scales, "
+            f"{color} colored, not a shield or chest"
+        )
     if item_type_l == "armor":
         if slug in _ITEM_VISUAL_HINTS:
             return _ITEM_VISUAL_HINTS[slug]

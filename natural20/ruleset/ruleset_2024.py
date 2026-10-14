@@ -28,6 +28,9 @@ class Ruleset2024(Ruleset2014):
     def grapple_shove_resolution(self) -> str:
         return self._override("grapple_shove_resolution", "target_saving_throw")
 
+    def sacred_weapon_model(self) -> str:
+        return self._override("sacred_weapon_model", "attack_action")
+
     def two_weapon_fighting_model(self) -> str:
         return self._override("two_weapon_fighting_model", "attack_action_light")
 
@@ -69,6 +72,9 @@ class Ruleset2024(Ruleset2014):
 
     def weapon_mastery_enabled(self) -> bool:
         return bool(self._override("weapon_mastery_enabled", True))
+
+    def stones_endurance_uses_model(self) -> str:
+        return str(self._override("stones_endurance_uses_model", "proficiency_per_long_rest"))
 
     def phb_2024_grapple_move_cost(self) -> bool:
         return bool(self._override("phb_2024_grapple_move_cost", True))

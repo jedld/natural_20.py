@@ -10,7 +10,11 @@ from natural20.utils.outward_appearance import (
     explicit_outward_appearance,
     resolve_outward_appearance,
 )
-from webapp.blueprints.helpers.template_globals import ability_mod_str, format_languages
+from webapp.blueprints.helpers.template_globals import (
+    ability_mod_str,
+    format_languages,
+    resource_pool_label,
+)
 
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -34,6 +38,7 @@ def _render_basic_info(entity, role=('dm',)):
         autoescape=select_autoescape(['html']),
     )
     env.filters['mod_str'] = ability_mod_str
+    env.filters['resource_pool_label'] = resource_pool_label
     env.globals.update({
         'format_languages': format_languages,
         'format_outward_appearance': _format_outward_appearance,

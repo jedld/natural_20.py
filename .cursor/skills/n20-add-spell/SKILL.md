@@ -34,7 +34,8 @@ VTT
 - [ ] Ground areas: tile object subclasses spell/objects/zone_tile.py (save/load) + json_renderer marker flag + map.html / map_overlay_tiles.html div + styles.css
 - [ ] webapp/static/spell_effects.js — register('<slug>', cast animation)
 - [ ] n20-webapp/client-3d/src/fx/spellCatalog.js — 3D recipe (kind/color/duration; alias if the label has spaces)
-- [ ] webapp/static/status_effects.js — EFFECT_CLASS + CSS if persistent overlay while active
+- [ ] webapp/static/status_effects.js — persistent overlay while active: one `EFFECT_TINT` color line (generic glow), or EFFECT_CLASS + CSS for a bespoke look
+- [ ] Runtime effect names that differ from the spell slug (`str(effect)`, e.g. `acid_arrow`) or non-concentration effects: add to `_EXTRA_RUNTIME_EFFECT_SLUGS` (`natural20/image_gen/effect_assets.py`) so the icon scanner finds them; action icons the scanner can't discover go in `_EXTRA_ACTION_ICON_SLUGS` (`natural20/image_gen/game_icons.py`)
 - [ ] n20-webapp/client-3d/src/fx/statusAuras.js — 3D ring color if the status is persistent
 - [ ] npm run build:assets
 - [ ] cd n20-webapp/client-3d && npm test && npm run build
@@ -56,6 +57,10 @@ Verify
 | HP pool AoE (lowest HP first) | `color_spray_spell.py`, `sleep_spell.py` | `sleep_cast` + per-target `sleep` |
 | Save AoE radius (Dex half) | `wizard_spells.py` (`FireballSpell` / `AreaSaveSpell`) | `spell_damage` via `resolve_save_for_half` |
 | Self only | `mage_armor_spell.py`, `expeditious_retreat_spell.py` | target = caster |
+| Save-or-condition (YAML only) | `condition_spells.py` (`ConditionSaveSpell`, `condition_save` block) | `condition_spell` |
+| Summon a scaled spirit | `summon_spirit_spell.py` (`summon_spirit` block + NPC templates) | `summon_spirit` |
+
+Before writing a new class, check whether the spell fits `ConditionSaveSpell`: banish, paralyze, charm or incapacitate with repeat saves, action restrictions, or ally condition wards. If it does, it needs YAML only.
 
 **Concentration debuffs** — copy `SlowSpell` / `HoldPersonSpell` structure:
 - `SaveCheck.make` for initial and repeat saves (not raw `DieRoll` + hardcoded ability).

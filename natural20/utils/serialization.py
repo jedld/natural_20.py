@@ -13,6 +13,7 @@ from natural20.item_library.chasm import Chasm
 from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.switch import Switch
 from natural20.item_library.multi_switch import MultiSwitch
+from natural20.item_library.rotating_mechanism import RotatingMechanism
 from natural20.item_library.spell_scroll import SpellScroll
 from natural20.item_library.healing_potion import HealingPotion
 from natural20.item_library.proximity_trigger import ProximityTrigger
@@ -25,6 +26,8 @@ from natural20.actions.attack_action import AttackAction
 from natural20.actions.action_record import ActionRecord
 from natural20.action import Action
 from natural20.spell.bless_spell import BlessSpell
+from natural20.spell.objects.darkness import Darkness
+from natural20.spell.objects.daylight import DaylightSource
 from natural20.item_library.pit_trap import PitTrap
 from natural20.generic_controller import GenericController
 from natural20.web.web_controller import WebController
@@ -267,15 +270,21 @@ def relink_spell_entities(session, maps=None, battle=None):
             return entity if entity is not None else value
         return value
 
+    map_list = list(maps.values() if isinstance(maps, dict) else (maps or []))
+
     def fix(spell):
         if isinstance(spell, Spell):
             spell.source = resolve(spell.source)
             spell.target = resolve(spell.target)
         for attr in getattr(spell, EFFECT_ENTITY_REFS_ATTR, None) or []:
             setattr(spell, attr, resolve(getattr(spell, attr, None)))
+        # Effects that hold a map handle (dropped on save) re-find their map.
+        relink_maps = getattr(spell, 'relink_maps', None)
+        if callable(relink_maps) and not isinstance(spell, type):
+            relink_maps(map_list)
 
     entities = set()
-    for m in (maps.values() if isinstance(maps, dict) else (maps or [])):
+    for m in map_list:
         entities.update(getattr(m, 'entities', {}) or {})
     if battle is not None:
         entities.update(getattr(battle, 'entities', {}) or {})
@@ -294,6 +303,22 @@ def relink_spell_entities(session, maps=None, battle=None):
                 fix(descriptor.get('effect'))
                 if 'target' in descriptor:
                     descriptor['target'] = resolve(descriptor['target'])
+
+    # Entity event hooks are not saved; effects that rely on them re-register
+    # through ``restore_hooks()`` once every entity reference is live again.
+    restored = set()
+    for entity in entities:
+        stores = list((getattr(entity, 'effects', None) or {}).values())
+        stores.append(getattr(entity, 'casted_effects', None) or [])
+        for descriptors in stores:
+            for descriptor in descriptors or []:
+                effect = descriptor.get('effect') if isinstance(descriptor, dict) else None
+                restore = getattr(effect, 'restore_hooks', None)
+                if effect is None or isinstance(effect, type) or not callable(restore) \
+                        or id(effect) in restored:
+                    continue
+                restored.add(id(effect))
+                restore()
 
 
 def relink_battle_log(session, battle):
@@ -367,8 +392,11 @@ CLASS_TAG_MAPPING = {
     AttackAction: '!attack_action',
     ActionRecord: '!action_record',
     MultiSwitch: '!multi_switch',
+    RotatingMechanism: '!rotating_mechanism',
     RoomServiceBuzzer: '!room_service_buzzer',
     CryptCoffin: '!crypt_coffin',
+    Darkness: '!magical_darkness',
+    DaylightSource: '!daylight_source',
 }
 def snake_case(str):
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', str)

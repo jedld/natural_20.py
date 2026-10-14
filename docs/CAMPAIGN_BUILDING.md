@@ -22,6 +22,7 @@ for the Natural20 D&D simulation engine.
    - [NPC Dialog & Conversation](#npc-dialog--conversation)
    - [Sidekick NPCs](#sidekick-npcs)
 6. [Player Characters](#player-characters)
+   - [Feats, auras and edition overrides](#feats-auras-and-edition-overrides)
 7. [Objects](#objects)
    - [Built-in Object Types](#built-in-object-types)
    - [Doors](#doors)
@@ -50,6 +51,12 @@ Item catalogues (`weapons`, `equipment`, `magic_items`,
 `objects`, `spells`, `equipment_packs`) are **automatically merged** with the
 bundled templates when a campaign file exists without an explicit `inherit`
 directive — campaign keys override template keys.
+
+To start from scratch, run `./start_web.sh --new --edit my_campaign` (or
+`python -m natural20.campaign_scaffold user_levels/my_campaign --title "My Campaign"`).
+It creates `index.json`, `game.yml`, an empty starting map, and a DM login
+(`dm` / `admin`), then boots the campaign in edit mode. See
+`docs/WEBAPP_BLUEPRINTS.md` → "New campaign at startup".
 
 See [YAML Template Inheritance](#yaml-template-inheritance) for explicit
 inheritance and per-entry overrides.
@@ -1149,9 +1156,16 @@ misty_escape:                      # 0 HP -> mist form instead of dying/unconsci
   blocked_by: [sunlight, running_water]  # destroyed instead
   coffin: {map: crypt, position: [4, 7]} # optional resting place (omit = reaches it off-map)
   recovery_seconds: 3600           # paralyzed in the coffin, then regains 1 HP
+undead_fortitude:                  # or list `undead_fortitude` under attributes
+  bypass: [bludgeoning]            # damage types that skip the save (default: radiant);
+                                   # critical hits always skip it. DC = 5 + damage taken
+cannot_speak: true                 # understands its languages but makes no callouts
 multiattack:                       # 2+ comma lists = allowed combinations
   - claws,claws2                   # "two attacks, only one of which can be a bite"
   - claws,bite
+  # - blade,blade,axe              # a name may repeat within one combination
+  # - any_of: [blade, axe]         # "three attacks in any combination"
+  #   count: 3
 actions:
   - name: claws
     type: melee_attack
@@ -1186,6 +1200,13 @@ actions:
         fail: status:charmed       # source-linked charm (see below)
         duration: 86400
         repeat_save_when_harmed: true
+  - name: draining_blade
+    type: melee_attack
+    damage_die: 3d6+5
+    damage_type: necrotic
+    on_hit:
+      - if: "target:!object"       # no save_dc = always applies on a hit
+        fail: effect:no_healing    # target can't regain HP until the attacker's next turn
 ```
 
 Behaviour notes:
@@ -1224,6 +1245,74 @@ Behaviour notes:
   creature dies, the grappler is incapacitated, or the target leaves its reach. AI grapplers
   drop dead, unconscious, or non-hostile creatures for free instead of dragging them at half
   speed. See `docs/RULESETS.md` → "Grappler-side rules".
+
+#### Breath weapons and other area abilities (`type: area_save`, recharge)
+
+An NPC `actions` entry with `type: area_save` is a breath weapon or similar
+area ability. It is not an attack (it never appears in `attack_options` or a
+multiattack). `NpcAreaAction` (`natural20/actions/npc_area_action.py`, action
+type `npc_area_ability`) offers it on the creature's turn:
+
+```yaml
+actions:
+  - name: noxious_breath
+    label: Noxious Breath
+    type: area_save
+    shape: cone              # cone | line | radius (around the creature)
+    range: 15                # cone/line length or radius in feet
+    width: 5                 # line width
+    save: constitution
+    dc: 14
+    damage_die: 6d6
+    damage_type: poison
+    half_on_success: true    # default
+    recharge: 5-6            # once used, a d6 at the start of each turn readies it on 5+
+    cost: action             # or bonus_action
+    on_fail: [exhaustion:1]  # also condition:<name> (until the end of the target's next turn)
+    success_immunity: {key: draconian_noxious_breath, hours: 24}
+    description: Shown on the NPC stat block.
+```
+
+- Used recharge abilities are listed in `attributes['recharge_spent']`. `Battle.start_turn`
+  rolls for them (`roll_recharges`) and logs the roll.
+- `success_immunity` stores `attributes['ability_immunities'][key]` (game-time expiry).
+  Creatures sharing the key are immune to *every* ability with that key until it expires.
+  It is not saved for player characters (their `attributes` aren't serialized).
+- The VTT shows the ability on the action bar (cone/line targeting reuse the spell
+  `select_cone` / `select_line` UI). `GenericController` scores it with `ai_value`
+  (expected damage to foes minus allies caught in the area); JEV and LLM controllers
+  see it as a normal option.
+
+#### Innate spellcasting (`innate_spellcasting`)
+
+Stat-block spellcasting with daily uses instead of spell slots
+(`natural20/utils/innate_spellcasting.py`):
+
+```yaml
+innate_spellcasting:
+  ability: charisma
+  dc: 14                     # optional; default 8 + PB + ability mod
+  attack: 6                  # optional; default PB + ability mod
+  no_material: true          # skips material components for these spells
+  at_will: [mage_hand, invisibility]
+  per_day:
+    2: [disguise_self, dimension_door, sending]
+    1: [dominate_person]
+```
+
+The spells are added to `prepared_spells()`. Each per-day spell gets a
+long-rest resource pool `innate:<spell>` that is spent when it is cast
+(it goes through the same `free_casts` path as warlock invocations), and
+at-will spells cost nothing. The NPC's `spell_save_dc` and spell attack bonus
+use `dc` / `attack`. The webapp stat block lists the spells as "At will" /
+"N/day each" with the uses left.
+
+#### Glide
+
+`glide: {fall_reduction_ft: 100}` (or `glide: true`) on an NPC or race
+subtracts that many feet from a fall before falling damage is rolled
+(`map_stack_descent.glide_reduction_ft`), unless the creature is
+incapacitated. The horizontal glide distance is not modelled.
 
 #### Summoning allies (`summons`, e.g. Children of the Night)
 
@@ -1334,6 +1423,30 @@ spirit_guardians:
   `auto_pick: most_wounded`).
 - **Domain spells** (for example Tempest's Call Lightning and Sleet Storm) count as cleric spells
   for slots, even when they come from another class's list.
+- **Post-hit smites** (Searing Smite, Shining Smite) share
+  `natural20/spell/extensions/post_hit_smite.py`: a `PostHitSmiteOffer` `on_attack_hit` hook
+  (registered in `Paladin.initialize_paladin`) offers one bonus-action option per slot at or above
+  the spell's level. Shining Smite registers `targeted_advantage_override`, a 5-ft dim
+  `light_override` and an `invisibility_suppressed` marker on the target while the paladin
+  concentrates.
+- **Beacon of Hope** registers `save_advantage_modifier` (Wisdom), `death_save_advantage_modifier`
+  (read by `Entity.death_saving_throw`) and `max_healing` on every target. Dice healing goes
+  through `natural20/utils/healing.py` `effective_heal_roll(target, roll)`, which returns
+  `DieRoll.maximized()` under `max_healing` (spell heals, healing potions, potion-effect items,
+  Aura of Vitality).
+- **Daylight** offers a choice: a point (places a `DaylightSource` map object, bright 60 / dim 60)
+  or a held object (a `light_override` on the caster). Overlapping `Darkness` objects from a spell
+  of level 3 or lower are dispelled, ending the caster's Darkness concentration. Both map objects
+  subclass `natural20/spell/objects/spell_area_source.py` and save/load via the `!magical_darkness`
+  and `!daylight_source` tags. Effects that hold a map handle can define `relink_maps(maps)`,
+  which `relink_spell_entities` calls on load.
+- **Curses**: spell YAML `curse: true` (Hex) marks an effect as a curse, as does the `cursed`
+  status. Item YAML `cursed: true` marks a cursed item. **Remove Curse**
+  (`natural20/utils/curses.py`) ends curse effects (the caster loses concentration), clears
+  `cursed`, and lists equipped cursed items in `properties['curse_broken_items']`.
+- **Aura of Vitality** leaves an `AuraOfVitalityEffect` concentration marker. While it lasts,
+  `AuraOfVitalityHealAction` (bonus action, once per turn) heals one creature within 30 ft for
+  2d6 through a `spell_heal` item.
 - **VTT**: each spell has an action-bar icon (`static/spells/spell_<id>.png`) and an effect icon
   (`static/assets/effect/<id>.png`), plus a cast animation in `spell_effects.js` and the 3D
   `spellCatalog.js`. Spirit Guardians draws a 15-ft aura around the caster, an active Call
@@ -1658,6 +1771,362 @@ applied. If `xp` is omitted, the character starts at `0` XP for progression
 purposes. Campaigns can also use DM-gated or event-gated level-up grants
 instead of XP thresholds. See `docs/DND_5E_2014_PROGRESSION.md` for
 thresholds, reward endpoints, progression modes, and level-up behavior.
+
+### Feats, auras and edition overrides
+
+Player-character sheets (and NPCs) may carry these optional keys:
+
+```yaml
+feats: [great_weapon_master, blind_fighting, squire_of_solamnia]
+feat_editions:                       # play one feat by another edition's rules
+  great_weapon_master: 5e-2024
+class_features: [abjure_foes, radiant_strikes]  # features the class YAML doesn't grant
+channel_divinity_uses: 3             # override the class table
+condition_immunities: [frightened]
+auras:                               # YAML auras (class auras are built in)
+  - name: aura_of_warding
+    save_bonus: cha                  # owner's ability modifier (min +1)
+    condition_immunity: [charmed]    # only charmed / frightened are aura-warded
+    condition_save_advantage: [frightened]  # advantage on saves to avoid/end these
+    creature_types: [draconian]      # optional: only creatures of these types/tags
+    requires: [see, hear]            # optional: covered creatures must see/hear the owner
+    range: 10
+```
+
+- **Auras** (`natural20/utils/auras.py`): paladin Aura of Protection, Courage
+  and Devotion are built in (10 ft, 30 ft with `aura_expansion`). They apply to
+  the owner and friendly creatures in range while the owner is conscious. Save
+  bonuses from several auras don't stack; the best one applies.
+  `creature_types` matches words in the creature's `race` / `kind` /
+  `creature_type` (an aurak's Aura of Command covers only `draconian`s).
+  `requires: [hear]` fails for deafened or unconscious creatures, and
+  `requires: [see]` fails when the creature is blinded or can't see the owner.
+  `condition_save_advantage` is checked by `save_throw` when the caller passes
+  `opts={'condition': 'frightened'}` (or `saving_throw_type`).
+- **Frightened** (`natural20/utils/fear.py`): fear is tied to its source.
+  While the source is in sight, the creature has disadvantage on attacks and
+  ability checks. Fear effects can end on damage or limit the creature to one
+  of action, bonus action, or movement per turn (2024 Abjure Foes).
+- **Great Weapon Master**: after a melee critical hit or dropping a creature to
+  0 HP on your turn, a bonus-action "Hew" attack with the same weapon is
+  offered. Under 2024 rules, heavy weapon hits also add the proficiency bonus
+  to damage. The 2014 −5/+10 option is not modelled.
+- **Blind Fighting** gives 10 ft blindsight.
+
+**Feat attack options.** A feat YAML under `feats/<id>.yml` (or an entity's
+own properties) may define `attack_options`, which the engine offers as
+"before attack" free actions or "on hit" prompts:
+
+```yaml
+# feats/vanguard_training.yml
+name: Vanguard Training
+attack_options:
+  - id: guided_strike
+    name: Guided Strike
+    timing: before_attack            # before_attack | on_hit
+    advantage: true
+    extra_damage: 1d8                # added on a hit
+    uses: proficiency_bonus          # int or proficiency_bonus
+    recharge: long_rest
+    expend: on_hit                   # on_hit (spent only if the attack hits) | on_use
+    once_per_turn: true
+  - id: rattling_blow
+    name: Rattling Blow
+    timing: on_hit
+    uses: 1
+    recharge: short_rest
+    save: {ability: wisdom, dc_abilities: [int, wis, cha]}  # DC 8 + PB + best listed mod
+    on_fail: {condition: frightened, rounds: 1}
+    on_success: {next_attack_disadvantage: true}
+```
+
+Class YAML can declare `attack_options` too (top level or under
+`subclasses.<name>`, gated by `feature`). These keys go beyond the feat form:
+
+```yaml
+attack_options:
+  - id: dreadful_strike
+    feature: dread_ambusher
+    timing: on_hit
+    pool: dreadful_strike            # shared resource pool (default: id)
+    uses: ability_mod:wisdom         # also int | proficiency_bonus
+    min_uses: 1
+    extra_damage: {3: 2d6, 11: 2d8}  # class level -> dice
+    damage_type: psychic
+    variants:                        # offered together with the base option
+      - id: sudden_strike
+        feature: stalkers_flurry
+        follow_up_attack: {range: 5} # free attack, same weapon, other creature near the target
+      - id: mass_fear
+        feature: stalkers_flurry
+        save: {ability: wisdom, dc_abilities: [wis], radius: 10}  # target + creatures within 10 ft
+        on_fail: {condition: frightened, rounds: 0}               # 0 = until the start of your next turn
+```
+
+Variants share the base option's pool and once-per-turn slot. On a hit the
+controller gets one `select_reaction` choice per option. The follow-up attack
+is a `GrantedAttackAction` (`natural20/actions/granted_attack_action.py`). It
+costs no action and can only target the recorded creatures. It lapses at the
+start of the creature's next turn, and is saved with the battle state
+(`granted_attack`).
+
+**Other feat YAML mechanics** (`natural20/utils/feat_mechanics.py`). A feat id
+on the sheet with no `feats/<id>.yml` anywhere in the resolution chain is a
+no-op (e.g. `wayfarer_ability_score_improvements`; bake ability increases into
+the sheet). The same blocks may sit directly in an NPC's YAML.
+
+```yaml
+# feats/<id>.yml
+resource_pools:                      # limited uses; saved with the creature
+  luck_points: {max: proficiency_bonus, restore_on: long_rest}  # max: int | proficiency_bonus | ability_mod:X
+weapon_attack_rules:                 # exceptions to weapon-attack rules (never spells)
+  - weapons: {type: ranged_attack}   # filter: type, weapon_type (word in id/name), property/properties
+    ignore_cover: [half, three_quarters]
+    no_long_range_disadvantage: true
+    no_adjacent_enemy_disadvantage: true
+  - weapons: {weapon_type: crossbow}
+    ignore_properties: [loading]
+  - weapons: {weapon_type: crossbow, property: light}
+    extra_attack_ability_damage: true   # Light-property extra attack adds the ability modifier
+luck:                                # natural20/utils/luck_points.py
+  pool: luck_points
+  self_advantage: true               # after your attack / save / check fails: roll another d20, keep the higher
+  impose_disadvantage: true          # after an attack hits you: attacker rolls another d20, keeps the lower
+  ai_min_chance: 0.25                # offered only when the extra die can flip the result this often
+free_casts:                          # same keys as class free_casts (see Data-driven classes)
+  magic_initiate_wizard:
+    spell_source: spell_abilities    # pick from the sheet's spell_abilities map...
+    spell_level: 1                   # ...the spell of this level...
+    spell_list: wizard               # ...on this class list (optional)
+    pool: magic_initiate_wizard      # pool from resource_pools above
+```
+
+- Luck is asked through the normal reaction prompt, only in combat, and only
+  for rolls with a known DC/AC (attacks, `save_throw(opts={'dc': n})`, death
+  saves, ability checks given `dc`). Events: `luck_point` in the combat log.
+- The halfling reroll-1s trait is `lucky` in race/subrace `race_features` (or
+  NPC `attributes`/`class_features`). A `lucky` *feat* on the `feats` list does
+  not reroll 1s (`luck_points.has_reroll_ones_trait`).
+- The **Loading** property is enforced for player characters
+  (`natural20/utils/weapon_loading.py`): one Loading shot per Attack action,
+  even with Extra Attack (other weapons may take the remaining attacks).
+  Bonus-action, reaction and legendary attacks are single shots. NPC stat-block
+  attacks are exempt.
+- `spell_abilities: {spell: ability}` on the sheet sets the casting ability of
+  feat- or race-granted spells (`Entity.spell_source_ability`). A free-cast
+  spell cast inline (e.g. Shield as a reaction) by a creature with no matching
+  slot spends the free-cast pool.
+- SRD feats (Archery, Magic Initiate) are in `templates/feats/`. Non-SRD 2024
+  feats (Lucky, Sharpshooter, Crossbow Expert) are in the
+  `players_handbook_2024` expansion pack.
+
+### Data-driven classes (YAML-only)
+
+A class whose `char_classes/<klass>.yml` has no Python mixin
+(`initialize_<klass>` on `PlayerCharacter`) is run from YAML alone by
+`natural20/entity_class/data_driven.py` (`DataDrivenClass`). The mechanic
+blocks are read by `natural20/utils/class_mechanics.py`. Each block can sit at
+the class top level or under `subclasses.<name>`. A block only applies once the
+character has its `feature` (the id defaults to the block key).
+
+```yaml
+spellcasting:
+  ability: intelligence
+  progression: half_round_up   # full | half | half_round_up | third, or slot_table: {level: [slots...]}
+  prepared: true
+spell_list: {0: [firebolt], 1: [cure_wounds]}
+subclass_property: artificer_specialist   # sheet key naming the subclass
+subclasses:
+  alchemist:
+    features: {3: [experimental_elixir], 5: [alchemical_savant]}
+    spells: {3: [healing_word]}           # always prepared from that class level
+resource_pools:
+  flash_of_genius: {max: ability_mod:intelligence, min: 1, restore_on: long_rest}
+save_assists:                             # reaction: add a bonus to an ally's failed save
+  flash_of_genius: {bonus: ability_mod:intelligence, pool: flash_of_genius, range: 30}
+spell_roll_bonuses:                       # +mod to one damage/heal roll of a spell
+  alchemical_savant: {bonus: ability_mod:intelligence, damage_types: [fire], healing: true,
+                      requires_items: [alchemists_supplies]}
+free_casts:                               # cast without a slot, paid from a pool
+  restorative_reagents: {spells: [lesser_restoration], pool: restorative_reagents}
+  spell_storing_item: {spell_property: spell_storing_item, pool: spell_storing_item}
+rest_items:                               # items created on a rest (random table or fixed)
+  experimental_elixir: {count: {3: 1, 6: 2}, table: [elixir_of_healing, ...], expire_on_rest: true}
+craft_options:                            # "Craft: <item>" actions paid with a spell slot
+  experimental_elixir: {cost: spell_slot, min_slot: 1, items: [...], requires_items: [alchemists_supplies]}
+infusions:                                # +N to an item named on the sheet's `infusions`
+  enhanced_defense: {magic_bonus: {2: 1, 10: 2}, applies_to: armor}
+initiative_bonuses:                       # added to initiative rolls
+  - {feature: dread_ambusher, bonus: ability_mod:wisdom}
+speed_bonuses:                            # walking speed, optionally lost in some armor
+  - {feature: roving, amount: 10, unless_armor: [heavy]}
+first_turn_movement:                      # extra movement on the first turn of each combat
+  - {feature: dread_ambusher, amount: 10}
+senses:                                   # darkvision (or +N on top of existing darkvision)
+  - {feature: umbral_sight, darkvision: 60, darkvision_extend: 60, evade_darkvision: true}
+feature_actions:                          # self-targeted action paid from a pool
+  - {feature: tireless, activation: action, pool: tireless,
+     temp_hp: {dice: 1d8, bonus: ability_mod:wisdom, min: 1}}
+rest_effects:                             # applied when a rest finishes
+  - {feature: tireless, rest: short_rest, reduce_exhaustion: 1}
+attunement:                               # raise the magic item attunement limit (default 3)
+  - {feature: magic_item_adept, max: 4}
+  - {feature: magic_item_savant, max: 5, ignore_prerequisites: true}
+```
+
+`evade_darkvision` hides the creature from viewers that rely on darkvision
+while it stands in an unlit square (`Map` sight check). Blindsight and
+truesight still see it. Note that `on:` can't be used as a YAML key, because
+PyYAML reads it as `true`; that is why `rest_effects` uses `rest:`.
+
+**Mixin classes with YAML subclasses.** Classes that do have a Python mixin
+(e.g. the ranger) can still declare `subclass_property` + `subclasses` and the
+blocks above. Subclass features, always-prepared spells and subclass
+`resource_pools` then work the same way as for data-driven classes. The 2024
+ranger overlay (`templates/rulesets/5e-2024/char_classes/ranger.yml`) adds
+`spellcasting: {progression: half_round_up}`, which replaces the mixin's 2014
+slot table.
+
+Sheet keys that go with these blocks:
+
+- `infusions: [{infusion: enhanced_defense, item: shield}]` and
+  `spell_storing_item: {spell: cure_wounds, item: rod}`. D&D Beyond doesn't
+  export these, so the DM sets them on the sheet.
+- `rest_granted_items` records the items made on rests, so they can expire on
+  the next rest. Created items carry `crafted_by: <entity_uid>` in the inventory.
+
+**Effect consumables.** `item_class: EffectConsumableItem` items can heal
+(`heal`, plus `heal_bonus: creator_ability:intelligence` taken from the maker in
+`crafted_by`), grant `buffs` (`speed_bonus`, `fly_speed`, `ac_bonus`,
+`attack_die`, `save_die`) for `duration_seconds`, and apply `creator_riders`,
+which are gated by the maker's features (e.g. temporary HP from Restorative
+Reagents). The buffs are a serializable `ConsumableBuffEffect`. When a granted
+fly speed runs out, the creature lands.
+
+**Race keys.** Race and subrace YAML may list `spells` (always prepared;
+the casting ability comes from the sheet's `spell_abilities: {spell: ability}`)
+and `save_advantage: {source, abilities}` (e.g. 2024 Gnomish Cunning), and
+`inspiration_on_long_rest: true` (2024 Human Resourceful: Heroic Inspiration
+after every long rest). A sheet
+with `race_edition: 5e-2024` loads the race from the 2024 overlay
+(`templates/rulesets/5e-2024/races/`) even in a 2014 campaign.
+
+Actions with the class attribute `ai_in_combat = False` (crafting, for
+example) are left out of AI option lists while enemies are up.
+
+#### Warlock (SRD 5.2) and the Archfey patron
+
+The 2024 warlock overlay (`templates/rulesets/5e-2024/char_classes/warlock.yml`)
+sits on top of the warlock mixin and uses these extra blocks:
+
+```yaml
+feature_choices: [eldritch_invocations]   # sheet list whose entries count as class features
+free_casts:
+  - {feature: contact_patron, spell: contact_other_plane, pool: contact_patron,
+     auto_succeed_save: true}
+  - {feature: mystic_arcanum, spell_property: mystic_arcanum, spell_key: 6,
+     pool: mystic_arcanum_6}               # sheet: mystic_arcanum: {6: summon_fiend}
+  - {feature: fiendish_vigor, spell: false_life, at_will: true, maximize: true, self_only: true}
+feature_actions:                           # Magical Cunning: regain half the Pact slots
+  - {feature: magical_cunning, activation: minute, pool: magical_cunning,
+     restore_spell_slots: {class: warlock, fraction: 0.5, full_with_feature: eldritch_master}}
+senses: [{feature: devils_sight, devils_sight: 120}]   # see in magical darkness
+benefits: [{feature: eldritch_mind, benefit: concentration_advantage}]
+cantrip_riders:                            # Agonizing / Repelling Blast
+  - {feature: agonizing_blast, spell_property: invocation_spells,
+     default_spell: eldritch_blast, damage_bonus: ability_mod:charisma}
+  - {feature: repelling_blast, spell_property: invocation_spells,
+     default_spell: eldritch_blast, push: 10, max_size: large}
+```
+
+When both a free cast and a Pact slot can pay for a spell, the free cast is
+used first. The sheet key `class_spells: {warlock: [...]}` adds spells from
+other class lists (Pact of the Tome, Book of Ancient Secrets).
+
+The Archfey patron (`expansion_packs/players_handbook_2024/char_classes/warlock.yml`)
+adds four more generic blocks:
+
+- `spell_riders` (`natural20/utils/spell_riders.py`): optional riders offered
+  when casting the listed spells (Steps of the Fey: Refreshing/Taunting Step;
+  Misty Escape: Disappearing/Dreadful Step).
+- `reaction_casts` (`natural20/utils/reaction_casts.py`): cast a spell as a
+  reaction to a trigger (Misty Escape: Misty Step when hit).
+- `hit_reactions`: Uncanny-Dodge style reactions to a hit, with a pool,
+  `restore_with_slot`, `halve_damage` and `retaliate` (Beguiling Defenses).
+- `condition_immunities: [{feature, conditions}]`.
+
+Taunted creatures (`natural20/utils/taunt.py`) have disadvantage on attacks
+against anyone but the taunter until the taunter's next turn. Kender Taunt
+(race YAML `taunt`, `TauntAction`) and Taunting Step both use it. The War
+Caster `opportunity_attack_spell` benefit (`natural20/utils/reactive_spell.py`)
+lets a creature answer an opportunity attack with a one-target action spell.
+
+### Condition-save spells, off-plane creatures and summoned spirits
+
+`ConditionSaveSpell` (`natural20/spell/condition_spells.py`) runs save-or-suffer
+spells from a YAML `condition_save` block. It is used by Banishment, Hold
+Monster, Hypnotic Pattern, Dominate Beast/Person/Monster, Phantasmal Force and
+Calm Emotions. The block supports repeat saves, `off_plane: banished`,
+`restrict_actions: [attack, spell]` (an `action_restriction` effect) and
+`ally_condition_immunities: [charmed, frightened]`. With the last one, allies
+in the area skip the save and get a `condition_immunity` effect instead
+(Calm Emotions). The spell ends once no target and no warded ally is left.
+
+**Off-plane creatures** (`natural20/utils/off_plane.py`: Banishment, Blink)
+keep their square but can't be targeted and aren't caught by area effects.
+The state is in `attributes['off_plane']`. When the creature returns and its
+square is taken, it moves to the nearest free square.
+
+**Terrain cost.** Map objects can set `movement_cost` above 2. Each square
+then costs the extra amount on top of difficult terrain
+(`Map.extra_terrain_cost`). Plant Growth's overgrowth uses `movement_cost: 4`,
+so a square costs 4 ft of movement per foot.
+
+**Summoned spirits** (`SummonSpiritSpell`, `natural20/spell/summon_spirit_spell.py`).
+A spell YAML `summon_spirit` block names the variants (picked with
+`select_choice`), each with an NPC template and base HP. The block also sets
+`ac_base`, `hp_per_slot` and `damage_bonus_base`, and the spell scales them by
+slot level. Attacks use the caster's spell attack bonus, and `save_dc: spell`
+uses the caster's spell save DC. The spirit acts right after the caster in
+initiative. It disappears when concentration ends (`SummonSpiritEffect`).
+It also vanishes when it drops to 0 HP: the spell sets the NPC property
+`vanish_on_death`, and `make_dead` then ends the summoner's spell (and
+concentration) through `natural20.utils.summons.vanish_on_death` instead of
+leaving a corpse. Any NPC with `vanish_on_death: true` is simply removed when
+it dies. The Multiattack count is rewritten as one `{any_of: [...], count: N}`
+entry, so a spirit with melee and ranged versions of an attack can mix them.
+A `death_throes` block with `on_spell_end: true` also explodes when the spell
+ends while the spirit is still alive (the demon spirit).
+Summon Fiend (PHB 2024 pack) is the reference implementation; its spirits live
+in `expansion_packs/players_handbook_2024/npcs/fiendish_spirit_*.yml` with
+tokens in that pack's `assets/`.
+
+**Teleport after an attack.** An NPC attack with `teleport_after_attack: <feet>`
+(the yugoloth spirit's Claws) opens a window when it hits or misses. The
+creature can then use `PostAttackTeleportAction`
+(`natural20/actions/post_attack_teleport_action.py`, action type
+`post_attack_teleport`) to teleport for free to an unoccupied square it can see
+within that range. The window closes when used, is replaced by the next attack,
+and ends at the start of the creature's next turn. AI controllers use it to
+reach a new foe while attacks remain, or to escape when badly hurt.
+
+**NPC keys.** `magic_resistance: true` gives advantage on saves against magic.
+`death_burst` (alias `death_throes`) is an area save when the creature dies:
+
+```yaml
+death_burst: {radius: 10, save: dexterity, dc: 15, damage_die: 2d10,
+              damage_type: fire, half_on_success: true}
+# Chain lightning variant (aurak draconian): the nearest creature within
+# `range`, then up to `arc_targets` more within `arc_range` of it (foes of the
+# dying creature first). A failed save adds a condition until the end of the
+# target's next turn (`TimedConditionEffect`).
+death_throes: {targeting: chain, range: 30, arc_range: 15, arc_targets: 2,
+               save: dexterity, dc: 14, damage_die: 2d8, damage_type: lightning,
+               on_fail_condition: stunned}
+```
+
+Stunned creatures automatically fail Strength and Dexterity saves, and attack
+rolls against them have advantage.
 
 ### Placing Players in Maps
 
@@ -2136,7 +2605,7 @@ taking them out first. Optional YAML keys that appear on the card:
 | `description` | Body text |
 | `rarity` | Common / Uncommon / Rare / Very Rare / Legendary |
 | `magical`, `magic_bonus` | Magical badge |
-| `requires_attunement` | Attunement note |
+| `requires_attunement` | Attunement note, attuned / pending state and Attune / End buttons |
 | `weapon_mastery` | Mastery chips when the 2024 ruleset is enabled |
 | `content` | Letter body |
 
@@ -2196,6 +2665,162 @@ chain_mail:
   mod_cap: 2                         # Max DEX modifier to AC
 ```
 
+### Item mechanics keys
+
+These keys work on any equipped item (armor, weapons, wondrous items):
+
+```yaml
+cloak_of_the_glade:
+  name: Cloak of the Glade
+  type: equipment
+  skill_advantage: [stealth]         # advantage on these skill checks while equipped
+  resistances: [lightning]           # damage resistances while equipped
+  usable: true
+  item_class: MagicSpellItem         # cast a spell from the item
+  spell: misty_step
+  level: 2
+  charges: 1
+  activation: bonus_action           # action (default) | bonus_action | reaction | free
+  on_use: [next_attack_advantage]    # riders after use; next attack before end of turn has advantage
+
+wyrm_spear:
+  name: Wyrm Spear
+  type: melee_attack
+  additional_damage:
+    - damage_die: 3d6
+      damage_type: force
+      target_creature_types: [dragon]  # whole-word match: "dragonborn" doesn't count
+```
+
+Items with a non-action `activation` show up as a Use Item option even after
+the action is spent, as long as the matching resource is left.
+
+More item keys (Wand of the War Mage, Periapt of Proof against Poison, …):
+
+```yaml
+spell_attack_bonus: 1                  # added to spell attack rolls (needs attunement if required)
+spell_attack_ignore_cover: [half]      # cover levels ignored by spell attacks
+damage_immunities: [poison]            # while equipped
+condition_immunities: [poisoned]       # while equipped
+alternate_modes: [hoopak_sling]        # the same item can also attack as these weapon ids
+```
+
+Item `condition_immunities` are also picked up by the D&D Beyond importer.
+
+#### Passive bonuses and attunement
+
+These keys (read by `natural20/utils/item_mechanics.py`) only work while the
+item is *active*: listed in the creature's `equipped` property and, when the
+item has `requires_attunement: true`, attuned. Attunement is tracked by the
+optional character/NPC property `attuned: [item_key, ...]`. The D&D Beyond
+importer and the character builder write it. A sheet without `attuned` treats
+every equipped item as attuned (legacy behaviour) until its first attunement
+change, which seeds the list from the equipped attunement items.
+
+An item that needs attunement but isn't attuned gives only its nonmagical
+benefits. Its `magic_bonus`, `magical` (resistance bypass), `additional_damage`
+riders, `resistances`, `skill_advantage`, `save_advantage_against`, protection
+`effect`s, `usable` activation and the keys below are all ignored. An optional
+`unattuned:` block overrides fields for the mundane form, for example
+`unattuned: {damage: 1d8}` on a Flame Tongue.
+
+#### Managing attunement
+
+The rules are in `natural20/utils/attunement.py`. DMG 2014 and DMG 2024 agree
+on them, so both rulesets behave the same.
+
+- **Attuning** takes a short rest spent focused on that one item, while the
+  creature holds or carries it. A request is queued in
+  `attunement_pending: [{item, mode: attune|end}]` and completes at the end of
+  the next rest. A short rest completes one change and a long rest two (its two
+  hours of light activity).
+- **Limit:** a creature can be attuned to at most 3 items. The queue counts
+  toward this limit, and only one copy of an item can be attuned. Class YAML
+  `attunement` entries raise the limit (Artificer Magic Item Adept/Savant/Master
+  in `expansion_packs/tashas_cauldron/`). A sheet can override it with
+  `attunement_limit: N`.
+- **Prerequisites** come from item YAML: `attunement_class`, `attunement_race`,
+  `attunement_alignment` (a string or a list) and `attunement_spellcaster: true`.
+  A class `attunement` entry with `ignore_prerequisites: true` waives them.
+- **Ending attunement voluntarily** also takes a short rest. It is impossible
+  while the item's curse holds (`cursed: true`); Remove Curse ends it.
+- **Losing attunement:** it ends when the creature dies, and when the item has
+  been out of the creature's possession for 24 hours of campaign time (tracked
+  in `attunement_separated`).
+- **DM override:** a DM request with `force` applies the change immediately and
+  ignores prerequisites. The limit still applies.
+- **Campaign rules:** `game.yml` `ruleset_overrides` accepts `attunement_limit`,
+  `attunement_requires_rest: false` (house rule: changes are instant outside
+  combat), `attunements_per_short_rest` and `attunements_per_long_rest`.
+
+In the VTT, the character sheet's equipment tab has an **Attunement** panel. It
+shows the used slots, every attunement item the character carries, and
+Attune / End attunement / Cancel buttons (plus DM-only *now* buttons). The item
+card has the same controls, and equipped items that lack attunement are marked
+*Not attuned*. The panel calls `POST /attunement`, and MCP uses `dm.equipment`
+with `op=attune|end_attunement|cancel_attunement`.
+
+```yaml
+ioun_stone_of_insight:
+  type: accessory
+  equippable: true
+  requires_attunement: true
+  ability_bonus: {wis: 2, max: 20}   # add to scores; max caps the result (never lowers it)
+
+amulet_of_health:
+  ability_set: {con: 19}             # the score becomes 19 unless already higher
+
+ioun_stone_of_mastery:
+  proficiency_bonus: 1               # added to the proficiency bonus
+
+ioun_stone_of_awareness:
+  cannot_be_surprised: true
+
+ioun_stone_of_regeneration:
+  regain_hp: {amount: 15, every_seconds: 3600, min_hp: 1}   # heals as the campaign clock advances
+```
+
+Item bonuses are applied on top of the stored scores, so `ability:` on a
+sheet holds the creature's own scores. Accessories with a `magic_bonus` (Ring
+of Protection, Ioun Stone of Protection) add it to AC.
+
+#### Dancing weapons
+
+A weapon with a `dancing` block (the SRD Dancing Sword variants
+`dancing_longsword`, `dancing_shortsword`, `dancing_scimitar`,
+`dancing_greatsword`, `dancing_rapier`) gives its wielder a bonus action to
+toss it:
+
+```yaml
+dancing_scimitar:
+  type: melee_attack
+  requires_attunement: true
+  dancing:
+    attacks: 4        # strikes before it flies back
+    move_feet: 30     # flight per bonus action
+    leash_feet: 30    # must stay this close to the wielder
+```
+
+`DancingWeaponAction` (`natural20/actions/dancing_weapon_action.py`, registered
+through the class-feature registry for PCs and wired in `Npc.available_actions`)
+offers three modes:
+
+- **Toss** (bonus action, item equipped and attuned): the weapon leaves the
+  wielder's hand, flies to an empty square next to the chosen creature and
+  attacks it with the wielder's attack roll and damage (an ordinary
+  `AttackAction` with the item, so proficiency, magic bonus and weapon mastery
+  apply).
+- **Command** (bonus action): the hovering weapon flies again and strikes. After
+  the last strike it returns to the wielder's hand, or drops into their
+  inventory when no hand is free. If the wielder is more than `leash_feet` away
+  when commanding it, it falls to the ground instead.
+- **Catch** (free; adjacent in combat, anywhere out of combat): the wielder
+  grabs it and it stops dancing.
+
+State lives in `properties['dancing_weapons']` on the wielder; the map marker
+is a `DancingWeaponTile` (saved as a `!zone_tile`). The VTT encodes the mode
+and item in the action type (`dancing_weapon:<mode>:<item>`).
+
 ### Consumables
 
 ```yaml
@@ -2244,6 +2869,26 @@ Dead NPCs and player characters can be picked up (`carry`) and stored like
 objects: they use the creature's size and a size-based body weight plus gear.
 Carrying requires remaining Strength × 15 lb capacity. Dropping a body onto
 the ground places the creature back on the map.
+
+#### Placeable gear (`placeable_object`)
+
+An inventory item with `placeable_object: <object type>` becomes that map object
+when it is dropped on the ground (ground **Transfer** dialog). The SRD `chest` gear
+item uses this (`placeable_object: chest`, 25 lb, holds 300 lb / 12 cu ft):
+
+- The placed object starts with the item's container contents as its inventory
+  and is tagged `portable_item: <item key>`. It then behaves like any map chest
+  (open, close, loot, store, lock).
+- Any map object with `portable_item` offers **Pick Up**. Picking it up removes
+  the object and returns the item, contents and all, to the carrier. It needs
+  Strength × 15 lb capacity for the item weight plus everything inside; otherwise
+  the button is disabled with the reason.
+- To make a hand-placed map chest portable, add `portable_item: chest` to its
+  legend entry. Map chests without it stay fixed.
+
+Helpers live in `natural20/utils/portable_object.py`. The drop hook is
+`Container._place_object_on_ground`. Stacking two containers of the same item in
+one inventory pools their contents.
 
 ---
 
@@ -2790,6 +3435,41 @@ legend:
 The following races are available in `templates/races/`:
 
 `dwarf`, `elf`, `gnome`, `goliath`, `halfling`, `human`, `kender`
+
+### Race YAML: racial resource pools, level gates and subrace swaps
+
+These race and subrace keys are generic and work for any species:
+
+| Key | Where | Meaning |
+|---|---|---|
+| `resource_pools.<name>` | race or subrace | `{max: <int or proficiency_bonus>, restore_on: short_rest\|long_rest, features: [...]}`. Registered as a normal `ResourcePool` (same sheet, save/load and rest handling as class pools). The subrace definition wins over the race. A long rest also refills `short_rest` pools. |
+| `race_feature_min_level.<feature>` | race or subrace | The character level a race feature needs before `class_feature` reports it. |
+| `remove_race_features` | subrace | Base race features this subrace drops. For example, a 2024-style goliath ancestry drops the 2014 `stones_endurance` unless it adds it back. |
+| `remove_resistances` | subrace | Base race resistances this subrace drops. |
+
+NPCs can use the same pools by listing the feature under `attributes` and the pool under `properties.resource_pools`.
+
+### Goliath and Giant Ancestry
+
+There are two versions of the goliath, chosen by the campaign ruleset:
+
+- **2014** (`templates/races/goliath.yml`): speed 30, Stone's Endurance once per short rest, cold resistance.
+- **2024 / SRD 5.2** (`templates/rulesets/5e-2024/races/goliath.yml`, used when `ruleset: 5e-2024`): speed 35, Large Form at level 5+, Powerful Build, and one Giant Ancestry boon picked as a subrace.
+
+The subrace keys are `cloud_giant`, `fire_giant`, `frost_giant`, `hill_giant`, `stone_giant` and `storm_giant`. The 2014 file accepts the same keys. They turn a 2014 goliath into the 2024 version: speed 35, the ancestry boon, Large Form and Powerful Build, and they drop cold resistance.
+
+Every ancestry boon draws from one `giant_ancestry` pool. It holds uses equal to your proficiency bonus and refills on a long rest. All of the logic lives in `natural20/utils/giant_ancestry.py`.
+
+| Boon | How it works in the engine |
+|---|---|
+| Cloud's Jaunt | `CloudsJauntAction`: a bonus action that teleports you to an unoccupied square you can see within 30 ft. |
+| Fire's Burn / Frost's Chill / Hill's Tumble | Optional on-hit riders that run through the `on_attack_hit` hook. The player is asked under the async reaction type `giant_ancestry`, so the prompt doesn't collide with smites. Frost's Chill uses the weapon-mastery Slow state (−10 ft until the start of your next turn). Hill's Tumble only works on Large or smaller targets. |
+| Stone's Endurance | Before temp HP is applied in `Entity.take_damage`, it spends your reaction to cut the damage by 1d12 + Con. 2014 uses `Ruleset.stones_endurance_uses_model()`: once per short rest. 2024 shares the PB pool. |
+| Storm's Thunder | In `after_take_damage_hook`, it spends your reaction to deal 1d8 thunder to the attacker if it is within 60 ft. |
+| Large Form | `LargeFormAction`: a bonus action, once per long rest, lasting 10 minutes. You become Large (the token footprint is restamped and there must be room), get +10 ft speed and get advantage on Strength checks. |
+| Powerful Build | Advantage on checks to escape a grapple (`EscapeGrappleAction` passes `purpose: escape_grapple`), and double carrying capacity. |
+
+The damage reactions (Stone's Endurance and Storm's Thunder) can't pause the damage pipeline. Like Hellish Rebuke and Wrath of the Storm, they fire automatically whenever you have a use and your reaction. AI controllers make these choices through their usual `select_reaction`. A creature with no controller uses the first option it is offered. Cloud's Jaunt is only offered to the AI to close distance to melee, or to escape melee at half HP or lower.
 
 ## Available Classes
 

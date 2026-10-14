@@ -1,0 +1,184 @@
+---
+# Artificer (Tasha's Cauldron of Everything). Not SRD: campaigns opt in via
+# index.json "expansion_packs": {"tashas_cauldron": "tashas_cauldron"}.
+# Loaded as a data-driven class (natural20/entity_class/data_driven.py); the
+# mechanics blocks below are documented in natural20/utils/class_mechanics.py.
+label: Artificer
+hit_die: 1d8
+weapon_proficiencies:
+- light_armor
+- medium_armor
+- shields
+- simple
+tool_proficiencies:
+- thieves_tools
+- tinkers_tools
+saving_throw_proficiencies:
+- constitution
+- intelligence
+available_skills_choices: 2
+available_skills:
+- arcana
+- history
+- investigation
+- medicine
+- nature
+- perception
+- sleight_of_hand
+spellcasting_ability: intelligence
+spellcasting:
+  ability: intelligence
+  # Half caster that rounds up: slots from 1st level.
+  progression: half_round_up
+  prepared: true
+  focus: [thieves_tools, tinkers_tools, alchemists_supplies, smiths_tools, rod, wand, staff]
+# Only spells the engine already defines are listed.
+spell_list:
+  level_0: [acid_splash, booming_blade, dancing_lights, firebolt, green_flame_blade, guidance, light, mage_hand, mending, message, poison_spray, prestidigitation, ray_of_frost, resistance, shocking_grasp, spare_the_dying, thorn_whip]
+  level_1: [absorb_elements, alarm, cure_wounds, detect_magic, disguise_self, expeditious_retreat, faerie_fire, false_life, feather_fall, grease, identify, jump, longstrider, purify_food_and_drink, sanctuary]
+  level_2: [aid, darkvision, enhance_ability, enlarge_reduce, heat_metal, invisibility, lesser_restoration, magic_mouth, magic_weapon, protection_from_poison, see_invisibility, web]
+  level_3: [dispel_magic, fly, gaseous_form, haste, protection_from_energy, revivify]
+  level_4: [otilukes_resilient_sphere]
+  level_5: [bigbys_hand]
+progression:
+  level_1:
+    class_features: [magical_tinkering, spellcasting]
+  level_2:
+    class_features: [infuse_item]
+  level_3:
+    class_features: [artificer_specialist, the_right_tool_for_the_job]
+  level_4:
+    class_features: [ability_score_improvement]
+  level_6:
+    class_features: [tool_expertise]
+  level_7:
+    class_features: [flash_of_genius]
+  level_8:
+    class_features: [ability_score_improvement]
+  level_10:
+    class_features: [magic_item_adept]
+  level_11:
+    class_features: [spell_storing_item]
+  level_12:
+    class_features: [ability_score_improvement]
+  level_14:
+    class_features: [magic_item_savant]
+  level_16:
+    class_features: [ability_score_improvement]
+  level_18:
+    class_features: [magic_item_master]
+  level_19:
+    class_features: [ability_score_improvement]
+  level_20:
+    class_features: [soul_of_artifice]
+feature_descriptions:
+  magical_tinkering: "Imbue a Tiny object with a small magical property, such as light, a recorded message or a smell."
+  infuse_item: "Turn ordinary items into magic items. The sheet lists them under `infusions` ({infusion, item})."
+  the_right_tool_for_the_job: "Spend an hour to make one set of artisan's tools."
+  tool_expertise: "Proficiency bonus is doubled for checks with any tool you are proficient with."
+  flash_of_genius: "Reaction. When you or a creature you can see within 30 ft makes a saving throw, add your Intelligence modifier. Uses equal your Intelligence modifier (minimum 1) per long rest."
+  magic_item_adept: "Attune to up to four magic items, and craft common and uncommon items quickly and cheaply."
+  magic_item_savant: "Attune to up to five magic items, ignoring all class, race, spell and level requirements on attuning to or using a magic item."
+  magic_item_master: "Attune to up to six magic items."
+  spell_storing_item: "Store a 1st- or 2nd-level artificer spell with a casting time of one action in an item. It can be cast from the item twice your Intelligence modifier times (minimum 2) per long rest. The sheet sets `spell_storing_item: {spell, item}`."
+subclass_property: artificer_specialist
+subclass_level: 3
+subclasses:
+  alchemist:
+    label: Alchemist
+    features:
+      level_3: [alchemist_tool_proficiency, alchemist_spells, experimental_elixir]
+      level_5: [alchemical_savant]
+      level_9: [restorative_reagents]
+      level_15: [chemical_mastery]
+    # Always prepared; they count as artificer spells.
+    spells:
+      level_3: [healing_word, ray_of_sickness]
+      level_5: [flaming_sphere, melfs_acid_arrow]
+      level_9: [gaseous_form, mass_healing_word]
+      level_13: [blight, death_ward]
+      level_17: [cloudkill, raise_dead]
+    feature_descriptions:
+      experimental_elixir: "After a long rest you produce random experimental elixirs (one, two from 6th level, three from 15th). You can make more by spending a spell slot and your action. Unused elixirs lose their potency at your next long rest."
+      alchemical_savant: "When you cast a spell using alchemist's supplies as the focus, add your Intelligence modifier (minimum +1) to one acid, fire, necrotic or poison damage roll or one healing roll of that spell."
+      restorative_reagents: "Your elixirs also grant 2d6 + your Intelligence modifier temporary hit points, and you can cast Lesser Restoration without a slot a number of times equal to your Intelligence modifier (minimum 1) per long rest."
+    rest_items:
+      - feature: experimental_elixir
+        id: experimental_elixir
+        restore_on: long_rest
+        count: {3: 1, 6: 2, 15: 3}
+        random_table: [elixir_of_healing, elixir_of_swiftness, elixir_of_resilience, elixir_of_boldness, elixir_of_flight, elixir_of_transformation]
+        expire_on_rest: true
+    craft_options:
+      - feature: experimental_elixir
+        id: experimental_elixir
+        label: Experimental Elixir
+        icon: craft_item
+        cost: spell_slot
+        min_slot: 1
+        activation: action
+        requires_item: [alchemists_supplies]
+        items: [elixir_of_healing, elixir_of_swiftness, elixir_of_resilience, elixir_of_boldness, elixir_of_flight, elixir_of_transformation]
+    spell_roll_bonuses:
+      - feature: alchemical_savant
+        ability: intelligence
+        min: 1
+        damage_types: [acid, fire, necrotic, poison]
+        healing: true
+        requires_item: [alchemists_supplies]
+    free_casts:
+      - feature: restorative_reagents
+        spell: lesser_restoration
+        pool: restorative_reagents
+resource_pools:
+  flash_of_genius:
+    feature: flash_of_genius
+    max: ability_mod:intelligence
+    min: 1
+    restore_on: long_rest
+  spell_storing_item:
+    feature: spell_storing_item
+    max: ability_mod:intelligence
+    multiplier: 2
+    min: 2
+    restore_on: long_rest
+  restorative_reagents:
+    feature: restorative_reagents
+    max: ability_mod:intelligence
+    min: 1
+    restore_on: long_rest
+save_assists:
+  - feature: flash_of_genius
+    ability: intelligence
+    min: 1
+    range: 30
+    pool: flash_of_genius
+free_casts:
+  - feature: spell_storing_item
+    spell_property: spell_storing_item
+    pool: spell_storing_item
+# Attunement limit (natural20/utils/attunement.py). Savant ignores class,
+# race, spell and level requirements on attuning to magic items.
+attunement:
+  - feature: magic_item_adept
+    max: 4
+  - feature: magic_item_savant
+    max: 5
+    ignore_prerequisites: true
+  - feature: magic_item_master
+    max: 6
+# Infusion catalogue. magic_bonus is keyed by artificer level.
+infusions:
+  enhanced_defense:
+    item_types: [armor, shield]
+    magic_bonus: {2: 1, 10: 2}
+  enhanced_weapon:
+    item_types: [weapon]
+    magic_bonus: {2: 1, 10: 2}
+  repeating_shot:
+    item_types: [weapon]
+    magic_bonus: {2: 1}
+  returning_weapon:
+    item_types: [weapon]
+    magic_bonus: {2: 1}
+proficiency_bonuses: [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6]

@@ -1,11 +1,1 @@
-base_speed: 30
-size: medium
-languages:
-  - common
-skills:
-  - athletics
-language_choice: 1
-race_features:
-  - stones_endurance
-resistances:
-  - cold
+inherit: "@templates/races/goliath.yml"

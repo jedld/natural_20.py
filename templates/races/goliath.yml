@@ -9,3 +9,70 @@ race_features:
   - stones_endurance
 resistances:
   - cold
+# 2014 goliath: Stone's Endurance can be used once, then needs a short or long rest.
+resource_pools:
+  stones_endurance:
+    max: 1
+    restore_on: short_rest
+    features:
+      - stones_endurance
+# SRD 5.2 (2024) giant ancestries. A 2024 goliath (for example a D&D Beyond import)
+# picks one of these; it then uses the 2024 trait set (speed 35, Large Form,
+# Powerful Build, one ancestry boon) instead of the 2014 traits above.
+subrace:
+  cloud_giant:
+    description: Cloud's Jaunt - bonus action, teleport up to 30 ft to an unoccupied space you can see.
+    base_speed: 35
+    remove_race_features: [stones_endurance]
+    remove_resistances: [cold]
+    race_features: [clouds_jaunt, large_form, powerful_build]
+    race_feature_min_level: &ancestry_levels
+      large_form: 5
+    resource_pools: &ancestry_pools
+      giant_ancestry:
+        max: proficiency_bonus
+        restore_on: long_rest
+        features: [clouds_jaunt, fires_burn, frosts_chill, hills_tumble, stones_endurance, storms_thunder]
+      large_form:
+        max: 1
+        restore_on: long_rest
+        features: [large_form]
+  fire_giant:
+    description: Fire's Burn - when you hit with an attack roll and deal damage, add 1d10 fire damage.
+    base_speed: 35
+    remove_race_features: [stones_endurance]
+    remove_resistances: [cold]
+    race_features: [fires_burn, large_form, powerful_build]
+    race_feature_min_level: *ancestry_levels
+    resource_pools: *ancestry_pools
+  frost_giant:
+    description: Frost's Chill - when you hit with an attack roll and deal damage, add 1d6 cold damage and reduce the target's speed by 10 ft until the start of your next turn.
+    base_speed: 35
+    remove_race_features: [stones_endurance]
+    remove_resistances: [cold]
+    race_features: [frosts_chill, large_form, powerful_build]
+    race_feature_min_level: *ancestry_levels
+    resource_pools: *ancestry_pools
+  hill_giant:
+    description: Hill's Tumble - when you hit a Large or smaller creature with an attack roll and deal damage, you can knock it prone.
+    base_speed: 35
+    remove_race_features: [stones_endurance]
+    remove_resistances: [cold]
+    race_features: [hills_tumble, large_form, powerful_build]
+    race_feature_min_level: *ancestry_levels
+    resource_pools: *ancestry_pools
+  stone_giant:
+    description: Stone's Endurance - when you take damage, use your reaction to roll 1d12 + Constitution modifier and reduce the damage by that much.
+    base_speed: 35
+    remove_resistances: [cold]
+    race_features: [stones_endurance, large_form, powerful_build]
+    race_feature_min_level: *ancestry_levels
+    resource_pools: *ancestry_pools
+  storm_giant:
+    description: Storm's Thunder - when a creature within 60 ft damages you, use your reaction to deal 1d8 thunder damage to it.
+    base_speed: 35
+    remove_race_features: [stones_endurance]
+    remove_resistances: [cold]
+    race_features: [storms_thunder, large_form, powerful_build]
+    race_feature_min_level: *ancestry_levels
+    resource_pools: *ancestry_pools

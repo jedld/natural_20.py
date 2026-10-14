@@ -1,0 +1,74 @@
+---
+# Summon Fiend (PHB 2024) spirit. AC, HP, attack bonus, damage bonus, save DC
+# and the Multiattack count are overwritten from the spell level by
+# SummonSpiritSpell. The spirit vanishes at 0 HP.
+kind: Fiendish Spirit (Demon)
+description: A snarling, many-fanged demonic spirit called up from the Abyss by magic.
+outward_appearance: >-
+  A hulking crimson demon with ridged horns, a maw crowded with fangs and long
+  clawed limbs; embers drift from cracks in its hide.
+size: large
+race:
+  - fiend
+  - demon
+alignment: neutral
+default_ac: 18
+max_hp: 50
+hp_die: 6d10
+speed: 40
+speed_climb: 40
+darkvision: 60
+passive_perception: 10
+token:
+  - D
+color: "#7f1d1d"
+ability:
+  str: 13
+  dex: 16
+  con: 15
+  int: 10
+  wis: 10
+  cha: 16
+languages:
+  - abyssal
+  - infernal
+telepathy: 60
+proficiency_bonus: 3
+resistances:
+  - fire
+damage_immunities:
+  - poison
+condition_immunities:
+  - poisoned
+attributes:
+  - magic_resistance
+  - multiattack
+multiattack:
+  - bite,bite,bite
+death_throes:
+  radius: 10
+  save: dexterity
+  damage_die: 2d10
+  damage_type: fire
+  on_spell_end: true
+trait_descriptions:
+  death_throes: >-
+    When the spirit drops to 0 hit points or the spell ends, it explodes. Each creature within
+    10 feet makes a Dexterity saving throw against the caster's spell save DC, taking 2d10 + the
+    spell's level fire damage on a failure, or half as much on a success.
+  magic_resistance: The spirit has advantage on saving throws against spells and other magical effects.
+traits:
+  - death_throes
+  - magic_resistance
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 13
+    damage_die: 1d12+9
+    damage_type: necrotic
+    multiattack_group: 1
+token_image: token_fiendish_spirit_demon.png

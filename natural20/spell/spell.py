@@ -13,6 +13,21 @@ def camel_case_to_human_readable(camel_case_string):
     human_readable = re.sub(r'(?<!^)(?=[A-Z])', '_', camel_case_string).capitalize()
     return human_readable.lower()
 
+def _free_pool_without_slot(source, spell, cast_level):
+    """Free-cast pool for a spell cast inline (e.g. a reaction) when the caster
+    has no matching slot, so the cast spends the pool instead of nothing."""
+    caster = source.owner if source.familiar() else source
+    level = int(spell.get('level', 0) or 0)
+    if level <= 0 or int(cast_level or level) != level:
+        return None
+    if hasattr(caster, 'next_spell_slot_level'):
+        for class_key in caster.spell_list_classes_for(spell):
+            if caster.next_spell_slot_level(class_key, level) is not None:
+                return None
+    from natural20.utils.class_mechanics import free_cast_pool_for
+    return free_cast_pool_for(caster, spell.get('id'))
+
+
 def consume_resource(battle, source, item, as_scroll=False, cast_level=None, casting_class=None):
     amt, resource = item["casting_time"].split(":")
     spell_level = cast_level if cast_level is not None else item["level"]
@@ -119,6 +134,14 @@ class Spell:
         if self.action:
             cast_level = getattr(self.action, 'at_level', cast_level)
             casting_class = getattr(self.action, 'spellcasting_class', None)
+            free_pool = getattr(self.action, 'free_cast_pool', None)
+            if not free_pool and not as_scroll and not casting_class:
+                free_pool = _free_pool_without_slot(self.source, self.properties, cast_level)
+            if free_pool and not as_scroll:
+                from natural20.utils.class_mechanics import spend_free_cast
+                caster = self.source.owner if self.source.familiar() else self.source
+                if spend_free_cast(caster, free_pool):
+                    as_scroll = True
         consume_resource(
             battle,
             self.source,

@@ -67,6 +67,7 @@ class MagicSpellItem(Object):
     def use(self, entity, result, session=None):
         charges = self.properties.get('charges')
         if charges:
+            entity = (result or {}).get('source') or entity
             resource = entity.get_resource(self._resource_name())
             if resource is None:
                 resource = entity.register_resource(self._resource_name(), charges, restore_on='long_rest')
@@ -98,9 +99,10 @@ class PotionEffectItem(Object):
         effect = result.get('effect_name')
         if effect == 'greater_healing':
             from natural20.die_roll import DieRoll
+            from natural20.utils.healing import effective_heal_roll
             roll = DieRoll.roll('4d4+4', entity=entity, battle=result.get('battle'),
                                 description='Potion of Greater Healing')
-            target.heal(roll.result())
+            target.heal(effective_heal_roll(target, roll).result())
         elif effect:
             if effect not in target.statuses:
                 target.statuses.append(effect)

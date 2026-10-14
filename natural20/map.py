@@ -18,6 +18,7 @@ from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.item_library.room_service_buzzer import RoomServiceBuzzer
 from natural20.item_library.multi_switch import MultiSwitch
+from natural20.item_library.rotating_mechanism import RotatingMechanism
 from natural20.player_character import PlayerCharacter
 from natural20.serializable_object import SerializableObject
 from natural20.npc import Npc
@@ -1287,6 +1288,17 @@ class Map(SerializableObject):
 
         return targets
 
+    def extra_terrain_cost(self, pos_x, pos_y):
+        """Squares beyond the difficult-terrain doubling (object ``movement_cost`` > 2,
+        e.g. Plant Growth's 4 ft per 1 ft)."""
+        costs = []
+        for obj in self.objects_at(pos_x, pos_y):
+            try:
+                costs.append(int(obj.movement_cost()))
+            except (TypeError, ValueError, AttributeError):
+                continue
+        return max(0, max(costs, default=1) - 2)
+
     def difficult_terrain(self, entity, pos_x, pos_y, battle=None, from_pos=None):
         """
         Check if the position contains difficult terrain for the entity.
@@ -1801,6 +1813,8 @@ class Map(SerializableObject):
             has_line_of_sight = True
 
         if has_line_of_sight and max_illumination < 0.5:
+            if self._devils_sight_covers(entity, sighting_distance):
+                return True
             # Magical darkness can't be seen through, even with darkvision.
             if self.magical_darkness_at(pos2_x, pos2_y):
                 return False
@@ -2028,7 +2042,15 @@ class Map(SerializableObject):
                     in_magical_darkness = True
                     break
 
-        if not in_magical_darkness and allow_dark_vision and entity.darkvision(sighting_distance * self.feet_per_grid):
+        hidden_from_darkvision = False
+        if max_illumination == 0.0 and callable(getattr(entity2, 'class_feature', None)):
+            from natural20.utils.class_mechanics import evades_darkvision
+            hidden_from_darkvision = evades_darkvision(entity2)
+
+        if max_illumination < 0.5 and self._devils_sight_covers(entity, sighting_distance):
+            max_illumination = 1.0
+        elif (not in_magical_darkness and not hidden_from_darkvision and allow_dark_vision
+                and entity.darkvision(sighting_distance * self.feet_per_grid)):
             max_illumination += 0.5
 
         if max_illumination == 0.0:
@@ -2054,6 +2076,17 @@ class Map(SerializableObject):
             return False
 
         return has_line_of_sight
+
+    def _devils_sight_covers(self, entity, sighting_distance):
+        """Devil's Sight: normal vision in dim light and (magical) darkness in range."""
+        if sighting_distance is None or not callable(getattr(entity, 'class_feature', None)):
+            return False
+        from natural20.utils.class_mechanics import devils_sight_range
+        try:
+            reach = devils_sight_range(entity)
+        except Exception:
+            return False
+        return bool(reach) and sighting_distance * self.feet_per_grid <= reach
 
     def entity_squares(self, entity, squeeze=False):
         if not entity:

@@ -320,6 +320,9 @@ def blind_attack_issue(battle, attacker, action, square) -> Optional[str]:
         return 'validation.unseen.self'
     if not makes_attack_roll(action):
         return 'validation.unseen.needs_sight'
+    from natural20.utils.weapon_loading import action_blocked
+    if hasattr(action, 'second_hand') and action_blocked(action, battle):
+        return 'validation.attack.loading'
     from natural20.weapons import compute_max_weapon_range
     try:
         attack_range = compute_max_weapon_range(battle.session, action) or 5

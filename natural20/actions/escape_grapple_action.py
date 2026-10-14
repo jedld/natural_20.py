@@ -50,7 +50,9 @@ class EscapeGrappleAction(Action):
         athletics_stats = (self.source.proficiency_bonus() if self.source.athletics_proficient() else 0) + self.source.str_mod()
         acrobatics_stats = (self.source.proficiency_bonus() if self.source.acrobatics_proficient() else 0) + self.source.dex_mod()
 
-        contested_roll = self.source.athletics_check(battle) if athletics_stats > acrobatics_stats else self.source.acrobatics_check(battle)
+        contested_roll = (self.source.athletics_check(battle, purpose='escape_grapple')
+                          if athletics_stats > acrobatics_stats
+                          else self.source.acrobatics_check(battle, purpose='escape_grapple'))
         escape_dc = ((self.source.attributes or {}).get('grapple_escape_dcs') or {}).get(getattr(target, 'entity_uid', None))
         if escape_dc:
             strength_roll = DieRoll.roll(str(int(escape_dc)), description='escape_dc')

@@ -1,7 +1,8 @@
 import natural20.controller as controller
+from natural20.exceptions import GameLoopControl
 from natural20.generic_controller import GenericController
 
-class ManualControl(Exception):
+class ManualControl(GameLoopControl):
     pass
 
 class WebController(GenericController):

@@ -64,8 +64,10 @@ spell_list:
     - scorching_ray
   level_3:
     - counterspell
+    - daylight
     - dispel_magic
     - fireball
+    - gaseous_form
     - haste
     - lightning_bolt
     - protection_from_energy

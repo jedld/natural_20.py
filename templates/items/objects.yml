@@ -287,6 +287,36 @@ stone_wall_lr:
     - 1
   token:
     - H
+statue:
+  color: white
+  cover: three_quarter
+  name: Statue
+  passable: false
+  placeable: false
+  opaque: false
+  interact_distance: 5
+  ai_interact: false
+  token:
+    - Ω
+rotating_statue:
+  color: white
+  cover: three_quarter
+  item_class: RotatingMechanism
+  interactable: true
+  name: Rotating Statue
+  passable: false
+  placeable: false
+  opaque: false
+  interact_distance: 5
+  ai_interact: false
+  facing: north
+  facings: [north, east, south, west]
+  rotate:
+    ability: strength
+    dc: 20
+    cost: action
+  token:
+    - Ω
 switch:
   color: yellow
   interactable: true

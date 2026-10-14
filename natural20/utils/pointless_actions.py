@@ -143,6 +143,16 @@ def _is_loot(action) -> bool:
     return False
 
 
+def ai_forbidden_interaction(action) -> bool:
+    """Object YAML ``ai_interact: false`` keeps AI controllers away from it
+    (rotating statues, levers that spring traps, ...)."""
+    from natural20.actions.interact_action import InteractAction
+    if not isinstance(action, InteractAction):
+        return False
+    properties = getattr(getattr(action, 'target', None), 'properties', None)
+    return isinstance(properties, dict) and properties.get('ai_interact') is False
+
+
 def _pointless_help(battle, entity, action) -> bool:
     """Help on an enemy (distract: an ally's next attack has advantage) is
     useful. Help on an ally only aids its next ability check, which in a
@@ -376,6 +386,8 @@ def is_pointless(battle, entity, action, in_sight=None) -> bool:
         return bool(conscious_enemies(battle, entity))
     if battle is not None and _non_combat_spell(action):
         return bool(conscious_enemies(battle, entity))
+    if battle is not None and getattr(action, 'ai_in_combat', True) is False:
+        return bool(conscious_enemies(battle, entity))
     if _recasts_held_concentration(action, entity):
         return True
     if battle is not None and _pointless_dispel(battle, entity, action):
@@ -386,6 +398,8 @@ def is_pointless(battle, entity, action, in_sight=None) -> bool:
         return _pointless_hide(battle, entity)
     if isinstance(action, WrathOfTheStormAction):
         # On-turn use only picks a damage type; the reaction fires on its own.
+        return True
+    if ai_forbidden_interaction(action):
         return True
     if isinstance(action, ActionSurgeAction):
         # Spend the turn's action first; surging early can waste the surge.

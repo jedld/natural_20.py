@@ -14,6 +14,7 @@ INVENTORY_METADATA_KEYS = (
     'label',
     'payload',
     'image',
+    'crafted_by',
 )
 
 
@@ -63,6 +64,26 @@ def snapshot_inventory_entry(entry, amount=None):
     return snapshot
 
 
+def _pool_contents(existing, received):
+    """Combine two container content lists so stacking containers never drops items."""
+    pooled = [dict(row) for row in (existing or []) if isinstance(row, dict)]
+    for row in received or []:
+        if not isinstance(row, dict):
+            continue
+        row_type = row.get('type') or row.get('item')
+        match = None
+        if not row.get('is_creature'):
+            for current in pooled:
+                if not current.get('is_creature') and (current.get('type') or current.get('item')) == row_type:
+                    match = current
+                    break
+        if match is None:
+            pooled.append(copy.deepcopy(row))
+        else:
+            match['qty'] = int(match.get('qty', 0) or 0) + int(row.get('qty', 1) or 1)
+    return pooled
+
+
 def merge_inventory_entry(existing_entry, received_entry, amount=1):
     """Merge a received stack snapshot into an existing inventory entry."""
     try:
@@ -77,6 +98,8 @@ def merge_inventory_entry(existing_entry, received_entry, amount=1):
     received_contents = received_entry.get('contents')
     if received_contents is not None and not existing_entry.get('contents'):
         existing_entry['contents'] = copy.deepcopy(received_contents)
+    elif received_contents:
+        existing_entry['contents'] = _pool_contents(existing_entry.get('contents'), received_contents)
     if received_entry.get('is_container'):
         existing_entry['is_container'] = True
     _copy_inventory_metadata(received_entry, existing_entry)

@@ -59,6 +59,10 @@ class Ruleset(ABC):
         """``contested_check`` (2014) or ``target_saving_throw`` (2024)."""
         return self._override("grapple_shove_resolution", "contested_check")
 
+    def sacred_weapon_model(self) -> str:
+        """Paladin Sacred Weapon: ``action`` (2014, 1 minute) or ``attack_action`` (2024, 10 minutes)."""
+        return self._override("sacred_weapon_model", "action")
+
     def two_weapon_fighting_model(self) -> str:
         """``bonus_action`` (2014) or ``attack_action_light`` (2024)."""
         return self._override("two_weapon_fighting_model", "bonus_action")
@@ -126,6 +130,31 @@ class Ruleset(ABC):
 
     def weapon_mastery_enabled(self) -> bool:
         return bool(self._override("weapon_mastery_enabled", False))
+
+    def stones_endurance_uses_model(self) -> str:
+        """Default Stone's Endurance uses when the race YAML has no
+        ``resource_pools`` entry for it: ``once_per_short_rest`` (2014) or
+        ``proficiency_per_long_rest`` (2024, shared Giant Ancestry pool)."""
+        return str(self._override("stones_endurance_uses_model", "once_per_short_rest"))
+
+    # --- Magic items ---
+    # Attunement is the same in DMG 2014 and DMG 2024 (short rest focused on
+    # one item, at most three items). These are campaign knobs, overridable
+    # through ``game.yml`` ``ruleset_overrides``.
+    def attunement_limit(self) -> int:
+        """Magic items a creature can be attuned to at once (class features may raise it)."""
+        return int(self._override("attunement_limit", 3))
+
+    def attunement_requires_rest(self) -> bool:
+        """``True``: attuning / ending attunement waits for a rest. ``False``: instant (house rule)."""
+        return bool(self._override("attunement_requires_rest", True))
+
+    def attunements_per_rest(self, rest_kind: str) -> int:
+        """Pending attunement changes a rest completes: one per short rest (one
+        hour focused on the item); a long rest's two hours of light activity fit two."""
+        if rest_kind == "long_rest":
+            return int(self._override("attunements_per_long_rest", 2))
+        return int(self._override("attunements_per_short_rest", 1))
 
     def phb_2024_grapple_move_cost(self) -> bool:
         """Size-based grappling movement cost from 2024 rules."""

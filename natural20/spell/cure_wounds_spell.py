@@ -72,6 +72,8 @@ class CureWoundsSpell(Spell):
             session = battle.session
 
         if item['type'] == 'spell_heal':
+            from natural20.utils.healing import effective_heal_roll
+            item['heal_roll'] = effective_heal_roll(item['target'], item['heal_roll'])
             heal_value = item['heal_roll'].result()
             spell_level = item.get('at_level') or item.get('spell', {}).get('level', 1)
             bonus = 0

@@ -1,0 +1,27 @@
+lucky:
+  name: Lucky
+  category: origin
+  edition: 5e-2024
+  description: |
+    Fortune bends a little in your favor. You have a number of Luck Points equal
+    to your Proficiency Bonus and regain them all after a Long Rest.
+
+    * Spend a Luck Point on one of your own D20 Tests to roll it with Advantage.
+
+    * When a creature makes an attack roll against you, spend a Luck Point to
+      give that roll Disadvantage.
+
+    In the engine a point is offered after the d20 is rolled: after one of your
+    rolls fails (roll another d20, keep the higher) or after an attack roll hits
+    you (the attacker rolls another d20 and keeps the lower). The odds of
+    success match spending it up front.
+  resource_pools:
+    luck_points:
+      max: proficiency_bonus
+      restore_on: long_rest
+  luck:
+    pool: luck_points
+    self_advantage: true
+    impose_disadvantage: true
+    ai_min_chance: 0.25
+  prerequisites: []

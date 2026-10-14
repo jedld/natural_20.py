@@ -6,3 +6,21 @@ class_features:
   - lay_on_hands
   - weapon_mastery
 weapon_mastery_known: 2
+# 2024: two Channel Divinity uses (three from level 11); one returns on a
+# short rest, all on a long rest. Abjure Foes at 9, Radiant Strikes at 11.
+channel_divinity_uses:
+  3: 2
+  11: 3
+channel_divinity_short_rest_recovery: 1
+progression:
+  level_3:
+    class_features:
+      - divine_smite
+      - channel_divinity
+      - sacred_oath
+  level_9:
+    class_features:
+      - abjure_foes
+  level_11:
+    class_features:
+      - radiant_strikes

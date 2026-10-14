@@ -21,10 +21,18 @@ class TestResourcePool(unittest.TestCase):
     def test_restore_for_matches_kind(self):
         p = ResourcePool('ki', 3, restore_on='short_rest')
         p.consume(2)
-        self.assertFalse(p.restore_for('long_rest'))
+        self.assertFalse(p.restore_for('turn'))
         self.assertEqual(p.current, 1)
         self.assertTrue(p.restore_for('short_rest'))
         self.assertEqual(p.current, 3)
+        # A long rest also refills short-rest pools.
+        p.consume(2)
+        self.assertTrue(p.restore_for('long_rest'))
+        self.assertEqual(p.current, 3)
+        long_pool = ResourcePool('rage', 2, restore_on='long_rest')
+        long_pool.consume(1)
+        self.assertFalse(long_pool.restore_for('short_rest'))
+        self.assertEqual(long_pool.current, 1)
 
     def test_invalid_restore_kind(self):
         with self.assertRaises(ValueError):

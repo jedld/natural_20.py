@@ -55,6 +55,17 @@ def _spell_label(spell):
     return getattr(spell, 'name', None) or str(spell)
 
 
+def _roll_vs_dc(event, roll_key='roll'):
+    """``(1d20+3=15 vs DC 14)`` for a save/check event; ``(auto-fail)`` without a roll."""
+    roll = event.get(roll_key)
+    if roll is None:
+        return '(auto-fail)'
+    try:
+        return f"({roll}={roll.result()} vs DC {event.get('dc')})"
+    except Exception:
+        return f"({roll} vs DC {event.get('dc')})"
+
+
 class EventLogger:
     """
     A simple logger for engine related events that logs to stdout
@@ -215,6 +226,9 @@ class EventManager:
             roll = event.get('hp_gain_roll')
             if roll is not None:
                 msg += f", regaining {roll} = {roll.result()} hit points"
+            temp_roll = event.get('temp_hp_roll')
+            if temp_roll is not None:
+                msg += f", gaining {temp_roll} = {temp_roll.result()} temporary hit points"
             self.output_logger.log(msg + ".")
 
         def attack_roll(event):
@@ -242,6 +256,22 @@ class EventManager:
                 if event.get('as_legendary_action'):
                     cast = "[legendary action] " + cast
                 self.output_logger.log(f"{cast} but {self.show_target_name(event)} succeeded on the save with {save} = {save.result()} >= DC {event['dc']}.")
+            elif event.get('attack_roll') is None:
+                # The spell never got to a roll: an invalid target or area.
+                target = event.get('spell_target')
+                target_name = self.decorate_name(target) if target is not None else None
+                reasons = {
+                    'not_humanoid': f"{target_name or 'the target'} is not a humanoid",
+                    'immune': f"{target_name or 'the target'} is immune",
+                    'no_target': 'there was no valid target',
+                    'no_targets': 'there was no valid target',
+                    'targets_too_far_apart': 'the targets are too far apart',
+                    'invalid_area': 'the area is not valid',
+                    'no_recent_corpse': 'there is no recently dead creature there',
+                }
+                reason = reasons.get(event.get('message') or '', 'the spell had no valid target')
+                self.output_logger.log(f"{self.show_name(event)} cast {self.attack_label(event['attack_name'])} "
+                                       f"but it has no effect: {reason}.")
             else:
                 self.output_logger.log(f"{msg} but missed with {event['attack_roll']}= {event['attack_roll'].result()}.")
 
@@ -372,15 +402,18 @@ class EventManager:
             self.output_logger.log(message)
 
         def damage(event):
-            if event.get('roll_info'):
-                damage = event.get('value', event.get('roll_info').result())
+            roll_info = event.get('roll_info')
+            if not hasattr(roll_info, 'result'):
+                roll_info = None
+            if roll_info is not None:
+                damage = event.get('value', roll_info.result())
             else:
                 damage = event['value']
             keyword = ""
             sneak_attack = event.get('sneak_attack')
-            if event.get('roll_info'):
+            if roll_info is not None:
                 # ``value`` already includes any Sneak Attack dice.
-                rolled = event.get('roll_info').result() + (sneak_attack.result() if sneak_attack else 0)
+                rolled = roll_info.result() + (sneak_attack.result() if hasattr(sneak_attack, 'result') else 0)
                 if (rolled > damage):
                     keyword = "reduced to"
                 elif (rolled < damage):
@@ -395,7 +428,6 @@ class EventManager:
             elif event.get('total_damage') > event.get('value'):
                 msg += f" {self.show_name(event)} seems to be vulnerable to {event['damage_type']} damage."
 
-            roll_info = event.get('roll_info')
             if roll_info and sneak_attack:
                 breakdown = f"{roll_info} + {sneak_attack} sneak attack {keyword} "
             elif roll_info:
@@ -609,6 +641,31 @@ class EventManager:
             'damage_absorption': lambda event: self.output_logger.log(f"{self.show_name(event)} absorbs {event['damage_type']} damage and is intead healed by {event['damage']} hit points."),
             'damage_immunity': lambda event: self.output_logger.log(f"{self.show_name(event)} is unaffected by {event['damage_type']} damage."),
             'legendary_resistance': lambda event: self.output_logger.log(f"{self.show_name(event)} fails a {event['save_type']} saving throw ({event['roll'].result()} vs DC {event['dc']}) but uses Legendary Resistance to succeed instead ({event['remaining']} left today)."),
+            'forced_push': lambda event: self.output_logger.log(
+                f"{self.decorate_name(event.get('target'))} is pushed {event.get('distance')} feet away from {self.show_name(event)}."),
+            'taunt': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} taunts {self.show_name({'source': event['target']}) if event.get('target') is not None else 'nobody'}"
+                + (" but they can't hear it" if event.get('no_effect') else
+                   f" (save {event['roll'].result()} vs DC {event['dc']}): "
+                   + ("they are goaded into attacking the taunter" if event.get('taunted') else "they shrug it off")
+                   if event.get('roll') is not None else '')
+                + "."),
+            'class_feature_action': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {event.get('label')}"
+                + (f" and gains {event['temp_hp']} temporary hit points" if event.get('temp_hp') else '')
+                + (f" and regains {event['restored_slots']} spell slot(s)" if event.get('restored_slots') else '')
+                + "."),
+            'hit_reaction': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {event['label']} as a reaction"
+                + (f" (spending a level {event['slot_level']} spell slot)" if event.get('slot_level') else '') + "."),
+            'reaction_cast': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts {event.get('spell')} as a reaction."),
+            'spell_rider': lambda event: self.output_logger.log(
+                f"{event['rider']}: "
+                + (f"{self.show_name({'source': event['target']})} " if event.get('target') is not None else f"{self.show_name(event)} ")
+                + (f"rolls {event['roll'].result()} vs DC {event['dc']} and " if event.get('roll') is not None else '')
+                + f"{event.get('message', '')}."),
+            'save_auto_success': lambda event: self.output_logger.log(f"{self.show_name(event)} fails a {event['save_type']} saving throw ({event['roll'].result()} vs DC {event['dc']}) but uses {str(event['feature']).replace('_', ' ').title()} to succeed instead."),
             'regeneration': lambda event: self.output_logger.log(f"{self.show_name(event)} regenerates {event['value']} hit points."),
             'regeneration_blocked': lambda event: self.output_logger.log(f"{self.show_name(event)} cannot regenerate this turn ({str(event['reason']).replace('_', ' ')})."),
             'misty_escape': lambda event: self.output_logger.log(f"{self.show_name(event)} drops to 0 hit points and dissolves into a cloud of mist, escaping toward its resting place."),
@@ -621,10 +678,46 @@ class EventManager:
             'polymorph_unaffected': lambda event: self.output_logger.log(f"Polymorph has no effect on {self.show_target_name(event)} ({str(event.get('reason')).replace('_', ' ')})."),
             'wild_shape_revert': lambda event: self.output_logger.log(f"{self.show_name(event)} reverts from Wild Shape to their normal form."),
             'additional_damage': lambda event: self.output_logger.log(f"{self.show_target_name(event)} takes {event['value']} additional {event['damage_type']} damage from {self.show_name(event)}'s {self.attack_label(event['attack_name'])}."),
+            'undead_fortitude': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} {'clings to unlife and stays at 1 HP' if event.get('success') else 'fails to cling to unlife'} "
+                f"(Undead Fortitude, CON save {event['roll']} vs DC {event['dc']})."),
+            'save_assist': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {str(event.get('feature') or 'a reaction').replace('_', ' ').title()} to add +{event.get('bonus')} to {self.show_target_name(event)}'s {event.get('save_type')} saving throw ({event['roll'].result()} vs DC {event.get('dc')})."),
+            'rest_items': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} prepares {', '.join(str(i).replace('_', ' ') for i in event.get('items') or [])}."),
+            'craft_item': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} creates {str(event.get('item')).replace('_', ' ')}" + (f" using a level {event['slot_level']} spell slot." if event.get('slot_level') else ".")),
+            'no_healing': lambda event: self.output_logger.log(f"{self.show_target_name(event)} can't regain hit points until {self.show_name(event)}'s next turn."),
+            'thrown_item_hit': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} throws {event.get('item_label', 'a flask')} at {self.show_target_name(event)} and hits"
+                + (f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}." if event.get('attack_roll') is not None else ".")),
+            'thrown_item_miss': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} throws {event.get('item_label', 'a flask')} at {self.show_target_name(event)} and misses"
+                + (f" with attack roll {event['attack_roll']} = {event['attack_roll'].result()}." if event.get('attack_roll') is not None else ".")),
+            'burning': lambda event: self.output_logger.log(f"{self.show_target_name(event)} catches fire ({event.get('damage')} {event.get('damage_type')} damage at the start of each of its turns)."),
+            'burning_damage': lambda event: self.output_logger.log(f"{self.show_name(event)} burns for {event['roll']} = {event['value']} {event.get('damage_type', 'fire')} damage."),
+            'burning_extinguished': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} puts out the flames on {self.show_target_name(event)}."
+                if event.get('source') is not event.get('target')
+                else f"{self.show_name(event)} puts out the flames."),
+            'extinguish_failed': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} fails to put out the flames on {self.show_target_name(event)} "
+                f"(Dexterity check {event['roll']} = {event['roll'].result()} vs DC {event['dc']})."),
             'life_drain': lambda event: self.output_logger.log(f"{self.show_name(event)} drains {event['value']} life from {self.show_target_name(event)}: its hit point maximum is reduced and {self.show_name(event)} regains that many hit points."),
             'grappled_on_hit': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)} (escape DC {event['escape_dc']}) instead of dealing {event['damage_type']} damage."),
             'charmed': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is charmed by {self.show_name(event)}."),
             'charm_ended': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is no longer charmed by {self.show_name(event)}."),
+            'frightened': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is frightened of {self.show_name(event)}."),
+            'fear_ended': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is no longer frightened of {self.show_name(event)}."),
+            'attack_option_armed': lambda event: self.output_logger.log(f"{self.show_name(event)} readies {event.get('option')} for their next weapon attack."),
+            'attack_option_hit': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {event.get('option')} on {self.show_target_name(event)}"
+                + (f": DC {event.get('dc')} save, rolled {event['roll'].result()} ({'success' if event.get('success') else 'failure'})" if event.get('roll') is not None else '')
+                + (f" — {str(event.get('outcome')).replace('_', ' ')}." if event.get('outcome') else '.')),
+            'sacred_weapon': lambda event: self.output_logger.log(f"{self.show_name(event)} channels divinity into their weapon: +{event.get('bonus')} to attack rolls and it glows with holy light."),
+            'abjure_foes': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses Abjure Foes but no foes are affected." if event.get('target') is None
+                else f"{self.show_target_name(event)} {'resists' if event.get('success') else 'fails to resist'} {self.show_name(event)}'s Abjure Foes (DC {event.get('dc')}, rolled {event['roll'].result() if event.get('roll') is not None else '-'})."),
             'generic_failed_save': lambda event: self.output_logger.log(f"[{event['effect_description']}]: {self.show_name(event)} failed a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']} = {event['roll'].result()}. {event['outcome']}"),
             'generic_success_save': lambda event: self.output_logger.log(f"[{event['effect_description']}]: {self.show_name(event)} succeeded on a {event['save_type']} saving throw against DC {event['dc']} with {event['roll']} = {event['roll'].result()}. {event.get('outcome')}"),
             'drop_concentration': lambda event: self.output_logger.log(f"{self.show_name(event)} drops concentration."),
@@ -670,6 +763,12 @@ class EventManager:
             'ice_knife': ice_knife,
             'flavor': lambda event: self.output_logger.log(self.t(f"event.flavor.{event['text']}", **event)),
             'lucky_reroll': lambda event: self.output_logger.log(f"{self.show_name(event)} uses luck to reroll from {event['old_roll']} to {event['roll']}"),
+            'luck_point': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} spends a luck point "
+                + (f"to roll {str(event.get('roll_kind') or 'the roll').replace('_', ' ')} with advantage: {event['old_roll']} -> {event['roll']} = {event['roll'].result()} vs {event.get('dc')}"
+                   if event.get('mode') == 'advantage' else
+                   f"to give {self.show_target_name(event)}'s attack disadvantage: {event['old_roll']} -> {event['roll']} = {event['roll'].result()} vs AC {event.get('dc')}")
+                + f" ({event.get('remaining')} left)."),
             'grapple_immune': lambda event: self.output_logger.log(f"For some reason, {self.show_target_name(event)} is immune to grapple."),
             'room_service_buzz': lambda event: self.output_logger.log(
                 event.get('message')
@@ -711,6 +810,26 @@ class EventManager:
                 f"{'succeeds' if event.get('save_success') else 'fails'}, "
                 f"{event.get('damage')} {event.get('damage_type')} damage."
             ),
+            'giant_ancestry': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {event.get('label', 'Giant Ancestry')} on {self.show_target_name(event)}"
+                + {
+                    'frosts_chill': ", slowing it by 10 feet.",
+                    'hills_tumble': ", knocking it prone.",
+                }.get(event.get('feature'), ".")
+            ),
+            'stones_endurance': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses Stone's Endurance ({event['roll']} = {event['roll'].result()}), "
+                f"reducing the damage by {event.get('reduced')}."
+            ),
+            'storms_thunder': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} answers with Storm's Thunder, dealing {event.get('damage')} "
+                f"thunder damage to {self.show_target_name(event)}."
+            ),
+            'clouds_jaunt': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses Cloud's Jaunt and teleports to {event.get('position')}."
+            ),
+            'large_form': lambda event: self.output_logger.log(f"{self.show_name(event)} grows to Large size (Large Form)."),
+            'large_form_end': lambda event: self.output_logger.log(f"{self.show_name(event)} returns to normal size."),
             'dispel_magic': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} casts Dispel Magic on {self.show_target_name(event)}"
                 + (f" with a level {event['cast_level']} slot" if event.get('cast_level') else "")
@@ -740,6 +859,88 @@ class EventManager:
             'use_item': handle_use_item,
             'interact': interact,
             'negative_heal': lambda event: self.output_logger.log(f"An effect is preventing {self.show_name(event)} from receiving the full amount of healing. {event['previous']} -> {event['new']}"),
+            'condition_spell_end': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} is no longer affected by {_spell_label(event.get('spell'))}"
+                + {'saved': ' (saved).', 'damaged': ' (took damage).'}.get(event.get('reason'), '.')
+            ),
+            'effect_ended': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} is no longer {str(event.get('effect_name', 'affected')).replace('_', ' ')}."
+            ),
+            'off_plane': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} vanishes from this plane"
+                f" ({str(event.get('reason') or 'away').replace('_', ' ')})."
+            ),
+            'returned_to_plane': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} reappears."
+            ),
+            'blink_roll': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} rolls {event['roll']}={event['roll'].result()} for Blink"
+                + (" and blinks out to the Ethereal Plane." if event.get('vanished') else " and stays.")
+            ),
+            'detect_creatures': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} ({_spell_label(event.get('spell'))}) senses "
+                + (", ".join(f"{f['name']} ({'/'.join(f.get('types') or []) or 'creature'})"
+                             for f in event.get('found') or []) or "nothing")
+                + " nearby."
+            ),
+            'contact_other_plane': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} contacts an otherworldly entity"
+                + (f" and may ask up to {event.get('questions', 5)} questions." if event.get('success')
+                   else " and the contact overwhelms their mind!")
+            ),
+            'hazard_save': lambda event: self.output_logger.log(
+                f"{event.get('label', 'Hazard')}: {self.show_target_name(event)} "
+                + (f"rolls {event['save_roll']}={event['save_roll'].result()} "
+                   if event.get('save_roll') is not None else "")
+                + f"on a DC {event.get('dc')} {event.get('save', '')} save"
+                + (" (success)" if event.get('saved') else " (failure)")
+                + f" and takes {event.get('damage')} {event.get('damage_type', '')} damage."
+            ),
+            'mechanism_rotated': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} turns {event.get('label', 'the mechanism')} to face "
+                f"{event.get('facing')}"
+                + (f" (combined Strength {event['combined_strength']})."
+                   if event.get('combined_strength') else
+                   f" (Strength check {event['roll']}={event['roll'].result()})."
+                   if event.get('roll') is not None else ".")
+            ),
+            'mechanism_rotate_failed': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} strains but cannot turn {event.get('label', 'the mechanism')}"
+                + (f" (Strength check {event['roll']}={event['roll'].result()} vs DC {event.get('dc')})."
+                   if event.get('roll') is not None else ".")
+            ),
+            'escape': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} escapes the battle"
+                + (f" using {event['method']}." if event.get('method') else ".")
+            ),
+            'death_burst': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} bursts as it dies! {self.show_target_name(event)} takes "
+                f"{event.get('damage')} {event.get('damage_type', '')} damage"
+                + (" (saved for half)." if event.get('saved') else ".")
+            ),
+            'recharge': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} rolls {event['roll']}={event['roll'].result()} to recharge "
+                f"{event.get('ability')}" + (" — it's ready again." if event.get('recharged') else ".")
+            ),
+            'npc_area_ability': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} uses {event.get('ability')}!"
+            ),
+            'npc_area_immune': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} is immune to {event.get('ability')}."
+            ),
+            'exhaustion': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} gains a level of exhaustion (now {event.get('level')})."
+            ),
+            'misty_step': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} teleports to {tuple(event.get('position') or ())}."
+            ),
+            'sending': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} sends a telepathic message to {self.show_target_name(event)}"
+                + (f": \"{event['message']}\"" if event.get('message') else ".")
+            ),
+            'plant_growth': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} makes the plants in the area grow thick and overgrown."
+            ),
             'dismiss_effect': lambda event: self.output_logger.log(f"{self.show_name(event)}: {_spell_label(event['effect'])} effect has been dismissed."),
             'resummon_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} summons {event['familiar'].name}"),
             'dismiss_familiar': lambda event: self.output_logger.log(f"{self.show_name(event)} dismisses {event['familiar'].name}"),
@@ -814,6 +1015,83 @@ class EventManager:
                 f"{'keeps footing' if event.get('success') else 'slips and falls prone'} "
                 f"in the Sleet Storm ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')})."
             ),
+            'weapon_hit_spell_cast': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts {event.get('spell')} (level {event.get('slot_level')}) "
+                f"as the blow lands on {self.decorate_name(event.get('target'))}."
+            ),
+            'ensnaring_strike': lambda event: self.output_logger.log(
+                f"{self.decorate_name(event.get('target'))} "
+                + ("tears through the grasping vines" if event.get('success')
+                   else "is restrained by thorny vines")
+                + f" {_roll_vs_dc(event)}."
+            ),
+            'break_free': lambda event: self.output_logger.log(
+                (f"{self.show_name(event)} struggles against {event.get('restraint')}"
+                 if event.get('source') is event.get('target')
+                 else f"{self.show_name(event)} tries to free {self.decorate_name(event.get('target'))} "
+                      f"from {event.get('restraint')}")
+                + f": {'free!' if event.get('success') else 'still held'} {_roll_vs_dc(event)}."
+            ),
+            'spike_growth': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Spike Growth: hidden thorns cover "
+                f"{len(event.get('squares') or [])} squares (difficult terrain, 2d4 piercing per 5 ft moved)."
+            ),
+            'spike_growth_damage': lambda event: self.output_logger.log(
+                f"{self.decorate_name(event.get('target'))} is torn by Spike Growth thorns."
+            ),
+            'silence': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Silence: a 20-ft sphere of absolute quiet covers "
+                f"{len(event.get('squares') or [])} squares (no speech, no verbal spells, immune to thunder)."
+            ),
+            'magic_weapon': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Magic Weapon on "
+                f"{self.decorate_name(event.get('target'))}'s {str(event.get('weapon')).replace('_', ' ')} "
+                f"(+{event.get('bonus')} to attack and damage)."
+                if event.get('weapon') else
+                f"{self.show_name(event)} casts Magic Weapon, but {self.decorate_name(event.get('target'))} "
+                f"holds no nonmagical weapon."
+            ),
+            'pass_without_trace': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Pass without Trace; "
+                f"{', '.join(event.get('members') or []) or 'the caster'} gain +10 to Stealth."
+            ),
+            'disguise_self': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Disguise Self and now looks like {event.get('description')}."
+            ),
+            'disguise_check': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} studies {self.decorate_name(event.get('target'))} and "
+                f"{'sees through the disguise' if event.get('success') else 'is fooled by the disguise'} "
+                f"{_roll_vs_dc(event)}."
+            ),
+            'rope_trick': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Rope Trick; "
+                f"{', '.join(event.get('members') or []) or 'the caster'} climb into the hidden space."
+            ),
+            'fear': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Fear: "
+                + ("; ".join(
+                    f"{self.decorate_name(s.get('target'))} "
+                    f"{'resists' if s.get('success') else 'is terrified'} "
+                    f"{_roll_vs_dc(dict(s, dc=event.get('dc')))}"
+                    for s in (event.get('saves') or [])) or "no creatures in the cone")
+                + "."
+            ),
+            'fear_save': lambda event: self.output_logger.log(
+                f"{self.decorate_name(event.get('target'))}, out of sight of its tormentor, "
+                f"{'shakes off the fear' if event.get('success') else 'remains terrified'} {_roll_vs_dc(event)}."
+            ),
+            'attack_surge': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} draws on {event.get('spell')}: the next weapon attack has advantage "
+                f"and the wind quickens their stride."
+            ),
+            'push_creature': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts {event.get('spell') or 'a gust'} at "
+                f"{self.decorate_name(event.get('target'))}: "
+                + ("too large to be moved" if event.get('too_large')
+                   else ("it holds its ground" if event.get('success') else "it is pushed back"))
+                + (f" {_roll_vs_dc(event)}" if not event.get('too_large') else "")
+                + "."
+            ),
             'call_lightning': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} casts Call Lightning"
                 f"{' and takes command of the storm' if event.get('stormy') else ''}; "
@@ -821,6 +1099,125 @@ class EventManager:
             ),
             'call_lightning_bolt': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} calls another lightning bolt down at {event.get('target')}."
+            ),
+            'daylight': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Daylight"
+                + (f", making {self.show_target_name(event)} shine like the sun"
+                   if event.get('target') is not None
+                   else f", flooding the area around {event.get('position')} with daylight")
+                + (f" and dispelling {event['dispelled']} magical darkness" if event.get('dispelled') else '')
+                + "."
+            ),
+            'remove_curse': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Remove Curse on {self.show_target_name(event)}"
+                + (f", ending {', '.join(str(e) for e in event['ended'])}" if event.get('ended') else '')
+                + (f" and breaking the hold of {', '.join(event['items'])}" if event.get('items') else '')
+                + ("." if (event.get('ended') or event.get('items') or event.get('status_cleared'))
+                   else ", but no curse was found.")
+            ),
+            'aura_of_vitality': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Aura of Vitality; healing energy radiates around them."
+            ),
+            'aura_of_vitality_pulse': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} channels the Aura of Vitality into {self.show_target_name(event)}."
+            ),
+            'faerie_fire': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Faerie Fire"
+                + (f"; {self.decorate_name(event['targets'])} glow with outlining light."
+                   if event.get('targets') else "; every creature in the area shrugs off the light.")
+            ),
+            'targeting_ward': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} tests {self.decorate_name(event['target'])}'s {event.get('label') or 'ward'} "
+                f"({event.get('save_type', 'wisdom')} save {event.get('roll')}="
+                f"{event['roll'].result() if event.get('roll') is not None else '?'} vs DC {event.get('dc')})"
+                + (f" and loses the {'spell' if event.get('kind') == 'spell' else 'attack'}."
+                   if event.get('blocked') else " and pushes through.")
+            ),
+            'sanctuary_end': lambda event: self.output_logger.log(
+                f"{self.show_name(event)}'s Sanctuary ends."
+            ),
+            'lesser_restoration': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Lesser Restoration on {self.show_target_name(event)}"
+                + (f", ending {str(event['ended']).replace('_', ' ')}." if event.get('ended')
+                   else ", but there is nothing to cure.")
+            ),
+            'ray_of_sickness': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} "
+                + ("is poisoned by the Ray of Sickness" if event.get('poisoned')
+                   else "fights off the Ray of Sickness's poison")
+                + (f" ({event['roll']}={event['roll'].result()} vs DC {event.get('dc')})."
+                   if event.get('roll') is not None else ".")
+            ),
+            'melfs_acid_arrow': lambda event: self.output_logger.log(
+                f"Acid clings to {self.show_target_name(event)} and will burn again at the end of their next turn."
+            ),
+            'flaming_sphere': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} conjures a Flaming Sphere at {event.get('target')}."
+            ),
+            'flaming_sphere_move': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} rolls the Flaming Sphere to {event.get('target')}"
+                + (f", ramming {self.decorate_name(event['ram'])}." if event.get('ram') is not None else ".")
+            ),
+            'dancing_weapon_move': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} "
+                + ("tosses" if event.get('toss') else "sends")
+                + f" the {event.get('item_name') or 'dancing weapon'} flying to {event.get('to')}"
+                + (f" to strike {self.decorate_name(event['target'])}" if event.get('target') is not None else "")
+                + (f" (attack {event.get('attack_number')} of {event.get('max_attacks')})."
+                   if event.get('attack_number') else ".")
+            ),
+            'dancing_weapon_return': lambda event: self.output_logger.log(
+                f"The {event.get('item_name') or 'dancing weapon'} "
+                + {
+                    'returned': f"flies back into {self.show_name(event)}'s hand.",
+                    'caught': f"is plucked from the air by {self.show_name(event)}.",
+                    'no_free_hand': f"returns but {self.show_name(event)} has no free hand; it drops at their feet.",
+                    'out_of_range': f"stops hovering and falls, too far from {self.show_name(event)}.",
+                }.get(event.get('outcome'), f"stops dancing for {self.show_name(event)}.")
+            ),
+            'attunement': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} " + {
+                    'attuned': f"is now attuned to {event.get('item_label')}.",
+                    'ended': f"ends attunement to {event.get('item_label')}.",
+                    'pending': (f"will attune to {event.get('item_label')} during the next rest."
+                                if event.get('mode') == 'attune'
+                                else f"will end attunement to {event.get('item_label')} during the next rest."),
+                    'failed': f"fails to {'attune to' if event.get('mode') != 'end' else 'end attunement to'} "
+                              f"{event.get('item_label')}: {event.get('reason')}",
+                    'lost': f"loses attunement to {event.get('item_label')}"
+                            + (' (left behind for 24 hours).' if event.get('reason') == 'separated' else '.'),
+                }.get(event.get('outcome'), f"attunement to {event.get('item_label')} changed.")
+            ),
+            'item_regain_hp': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} regains {event.get('value')} HP from "
+                f"{str(event.get('item') or 'an item').replace('_', ' ').title()}."
+            ),
+            'flaming_sphere_save': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} "
+                f"{'dodges most of the flames' if event.get('success') else 'is engulfed by the flames'} "
+                f"of the Flaming Sphere ({event.get('roll')}={event.get('roll').result()} vs DC {event.get('dc')})."
+            ),
+            'feather_fall': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Feather Fall; {self.decorate_name(event.get('targets') or [event['target']])} "
+                f"will drift gently down."
+            ),
+            'prestidigitation': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} performs a bit of Prestidigitation ({event.get('trick') or 'sensory'} trick)"
+                + (f" at {event.get('target')}." if event.get('target') else ".")
+            ),
+            'mending': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Mending"
+                + (f", repairing the {event['object_name']}." if event.get('object_name')
+                   else f" and knits a small break back together at {event.get('target')}.")
+            ),
+            'identify': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Identify on {self.show_target_name(event)}: "
+                + (f"magic items: {', '.join(event['items'])}" if event.get('items') else "no magic items")
+                + (f"; affected by {', '.join(event['spells'])}." if event.get('spells') else "; no active spells.")
+            ),
+            'gaseous_form': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Gaseous Form; {self.show_target_name(event)} "
+                f"{'become' if event.get('source') is event.get('target') else 'becomes'} a drifting cloud of mist."
             ),
             'revived': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} brings {self.show_target_name(event)} back to life "
@@ -950,7 +1347,11 @@ class EventManager:
         self.output_logger.log(f"{string}")
 
     def decorate_name(self, entity):
-        if isinstance(entity, tuple) or isinstance(entity, list):
+        if entity is None:
+            return "nothing"
+        if isinstance(entity, (tuple, list)):
+            if len(entity) == 2 and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in entity):
+                return f"the square at ({int(entity[0])}, {int(entity[1])})"
             decorated_names = [self.decorate_name(e) for e in entity]
             if not decorated_names:
                 return ""
@@ -958,7 +1359,10 @@ class EventManager:
                 return decorated_names[0]
             else:
                 return ", ".join(decorated_names[:-1]) + " and " + decorated_names[-1]
-        return entity.label()
+        label = getattr(entity, 'label', None)
+        if callable(label):
+            return label()
+        return str(entity)
 
     def attack_label(self, name):
         """Readable attack name: translates ``spell.*`` keys and turns raw

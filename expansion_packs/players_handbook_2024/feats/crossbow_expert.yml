@@ -1,0 +1,29 @@
+crossbow_expert:
+  name: Crossbow Expert
+  category: general
+  edition: 5e-2024
+  description: |
+    You have drilled with crossbows until they feel like part of your arm.
+
+    * Increase your Dexterity by 1, to a maximum of 20.
+
+    * You ignore the Loading property of crossbows, and can load one even
+      without a free hand.
+
+    * Being within 5 feet of an enemy doesn't give your crossbow attack rolls
+      Disadvantage.
+
+    * When you make the extra attack granted by the Light property with a
+      crossbow that has the Light property, you add your ability modifier to
+      that attack's damage.
+  ability_score_increase:
+    dexterity: 1
+  weapon_attack_rules:
+    - weapons: {weapon_type: crossbow}
+      ignore_properties: [loading]
+      no_adjacent_enemy_disadvantage: true
+    - weapons: {weapon_type: crossbow, property: light}
+      extra_attack_ability_damage: true
+  prerequisites:
+    - level: 4
+    - ability: {dexterity: 13}

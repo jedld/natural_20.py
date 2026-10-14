@@ -1,0 +1,11 @@
+archery:
+  name: Archery
+  category: fighting_style
+  description: |
+    You gain a +2 bonus to attack rolls you make with Ranged weapons (not to
+    damage, and not to thrown melee weapons).
+
+    The bonus is built in: any creature with `archery` among its feats, class
+    features or attributes gets it (`Entity.attack_roll_mod`).
+  prerequisites:
+    - feature: fighting_style

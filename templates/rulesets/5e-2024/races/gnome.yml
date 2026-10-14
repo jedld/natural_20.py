@@ -1,0 +1,25 @@
+# SRD 5.2 (2024) Gnome. Replaces templates/races/gnome.yml for 5e-2024 campaigns
+# (or a sheet with race_edition: 5e-2024).
+base_speed: 30
+size: small
+darkvision: 60
+languages:
+  - common
+language_choice: 2
+race_features:
+  - gnomish_cunning
+# Gnomish Cunning: advantage on every Intelligence, Wisdom and Charisma save.
+save_advantage:
+  source: gnomish_cunning
+  abilities: [intelligence, wisdom, charisma]
+# Gnomish Lineage: pick one. Lineage spells use the Intelligence, Wisdom or
+# Charisma modifier chosen at creation (sheet spell_abilities).
+subrace:
+  forest_gnome:
+    description: Forest Gnome - you know Minor Illusion and always have Speak with Animals prepared.
+    spells: [minor_illusion]
+    race_features: [speak_with_small_beasts]
+  rock_gnome:
+    description: Rock Gnome - you know Mending and Prestidigitation, and can spend 10 minutes casting Prestidigitation to build a Tiny clockwork device.
+    spells: [mending, prestidigitation]
+    race_features: [clockwork_device]

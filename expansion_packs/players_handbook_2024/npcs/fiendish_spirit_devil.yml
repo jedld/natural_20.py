@@ -1,0 +1,78 @@
+---
+# Summon Fiend (PHB 2024) spirit. AC, HP, attack bonus, damage bonus and the
+# Multiattack count are overwritten from the spell level by SummonSpiritSpell.
+# The spirit vanishes at 0 HP.
+kind: Fiendish Spirit (Devil)
+description: A winged devilish spirit wreathed in hellfire, called up from the Nine Hells by magic.
+outward_appearance: >-
+  A tall, horned devil with bat-like wings and smouldering red skin, flames
+  licking along its clawed hands and burning in its eyes.
+size: large
+race:
+  - fiend
+  - devil
+alignment: neutral
+default_ac: 18
+max_hp: 40
+hp_die: 6d10
+speed: 40
+speed_fly: 60
+darkvision: 60
+devils_sight: 60
+passive_perception: 10
+token:
+  - D
+color: "#b91c1c"
+ability:
+  str: 13
+  dex: 16
+  con: 15
+  int: 10
+  wis: 10
+  cha: 16
+languages:
+  - abyssal
+  - infernal
+telepathy: 60
+proficiency_bonus: 3
+resistances:
+  - fire
+damage_immunities:
+  - poison
+condition_immunities:
+  - poisoned
+attributes:
+  - magic_resistance
+  - multiattack
+multiattack:
+  - fiery_strike,fiery_strike,fiery_strike
+  - hurl_flame,hurl_flame,hurl_flame
+trait_descriptions:
+  devils_sight: Magical darkness doesn't impede the spirit's darkvision.
+  magic_resistance: The spirit has advantage on saving throws against spells and other magical effects.
+traits:
+  - devils_sight
+  - magic_resistance
+actions:
+  - name: fiery_strike
+    label: Fiery Strike
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 16
+    damage_die: 2d6+9
+    damage_type: fire
+    multiattack_group: 1
+  - name: hurl_flame
+    label: Fiery Strike (ranged)
+    type: ranged_attack
+    range: 150
+    range_max: 150
+    targets: 1
+    attack: 5
+    damage: 16
+    damage_die: 2d6+9
+    damage_type: fire
+    multiattack_group: 1
+token_image: token_fiendish_spirit_devil.png

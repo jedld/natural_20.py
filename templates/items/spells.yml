@@ -882,6 +882,7 @@ hex:
   range: 90
   school: enchantment
   concentration: true
+  curse: true
   type: buff
   spell_list_classes:
     - Warlock
@@ -1400,14 +1401,20 @@ comprehend_languages:
   status: comprehend_languages
   school: divination
   type: utility
-  spell_list_classes: [Wizard]
+  ritual: true
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
   spell_class: Natural20::ComprehendLanguages
 prestidigitation:
   label: Prestidigitation
   ai_in_combat: false
+  hostile: false
   casting_time: 1:action
   components: [verbal, somatic]
-  description: Perform a minor magical trick.
+  description: |
+    A small, harmless bit of magic within range: a puff of wind or a faint scent or sound,
+    a candle lit or snuffed, a small object cleaned or soiled, a pinch of material warmed,
+    chilled or flavored, a fleeting mark, or a tiny illusory trinket that lasts until the end
+    of your next turn.
   duration: 1h
   duration_seconds: 3600
   level: 0
@@ -1416,23 +1423,55 @@ prestidigitation:
   target_types: [point]
   school: transmutation
   type: utility
-  spell_list_classes: [Wizard, Sorcerer, Warlock]
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
   spell_class: Natural20::Prestidigitation
 feather_fall:
   label: Feather Fall
+  ai_in_combat: false
+  hostile: false
   casting_time: 1:reaction
   components: [verbal, material]
-  description: Slow falling creatures.
+  material: a small feather or piece of down
+  description: |
+    Cast as a reaction when you or a creature within 60 feet falls. Up to five falling
+    creatures in range drift down at 60 feet per round for the duration and take no falling
+    damage if they land before the spell ends.
   duration: 1m
   duration_seconds: 60
   level: 1
   name: Feather Fall
   range: 60
+  max_targets: 5
   status: feather_fall
   school: transmutation
   type: buff
-  spell_list_classes: [Wizard, Sorcerer, Bard]
+  spell_list_classes: [Bard, Sorcerer, Wizard]
   spell_class: Natural20::FeatherFall
+gaseous_form:
+  label: Gaseous Form
+  hostile: false
+  ai_in_combat: false
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a bit of gauze and a wisp of smoke
+  description: |
+    A willing creature you touch, along with what it wears and carries, turns into a drifting
+    cloud of mist for the duration. While in this form its only movement is a 10-foot flying
+    speed, it resists nonmagical bludgeoning, piercing and slashing damage, and it has
+    advantage on Strength, Dexterity and Constitution saving throws. It can pass through
+    small openings, but it can't attack, cast spells, talk, or manipulate objects. The spell
+    ends if the creature drops to 0 hit points.
+  duration: 1h
+  duration_seconds: 3600
+  concentration: true
+  level: 3
+  name: Gaseous Form
+  range: 5
+  status: gaseous_form
+  school: transmutation
+  type: buff
+  spell_list_classes: [Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::GaseousForm
 fly:
   label: Fly
   casting_time: 1:action
@@ -1470,16 +1509,27 @@ banishment:
   label: Banishment
   casting_time: 1:action
   components: [verbal, somatic, material]
-  description: Attempt to banish a creature to another plane.
+  description: >-
+    One creature you can see within range makes a Charisma saving throw. On a failure it is
+    transported to a harmless demiplane, where it is incapacitated, until the spell ends. It then
+    reappears in the space it left or the nearest unoccupied one. At Higher Levels: one additional
+    target for each slot level above 4th.
   duration: 1m
   duration_seconds: 60
   level: 4
+  upcast: true
   name: Banishment
   range: 60
   status: banished
   school: abjuration
   concentration: true
+  hostile: true
   type: debuff
+  target_types: [enemies]
+  condition_save:
+    save: charisma
+    off_plane: banished
+    extra_targets_per_slot: 1
   spell_list_classes: [Wizard, Sorcerer, Warlock, Cleric, Paladin]
   spell_class: Natural20::Banishment
 dispel_magic:
@@ -1738,14 +1788,23 @@ melfs_acid_arrow:
   label: Melf's Acid Arrow
   casting_time: 1:action
   components: [verbal, somatic, material]
+  material: powdered rhubarb leaf and an adder's stomach
   damage_type: acid
-  description: A shimmering green arrow streaks toward a target.
+  description: |
+    A shimmering green arrow streaks toward a target within range. Make a ranged spell attack.
+    On a hit the target takes 4d4 acid damage immediately and 2d4 acid damage at the end of its
+    next turn. On a miss the arrow splashes the target for half the initial damage and no
+    damage at the end of its turn.
+    At Higher Levels. Both the initial and the later damage increase by 1d4 for each slot
+    level above 2nd.
   duration: instant
   level: 2
+  upcast: true
   name: Melf's Acid Arrow
   range: 90
+  hostile: true
   school: evocation
-  type: ranged_spell_attack
+  type: ranged_attack
   spell_list_classes: [Wizard]
   spell_class: Natural20::MelfsAcidArrow
 message:
@@ -1772,6 +1831,49 @@ message:
   provokes_hostility: false
   spell_list_classes: [Wizard, Sorcerer, Bard, Artificer]
   spell_class: Natural20::Message
+dimension_door:
+  label: Dimension Door
+  casting_time: 1:action
+  components: [verbal]
+  description: >-
+    You teleport to any spot within range. You arrive at exactly the spot desired.
+    It can be a place you can see, one you can visualize, or one you can describe
+    by stating distance and direction. You can also teleport one willing creature
+    (not modelled). If you would arrive in a place already occupied by an object or
+    a creature, you take 4d6 force damage, and the spell fails to teleport you.
+  duration: instant
+  level: 4
+  name: Dimension Door
+  range: 500
+  require_los: false
+  ai_max_destinations: 24
+  school: conjuration
+  type: teleport
+  provokes_hostility: false
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::DimensionDoor
+sending:
+  label: Sending
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a copper wire
+  description: >-
+    You send a short message of 25 words or fewer to a creature you have met or
+    a creature described to you by someone who has met it. The target hears the
+    message in its mind, recognizes you as the sender if it knows you, and can
+    answer in a like manner immediately. Creatures with Intelligence scores of 1
+    understand your meaning but can't reply meaningfully.
+  duration: instant
+  level: 3
+  name: Sending
+  range: 5280
+  school: divination
+  type: utility
+  target_types: [allies, enemies]
+  provokes_hostility: false
+  ai_in_combat: false
+  spell_list_classes: [Bard, Cleric, Wizard]
+  spell_class: Natural20::Sending
 teleport:
   label: Teleport
   casting_time: 1:action
@@ -1999,27 +2101,48 @@ blade_ward:
   label: Blade Ward
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  description: >-
+    Until the end of your next turn you have resistance to bludgeoning, piercing and slashing
+    damage dealt by weapon attacks.
+  duration: 1 round
+  duration_seconds: 6
   level: 0
   name: Blade Ward
-  range: 30
+  range: self
   school: abjuration
-  type: utility
-  spell_list_classes: []
+  type: buff
+  hostile: false
+  ai_no_recast: true
+  blade_ward:
+    mode: resistance
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
   spell_class: Natural20::BladeWard
 calm_emotions:
   label: Calm Emotions
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  description: >-
+    Humanoids in a 20-foot-radius sphere within range make a Charisma saving throw (allies may
+    choose to fail). Allies become immune to being charmed or frightened. Hostile creatures that
+    fail become indifferent: they won't attack or cast spells until the spell ends or they take
+    damage.
+  duration: 1m
+  duration_seconds: 60
   level: 2
   name: Calm Emotions
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 60
+  school: enchantment
+  concentration: true
+  type: control
+  condition_save:
+    save: charisma
+    area: {shape: radius, size: 20}
+    creature_types: [humanoid]
+    conditions: [calmed]
+    restrict_actions: [attack, spell]
+    ends_on_damage: true
+    ally_condition_immunities: [charmed, frightened]
+  spell_list_classes: [Bard, Cleric, Warlock]
   spell_class: Natural20::CalmEmotions
 charm_person:
   label: Charm Person
@@ -2126,30 +2249,46 @@ darkvision:
   spell_list_classes: []
   spell_class: Natural20::Darkvision
 detect_evil_and_good:
-  label: Detect Evil And Good
+  label: Detect Evil and Good
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  description: >-
+    For the duration you sense the location of any aberration, celestial, elemental, fey, fiend or
+    undead within 30 feet of you. Thick barriers block the sense.
+  duration: 10m
+  duration_seconds: 600
   level: 1
-  name: Detect Evil And Good
+  name: Detect Evil and Good
   range: 30
-  school: abjuration
+  school: divination
+  concentration: true
   type: utility
-  spell_list_classes: []
+  ai_in_combat: false
+  detect:
+    creature_types: [aberration, celestial, elemental, fey, fiend, undead]
+  spell_list_classes: [Cleric, Paladin, Warlock]
   spell_class: Natural20::DetectEvilAndGood
 detect_poison_and_disease:
-  label: Detect Poison And Disease
+  label: Detect Poison and Disease
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  ritual: true
+  components: [verbal, somatic, material]
+  description: >-
+    For the duration you sense the location of poisons, poisonous or venomous creatures, and
+    magical contagions within 30 feet of you.
+  duration: 10m
+  duration_seconds: 600
   level: 1
-  name: Detect Poison And Disease
+  name: Detect Poison and Disease
   range: 30
-  school: abjuration
+  school: divination
+  concentration: true
   type: utility
-  spell_list_classes: []
+  ai_in_combat: false
+  detect:
+    poisonous: true
+    statuses: [poisoned, diseased]
+  spell_list_classes: [Cleric, Druid, Paladin, Ranger]
   spell_class: Natural20::DetectPoisonAndDisease
 detect_thoughts:
   label: Detect Thoughts
@@ -2168,14 +2307,23 @@ disguise_self:
   label: Disguise Self
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  description: |
+    You wrap yourself in an illusion that changes how you look, including your clothing, armor,
+    weapons and gear. You can seem up to a foot taller or shorter and look heavier or lighter,
+    but your basic body shape and limbs stay the same. The illusion fools the eye only: touch
+    reveals your true form. A creature that studies you can make an Intelligence (Investigation)
+    check against your spell save DC to realize you are disguised.
+  duration: 1h
+  duration_seconds: 3600
   level: 1
   name: Disguise Self
-  range: 30
-  school: abjuration
+  range: self
+  default_disguise: an unremarkable traveler
+  hostile: false
+  ai_in_combat: false
+  school: illusion
   type: utility
-  spell_list_classes: []
+  spell_list_classes: [Bard, Sorcerer, Wizard]
   spell_class: Natural20::DisguiseSelf
 dissonant_whispers:
   label: Dissonant Whispers
@@ -2219,16 +2367,33 @@ enhance_ability:
   spell_class: Natural20::EnhanceAbility
 ensnaring_strike:
   label: Ensnaring Strike
-  casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  casting_time: 1:bonus_action
+  components: [verbal]
+  damage_type: piercing
+  description: |
+    The next time you hit a creature with a weapon attack while this spell lasts, thorny vines
+    burst from the point of impact. The target makes a Strength saving throw (with advantage if
+    it is Large or larger). On a failure it is Restrained until the spell ends and takes 1d6
+    piercing damage at the start of each of its turns. The target, or a creature within reach of
+    it, can take an action to make a Strength (Athletics) check against your spell save DC; on a
+    success the vines release it and the spell ends.
+    Upcasting: the damage increases by 1d6 for each slot level above 1st.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
   level: 1
+  upcast: true
   name: Ensnaring Strike
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: self
+  weapon_hit:
+    weapon: any
+    timing: next_hit
+  save: strength
+  hostile: true
+  ai_no_recast: true
+  school: conjuration
+  type: buff
+  spell_list_classes: [Ranger]
   spell_class: Natural20::EnsnaringStrike
 entangle:
   label: Entangle
@@ -2259,15 +2424,25 @@ enthrall:
 faerie_fire:
   label: Faerie Fire
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  components: [verbal]
+  description: |
+    Every object in a 20-foot cube within range is outlined in blue, green, or violet light.
+    Each creature in the cube when the spell is cast is also outlined unless it succeeds on a
+    Dexterity saving throw. Outlined creatures shed dim light in a 10-foot radius, attack
+    rolls against them have advantage if the attacker can see them, and they can't benefit
+    from being invisible.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
   level: 1
   name: Faerie Fire
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 60
+  area_size: 20
+  save_type: dexterity
+  hostile: true
+  school: evocation
+  type: debuff
+  spell_list_classes: [Bard, Druid]
   spell_class: Natural20::FaerieFire
 find_steed:
   label: Find Steed
@@ -2311,15 +2486,29 @@ flame_blade:
 flaming_sphere:
   label: Flaming Sphere
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  components: [verbal, somatic, material]
+  material: a bit of tallow, a pinch of brimstone, and a dusting of powdered iron
+  damage_type: fire
+  description: |
+    A 5-foot sphere of fire appears in an unoccupied space of your choice within range. Any
+    creature that ends its turn within 5 feet of the sphere makes a Dexterity saving throw,
+    taking 2d6 fire damage on a failed save or half as much on a success. As a bonus action
+    you can move the sphere up to 30 feet; if you ram it into a creature, that creature makes
+    the save against the sphere's damage and the sphere stops moving this turn.
+    At Higher Levels. The damage increases by 1d6 for each slot level above 2nd.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
   level: 2
+  upcast: true
   name: Flaming Sphere
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 60
+  save_type: dexterity
+  hostile: true
+  ai_no_recast: true
+  school: conjuration
+  type: area
+  spell_list_classes: [Druid, Wizard]
   spell_class: Natural20::FlamingSphere
 fog_cloud:
   label: Fog Cloud
@@ -2361,18 +2550,18 @@ goodberry:
   spell_list_classes: []
   spell_class: Natural20::Goodberry
 hail_of_thorns:
-  label: Hail Of Thorns
-  casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
+  label: Hail of Thorns
+  casting_time: 1:bonus_action
+  components: [verbal]
+  description: Not part of the SRD. Campaigns get the full spell from the players_handbook_2024 expansion pack.
   duration: instant
   level: 1
-  name: Hail Of Thorns
-  range: 30
-  school: abjuration
+  name: Hail of Thorns
+  range: self
+  school: conjuration
   type: utility
   spell_list_classes: []
-  spell_class: Natural20::HailOfThorns
+  spell_class: Natural20::ExpansionPackOnly
 heat_metal:
   label: Heat Metal
   casting_time: 1:action
@@ -2402,16 +2591,21 @@ heroism:
 identify:
   label: Identify
   ai_in_combat: false
-  casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
+  hostile: false
+  casting_time: 1:minute
+  ritual: true
+  components: [verbal, somatic, material]
+  material: a pearl worth at least 100 gp and an owl feather
+  description: |
+    Touch an object or creature to learn its magical properties. For a creature, you learn
+    which magic items it carries and which spells, if any, are currently affecting it.
   duration: instant
   level: 1
   name: Identify
-  range: 30
-  school: abjuration
+  range: 5
+  school: divination
   type: utility
-  spell_list_classes: []
+  spell_list_classes: [Bard, Wizard]
   spell_class: Natural20::Identify
 illusory_script:
   label: Illusory Script
@@ -2495,16 +2689,19 @@ jump:
   spell_class: Natural20::Jump
 lesser_restoration:
   label: Lesser Restoration
+  hostile: false
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
+  description: |
+    You touch a creature and end either one disease or one condition afflicting it. The
+    condition can be blinded, deafened, paralyzed, or poisoned.
   duration: instant
   level: 2
   name: Lesser Restoration
-  range: 30
+  range: 5
   school: abjuration
-  type: utility
-  spell_list_classes: []
+  type: healing
+  spell_list_classes: [Bard, Cleric, Druid, Paladin, Ranger]
   spell_class: Natural20::LesserRestoration
 locate_animals_or_plants:
   label: Locate Animals Or Plants
@@ -2560,30 +2757,45 @@ magic_mouth:
   spell_class: Natural20::MagicMouth
 magic_weapon:
   label: Magic Weapon
-  casting_time: 1:action
+  casting_time: 1:bonus_action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  description: |
+    You touch a nonmagical weapon that you or a willing creature has equipped. Until the spell
+    ends it becomes a magic weapon with a +1 bonus to attack and damage rolls.
+    Upcasting: the bonus becomes +2 with a 4th-level slot and +3 with a 6th-level or higher slot.
+  duration: 1h
+  duration_seconds: 3600
+  concentration: true
   level: 2
+  upcast: true
   name: Magic Weapon
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 5
+  bonus_by_slot: [[2, 1], [4, 2], [6, 3]]
+  hostile: false
+  ai_no_recast: true
+  school: transmutation
+  type: buff
+  spell_list_classes: [Paladin, Ranger, Sorcerer, Wizard]
   spell_class: Natural20::MagicWeapon
 mending:
   label: Mending
   ai_in_combat: false
-  casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
+  hostile: false
+  casting_time: 1:minute
+  components: [verbal, somatic, material]
+  material: two lodestones
+  description: |
+    Repairs a single break or tear in an object you touch, such as a broken chain link, two
+    halves of a key, or a torn cloak, provided the break is no larger than 1 foot in any
+    dimension. It leaves no trace of the former damage.
   duration: instant
   level: 0
   name: Mending
-  range: 30
-  school: abjuration
+  range: 5
+  target_types: [point]
+  school: transmutation
   type: utility
-  spell_list_classes: []
+  spell_list_classes: [Bard, Cleric, Druid, Sorcerer, Wizard]
   spell_class: Natural20::Mending
 moonbeam:
   label: Moonbeam
@@ -2599,30 +2811,54 @@ moonbeam:
   spell_list_classes: []
   spell_class: Natural20::Moonbeam
 pass_without_trace:
-  label: Pass Without Trace
+  label: Pass without Trace
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  components: [verbal, somatic, material]
+  material: ashes from burned mistletoe and a sprig of spruce
+  description: |
+    Shadow and hush spread around you. Until the spell ends, you and the allies you choose
+    within 30 feet of you gain a +10 bonus to Dexterity (Stealth) checks while they stay within
+    30 feet of you, and nonmagical means can't track any of you.
+  duration: 1h
+  duration_seconds: 3600
+  concentration: true
   level: 2
-  name: Pass Without Trace
-  range: 30
+  name: Pass without Trace
+  range: self
+  radius: 30
+  skill_bonus: 10
+  hostile: false
+  ai_in_combat: false
+  ai_no_recast: true
   school: abjuration
-  type: utility
-  spell_list_classes: []
+  type: buff
+  spell_list_classes: [Druid, Ranger]
   spell_class: Natural20::PassWithoutTrace
 phantasmal_force:
   label: Phantasmal Force
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  components: [verbal, somatic, material]
+  description: >-
+    You craft an illusion in the mind of a creature you can see within range. It makes an
+    Intelligence saving throw or believes the phantasm is real for the duration. The phantasm can
+    harm it: on each of your turns the target takes 1d6 psychic damage.
+  duration: 1m
+  duration_seconds: 60
   level: 2
   name: Phantasmal Force
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 60
+  school: illusion
+  concentration: true
+  hostile: true
+  type: debuff
+  target_types: [enemies]
+  condition_save:
+    save: intelligence
+    conditions: [phantasm]
+    per_turn_damage:
+      dice: 1d6
+      damage_type: psychic
+  spell_list_classes: [Bard, Sorcerer, Wizard]
   spell_class: Natural20::PhantasmalForce
 prayer_of_healing:
   label: Prayer Of Healing
@@ -2664,30 +2900,48 @@ purify_food_and_drink:
   spell_list_classes: []
   spell_class: Natural20::PurifyFoodAndDrink
 ray_of_sickness:
-  label: Ray Of Sickness
+  label: Ray of Sickness
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
+  damage_type: poison
+  description: |
+    A ray of sickening greenish energy lashes out toward a creature within range. Make a
+    ranged spell attack. On a hit the target takes 2d8 poison damage and must make a
+    Constitution saving throw; on a failure it is also poisoned until the end of your next
+    turn.
+    At Higher Levels. The damage increases by 1d8 for each slot level above 1st.
   duration: instant
   level: 1
-  name: Ray Of Sickness
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  upcast: true
+  name: Ray of Sickness
+  range: 60
+  save_type: constitution
+  hostile: true
+  school: necromancy
+  type: ranged_attack
+  spell_list_classes: [Sorcerer, Wizard]
   spell_class: Natural20::RayOfSickness
 sanctuary:
   label: Sanctuary
-  casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  hostile: false
+  casting_time: 1:bonus_action
+  components: [verbal, somatic, material]
+  material: a small silver mirror
+  description: |
+    You ward a creature within range. Until the spell ends, any creature that targets the
+    warded creature with an attack or a harmful spell must first make a Wisdom saving throw;
+    on a failure it loses the attack or spell. Area effects are not blocked. The spell ends
+    if the warded creature makes an attack, casts a spell that affects an enemy, or deals
+    damage to another creature.
+  duration: 1m
+  duration_seconds: 60
   level: 1
   name: Sanctuary
   range: 30
+  save_type: wisdom
   school: abjuration
-  type: utility
-  spell_list_classes: []
+  type: warding
+  spell_list_classes: [Cleric]
   spell_class: Natural20::Sanctuary
 see_invisibility:
   label: See Invisibility
@@ -2732,14 +2986,26 @@ silence:
   label: Silence
   casting_time: 1:action
   components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  description: |
+    For the duration, no sound can be made inside or pass through a 20-foot-radius sphere
+    centered on a point you choose within range. Creatures entirely inside the sphere can't hear,
+    can't speak, and can't cast spells that have a verbal component, and they are immune to
+    thunder damage. This spell can be cast as a ritual.
+  duration: 10m
+  duration_seconds: 600
+  concentration: true
+  ritual: true
   level: 2
   name: Silence
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 120
+  radius: 20
+  target_types: [point]
+  hostile: false
+  ai_in_combat: false
+  ai_no_recast: true
+  school: illusion
+  type: control
+  spell_list_classes: [Bard, Cleric, Ranger]
   spell_class: Natural20::Silence
 silent_image:
   label: Silent Image
@@ -2770,15 +3036,29 @@ speak_with_animals:
 spike_growth:
   label: Spike Growth
   casting_time: 1:action
-  components: [verbal, somatic]
-  description: SRD spell catalog entry (implementation pending).
-  duration: instant
+  components: [verbal, somatic, material]
+  material: seven thorns
+  description: |
+    The ground in a 20-foot radius centered on a point within range sprouts hard, hidden spikes
+    and thorns. The area is difficult terrain for the duration, and a creature takes 2d4
+    piercing damage for every 5 feet it moves into or within the area. The spikes are
+    camouflaged; a creature that can't see the area when the spell is cast must make a Wisdom
+    (Perception) check against your spell save DC to notice the danger before entering.
+  duration: 10m
+  duration_seconds: 600
+  concentration: true
   level: 2
   name: Spike Growth
-  range: 30
-  school: abjuration
-  type: utility
-  spell_list_classes: []
+  range: 150
+  radius: 20
+  damage_per_step: 2d4
+  damage_type: piercing
+  target_types: [point]
+  hostile: true
+  ai_no_recast: true
+  school: transmutation
+  type: control
+  spell_list_classes: [Druid, Ranger]
   spell_class: Natural20::SpikeGrowth
 suggestion:
   label: Suggestion
@@ -3039,3 +3319,356 @@ sleet_storm:
   spell_list_classes: [Druid, Sorcerer, Wizard]
   ai_no_recast: true
   spell_class: Natural20::SleetStorm
+shining_smite:
+  label: Shining Smite
+  casting_time: 1:bonus
+  components: [verbal]
+  damage_type: radiant
+  description: |
+    Cast as a Bonus Action right after you hit a creature with a melee weapon or an Unarmed
+    Strike. The blow deals an extra 2d6 radiant damage, and until the spell ends the target glows
+    with dim light in a 5-foot radius, can't benefit from being invisible, and attack rolls
+    against it have advantage. Upcasting: the radiant damage grows by 1d6 for each slot level
+    above 2nd.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 2
+  upcast: true
+  name: Shining Smite
+  range: self
+  hostile: true
+  school: transmutation
+  type: buff
+  spell_list_classes: [Paladin]
+  spell_list_group: divine
+  spell_class: Natural20::ShiningSmite
+beacon_of_hope:
+  label: Beacon of Hope
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: |
+    Any number of creatures you choose within range are filled with hope. Until the spell ends,
+    each of them has advantage on Wisdom saving throws and death saving throws, and whenever
+    one of them regains hit points it gets the most the healing dice could produce.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 3
+  name: Beacon of Hope
+  range: 30
+  max_targets: 12
+  hostile: false
+  school: abjuration
+  type: buff
+  spell_list_classes: [Cleric, Paladin]
+  spell_list_group: divine
+  ai_no_recast: true
+  spell_class: Natural20::BeaconOfHope
+daylight:
+  label: Daylight
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: |
+    A 60-foot-radius sphere of daylight, with dim light for another 60 feet beyond it, spreads
+    from a point you pick within range. You can instead center it on an object you are holding
+    so the light travels with you. Magical darkness from a spell of 3rd level or lower whose area
+    overlaps the light is dispelled.
+  duration: 1h
+  duration_seconds: 3600
+  concentration: false
+  level: 3
+  name: Daylight
+  range: 60
+  radius: 60
+  hostile: false
+  ai_in_combat: false
+  school: evocation
+  type: utility
+  spell_list_classes: [Cleric, Druid, Paladin, Ranger, Sorcerer]
+  spell_class: Natural20::Daylight
+remove_curse:
+  label: Remove Curse
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: |
+    Your touch ends every curse affecting one creature or object. A cursed magic item keeps its
+    curse, but the attunement binding its owner is broken so the item can be taken off or thrown
+    away.
+  duration: instant
+  level: 3
+  name: Remove Curse
+  range: 5
+  hostile: false
+  school: abjuration
+  type: utility
+  spell_list_classes: [Cleric, Paladin, Warlock, Wizard]
+  spell_class: Natural20::RemoveCurse
+aura_of_vitality:
+  label: Aura of Vitality
+  casting_time: 1:action
+  components: [verbal]
+  description: |
+    Restorative energy surrounds you in a 30-foot aura that moves with you. Until the spell
+    ends, you can use a Bonus Action on each of your turns to have one creature in the aura
+    (yourself included) regain 2d6 hit points.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 3
+  name: Aura of Vitality
+  range: self
+  radius: 30
+  heal_dice: 2d6
+  hostile: false
+  school: evocation
+  type: healing
+  spell_list_classes: [Paladin]
+  spell_list_group: divine
+  ai_no_recast: true
+  spell_class: Natural20::AuraOfVitality
+rope_trick:
+  label: Rope Trick
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a segment of rope
+  description: |
+    A rope you touch rises into the air and opens an invisible doorway into a pocket space at its
+    top. Up to eight Medium or smaller creatures can climb in and pull the rope up after them.
+    Nothing outside can see, target or reach the creatures inside, and they can't attack or
+    cast spells out through the doorway. When the spell ends, everything inside drops out.
+    Engine model: the caster and up to seven nearby allies become untargetable and can't attack
+    or cast spells for the duration; the spell can only be cast outside of combat.
+  duration: 1h
+  duration_seconds: 3600
+  level: 2
+  name: Rope Trick
+  range: 5
+  max_creatures: 8
+  gather_radius: 30
+  requires: [out_of_combat]
+  hostile: false
+  ai_in_combat: false
+  school: transmutation
+  type: utility
+  spell_list_classes: [Wizard]
+  spell_class: Natural20::RopeTrick
+fear:
+  label: Fear
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a white feather
+  description: |
+    A phantom image of each creature's worst fear fills a 30-foot cone. Every creature in the
+    cone must succeed on a Wisdom saving throw or become Frightened of you for the duration.
+    While frightened this way, a creature must spend its turns taking the Dash action and moving
+    away from you by the safest route, unless it has nowhere to go. If it ends its turn where it
+    can't see you, it repeats the save, ending the effect on itself on a success.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 3
+  name: Fear
+  range: self
+  range_cone: 30
+  save: wisdom
+  hostile: true
+  school: illusion
+  type: debuff
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::Fear
+blink:
+  label: Blink
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    Roll a d20 at the end of each of your turns for the duration. On 11 or higher you vanish to the
+    Ethereal Plane and can't be targeted or affected by creatures on your original plane. At the
+    start of your next turn you return to an unoccupied space within 10 feet of where you vanished.
+  duration: 1m
+  duration_seconds: 60
+  level: 3
+  name: Blink
+  range: self
+  school: transmutation
+  type: buff
+  hostile: false
+  ai_no_recast: true
+  blink:
+    die: d20
+    success_min: 11
+  spell_list_classes: [Sorcerer, Wizard]
+  spell_class: Natural20::Blink
+contact_other_plane:
+  label: Contact Other Plane
+  casting_time: 1:minute
+  ritual: true
+  components: [verbal]
+  description: >-
+    You mentally contact a demigod, the spirit of a long-dead sage, or another knowledgeable
+    entity. Make a DC 15 Intelligence saving throw. On a failure you take 6d6 psychic damage and
+    are incapacitated until you finish a long rest. On a success you can ask up to five questions.
+  duration: 1m
+  duration_seconds: 60
+  level: 5
+  name: Contact Other Plane
+  range: self
+  school: divination
+  type: utility
+  ai_in_combat: false
+  contact:
+    save: intelligence
+    dc: 15
+    damage: 6d6
+    damage_type: psychic
+    statuses: [incapacitated, insanity]
+    questions: 5
+  spell_list_classes: [Warlock, Wizard]
+  spell_class: Natural20::ContactOtherPlane
+dominate_beast:
+  label: Dominate Beast
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    One beast you can see within range makes a Wisdom saving throw (with advantage if you or your
+    allies are fighting it). On a failure it is charmed and fights on your side until the spell
+    ends. Each time it takes damage it repeats the save, ending the spell on a success.
+  duration: 1m
+  duration_seconds: 60
+  level: 4
+  name: Dominate Beast
+  range: 60
+  school: enchantment
+  concentration: true
+  hostile: true
+  type: control
+  target_types: [enemies]
+  condition_save:
+    save: wisdom
+    charmed: true
+    dominate: true
+    creature_types: [beast]
+    advantage_in_combat: true
+    repeat_save_on_damage: true
+  spell_list_classes: [Druid, Sorcerer, Ranger]
+  spell_class: Natural20::DominateBeast
+dominate_person:
+  label: Dominate Person
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    One humanoid you can see within range makes a Wisdom saving throw (with advantage if you or
+    your allies are fighting it). On a failure it is charmed and fights on your side until the
+    spell ends. Each time it takes damage it repeats the save, ending the spell on a success.
+  duration: 1m
+  duration_seconds: 60
+  level: 5
+  name: Dominate Person
+  range: 60
+  school: enchantment
+  concentration: true
+  hostile: true
+  type: control
+  target_types: [enemies]
+  condition_save:
+    save: wisdom
+    charmed: true
+    dominate: true
+    creature_types: [humanoid]
+    advantage_in_combat: true
+    repeat_save_on_damage: true
+  spell_list_classes: [Bard, Sorcerer, Wizard]
+  spell_class: Natural20::DominatePerson
+hold_monster:
+  label: Hold Monster
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: >-
+    Choose a creature you can see within range (undead are unaffected). It makes a Wisdom saving
+    throw or is paralyzed for the duration, repeating the save at the end of each of its turns.
+    At Higher Levels: one additional creature per slot level above 5th; they must be within 30
+    feet of each other.
+  duration: 1m
+  duration_seconds: 60
+  level: 5
+  upcast: true
+  name: Hold Monster
+  range: 90
+  school: enchantment
+  concentration: true
+  hostile: true
+  type: control
+  target_types: [enemies]
+  condition_save:
+    save: wisdom
+    conditions: [paralyzed]
+    exclude_creature_types: [undead]
+    repeat_save: end_of_turn
+    extra_targets_per_slot: 1
+    targets_within_ft: 30
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::HoldMonster
+hypnotic_pattern:
+  label: Hypnotic Pattern
+  casting_time: 1:action
+  components: [somatic, material]
+  description: >-
+    A twisting pattern of colors fills a 30-foot cube within range. Each creature in it that sees
+    the pattern makes a Wisdom saving throw or is charmed, incapacitated and has a speed of 0 for
+    the duration. The effect ends for a creature that takes damage.
+  duration: 1m
+  duration_seconds: 60
+  level: 3
+  name: Hypnotic Pattern
+  range: 120
+  school: illusion
+  concentration: true
+  type: control
+  condition_save:
+    save: wisdom
+    area: {shape: cube, size: 30}
+    charmed: true
+    conditions: [incapacitated]
+    speed_zero: true
+    requires_sight: true
+    ends_on_damage: true
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::HypnoticPattern
+plant_growth:
+  label: Plant Growth
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    Overgrowth: plants within a 100-foot radius of a point within range become thick and
+    overgrown. A creature moving through the area must spend 4 feet of movement for every 1 foot
+    it moves. The 8-hour Enrichment option is narrative.
+  duration: instant
+  level: 3
+  name: Plant Growth
+  range: 150
+  radius: 100
+  overgrowth_movement_cost: 4
+  school: transmutation
+  type: utility
+  ai_in_combat: false
+  spell_list_classes: [Bard, Druid, Ranger]
+  spell_class: Natural20::PlantGrowth
+seeming:
+  label: Seeming
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    You give each chosen creature within range an illusory appearance, as Disguise Self. An
+    unwilling creature can make a Charisma saving throw to be unaffected. A creature that studies
+    a disguised target can see through it with an Investigation check against your spell save DC.
+  duration: 8h
+  duration_seconds: 28800
+  level: 5
+  name: Seeming
+  range: 30
+  max_targets: 6
+  school: illusion
+  type: utility
+  ai_in_combat: false
+  spell_list_classes: [Bard, Sorcerer, Wizard]
+  spell_class: Natural20::Seeming

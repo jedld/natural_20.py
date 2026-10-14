@@ -1,0 +1,74 @@
+# Player's Handbook (2024) spells that are not part of SRD 5.2.
+# Descriptions are paraphrased; mechanics run on generic engine hooks
+# (natural20/spell/extensions/weapon_hit_spell.py).
+---
+hail_of_thorns:
+  label: Hail of Thorns
+  casting_time: 1:bonus_action
+  components: [verbal]
+  damage_type: piercing
+  description: >-
+    Cast as a Bonus Action right after you hit a creature with a ranged weapon. Thorns burst
+    around the target: it and every other creature within 5 feet of it make a Dexterity saving
+    throw, taking 2d10 Piercing damage on a failure or half as much on a success. Using a
+    Higher-Level Spell Slot: the damage increases by 1d10 for each slot level above 1.
+  duration: instant
+  concentration: false
+  level: 1
+  upcast: true
+  name: Hail of Thorns
+  range: self
+  weapon_hit:
+    weapon: ranged
+    timing: after_hit
+  damage_dice: 2d10
+  damage_dice_per_slot: 1d10
+  save: dexterity
+  hostile: true
+  school: conjuration
+  type: buff
+  spell_list_classes: [Ranger]
+  spell_class: Natural20::HailOfThorns
+blade_ward:
+  description: >-
+    Whenever a creature makes an attack roll against you before the spell ends, the attacker
+    subtracts 1d4 from the attack roll.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  blade_ward:
+    mode: attack_penalty
+    dice: 1d4
+summon_fiend:
+  label: Summon Fiend
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  description: >-
+    You call forth a fiendish spirit (demon, devil or yugoloth) that appears in an unoccupied
+    space you can see within range. It is an ally to you and your companions, obeys your commands
+    and acts right after you in initiative. Its armor class, hit points and attacks scale with the
+    spell's level, and its attacks use your spell attack modifier. It vanishes at 0 hit points or
+    when the spell ends. Using a Higher-Level Spell Slot: use the higher level in its stat block.
+  duration: 1h
+  duration_seconds: 3600
+  concentration: true
+  level: 6
+  upcast: true
+  name: Summon Fiend
+  range: 90
+  school: conjuration
+  type: summon
+  hostile: false
+  ai_no_recast: true
+  summon_spirit:
+    base_level: 6
+    ac_base: 12
+    hp_per_slot: 15
+    damage_bonus_base: 3
+    multiattack: half_level
+    variants:
+      demon: {npc: fiendish_spirit_demon, hp: 50, label: Demon}
+      devil: {npc: fiendish_spirit_devil, hp: 40, label: Devil}
+      yugoloth: {npc: fiendish_spirit_yugoloth, hp: 60, label: Yugoloth}
+  spell_list_classes: [Warlock, Wizard]
+  spell_class: Natural20::SummonSpirit

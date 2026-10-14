@@ -138,6 +138,8 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
         else:
             if incorporeal_movement or (map.difficult_terrain(entity, *m, battle, from_pos=current_moves[index - 1]) and not entity.is_flying() and (not manual_jump or len(manual_jump)==0 or index not in manual_jump)):
                 movement_budget -= 2
+                if not incorporeal_movement and hasattr(map, 'extra_terrain_cost'):
+                    movement_budget -= map.extra_terrain_cost(*m)
             else:
                 movement_budget -= 1
 
@@ -230,6 +232,9 @@ def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_bu
 
 def retrieve_opportunity_attacks(entity, move_list, battle):
     if entity.any_class_feature(['flyby']):
+        return []
+    # Effects such as Zephyr Strike: "your movement doesn't provoke opportunity attacks".
+    if entity.has_effect('no_opportunity_attacks'):
         return []
 
     battle_map = battle.map_for(entity)

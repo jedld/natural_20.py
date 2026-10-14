@@ -1,0 +1,26 @@
+sharpshooter:
+  name: Sharpshooter
+  category: general
+  edition: 5e-2024
+  description: |
+    Your shots find their mark from any distance.
+
+    * Increase your Dexterity by 1, to a maximum of 20.
+
+    * Your ranged weapon attacks ignore Half Cover and Three-Quarters Cover.
+
+    * Being within 5 feet of an enemy doesn't give your ranged weapon attack
+      rolls Disadvantage.
+
+    * Attacking at long range doesn't give your ranged weapon attack rolls
+      Disadvantage.
+  ability_score_increase:
+    dexterity: 1
+  weapon_attack_rules:
+    - weapons: {type: ranged_attack}
+      ignore_cover: [half, three_quarters]
+      no_adjacent_enemy_disadvantage: true
+      no_long_range_disadvantage: true
+  prerequisites:
+    - level: 4
+    - ability: {dexterity: 13}

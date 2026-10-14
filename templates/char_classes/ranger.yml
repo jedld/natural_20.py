@@ -44,11 +44,13 @@ spell_list:
     - lesser_restoration
     - locate_animals_or_plants
     - locate_object
+    - magic_weapon
     - pass_without_trace
     - protection_from_poison
     - silence
     - spike_growth
   level_3:
+    - daylight
     - protection_from_energy
 ranger_archetypes:
   hunter:

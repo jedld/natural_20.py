@@ -532,6 +532,14 @@ class CombatLogVisibilityTest(unittest.TestCase):
         self.assertIn('regaining', line)
         self.assertIn('hit points', line)
 
+    def test_item_used_on_a_square_is_logged(self):
+        session, lines = _logging_session()
+        rogue = PlayerCharacter.load(session, 'halfling_rogue.yml')
+        item = SimpleNamespace(label=lambda: 'Wand of Fireballs')
+        session.event_manager.received_event({'event': 'use_item', 'source': rogue, 'item': item,
+                                              'target': [12, 7]})
+        self.assertIn('uses Wand of Fireballs on the square at (12, 7)', lines[-1])
+
     def test_shield_shows_until_next_turn_and_is_gone_by_turn_status(self):
         session, lines = _logging_session()
         battle = Battle(session, Map(session, 'battle_sim_objects'))
@@ -586,3 +594,23 @@ class RegenerationContextTest(unittest.TestCase):
         self.assertIn('regenerates 20 hp each turn unless it took radiant damage', text)
         note_damage_for_regeneration(goblin, 'radiant')
         self.assertIn('blocked next turn', _creature_details(None, goblin))
+
+
+class InvalidSpellTargetLogTest(unittest.TestCase):
+    def test_hold_person_on_undead_logs_why_nothing_happened(self):
+        session, lines = _logging_session()
+        cleric = PlayerCharacter.load(session, 'dwarf_cleric.yml')
+        cleric.properties['prepared_spells'].append('hold_person')
+        battle = Battle(session, Map(session, 'battle_sim_objects'))
+        vampire = session.npc('goblin', {'name': 'Vampire'})
+        vampire.properties['race'] = ['undead']
+        battle.add(cleric, 'a', position=[0, 5])
+        battle.add(vampire, 'b', position=[3, 5])
+        battle.start()
+        cleric.reset_turn(battle)
+        battle.set_current_turn(cleric)
+        action = SpellAction.build(session, cleric)['next'](['hold_person', 2])['next'](vampire)
+        battle.execute_action(action)
+        self.assertTrue(any('Hold Person' in l and 'no effect' in l and 'not a humanoid' in l
+                            for l in lines), lines)
+        self.assertNotIn('paralyzed', vampire.statuses)

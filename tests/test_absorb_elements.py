@@ -86,6 +86,99 @@ class AbsorbElementsTestCase(unittest.TestCase):
         self.assertTrue(self.wizard.has_effect('resistance_override'))
         self.assertIn('absorb_elements', self.wizard.statuses)
 
+    def _arm_absorb_elements(self, entity, damage_type='fire'):
+        """Apply Absorb Elements to ``entity`` and return the melee hook handler."""
+        spell_props = self.session.load_spell('absorb_elements')
+        spell = AbsorbElementsSpell(self.session, entity, 'AbsorbElementsSpell', spell_props)
+        action = SpellAction(self.session, entity, 'spell')
+        action.spell_action = spell
+        action.at_level = 1
+        action.trigger_damage_type = damage_type
+        action.trigger_heal_amount = 0
+        results = spell.resolve(entity, self.battle, action, self.battle_map)
+        AbsorbElementsSpell.apply(self.battle, results[0], self.session)
+        hooks = entity.entity_event_hooks.get('on_attack_hit', [])
+        assert hooks, 'absorb elements melee hook was not registered'
+        return hooks[-1]['handler']
+
+    def test_melee_hit_with_weapon_key_str_deals_extra_damage(self):
+        # PC attacks store hit_result['weapon'] as a weapon key string; the
+        # hook must resolve it instead of calling .get on the string.
+        self._arm_absorb_elements(self.wizard, 'fire')
+        hit_result = {
+            'source': self.wizard,
+            'target': self.attacker,
+            'type': 'damage',
+            'thrown': False,
+            'weapon': 'dagger',
+            'battle': self.battle,
+            'hit?': True,
+            'attack_roll': None,
+        }
+        results = self.wizard.resolve_trigger('on_attack_hit', {'result': hit_result})
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['type'], 'spell_damage')
+        self.assertEqual(results[0]['damage_type'], 'fire')
+        self.assertIs(results[0]['source'], self.wizard)
+        self.assertIs(results[0]['target'], self.attacker)
+        # The effect is consumed by the first hit.
+        self.assertEqual(self.wizard.resolve_trigger('on_attack_hit', {'result': hit_result}), [])
+        self.assertNotIn('absorb_elements', self.wizard.statuses)
+
+    def test_npc_melee_hit_uses_npc_action_dict(self):
+        self._arm_absorb_elements(self.attacker, 'cold')
+        npc_action = {
+            'name': 'Scimitar',
+            'type': 'melee_attack',
+            'range': 5,
+            'damage_die': '1d6+2',
+            'damage_type': 'slashing',
+        }
+        hit_result = {
+            'source': self.attacker,
+            'target': self.wizard,
+            'type': 'damage',
+            'thrown': False,
+            'weapon': None,
+            'npc_action': npc_action,
+            'battle': self.battle,
+            'hit?': True,
+            'attack_roll': None,
+        }
+        results = self.attacker.resolve_trigger('on_attack_hit', {'result': hit_result})
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['damage_type'], 'cold')
+
+    def test_ranged_hit_does_not_deal_extra_damage(self):
+        # Ranged weapon key (str) must be classified as ranged, not crash.
+        self._arm_absorb_elements(self.wizard, 'fire')
+        hit_result = {
+            'source': self.wizard,
+            'target': self.attacker,
+            'type': 'damage',
+            'thrown': False,
+            'weapon': 'shortbow',
+            'battle': self.battle,
+            'hit?': True,
+            'attack_roll': None,
+        }
+        self.assertEqual(self.wizard.resolve_trigger('on_attack_hit', {'result': hit_result}), [])
+        self.assertIn('absorb_elements', self.wizard.statuses)
+
+    def test_thrown_hit_does_not_deal_extra_damage(self):
+        self._arm_absorb_elements(self.wizard, 'fire')
+        hit_result = {
+            'source': self.wizard,
+            'target': self.attacker,
+            'type': 'damage',
+            'thrown': True,
+            'weapon': 'dagger',
+            'battle': self.battle,
+            'hit?': True,
+            'attack_roll': None,
+        }
+        self.assertEqual(self.wizard.resolve_trigger('on_attack_hit', {'result': hit_result}), [])
+
     def test_resolve_targets_self(self):
         spell_props = self.session.load_spell('absorb_elements')
         spell = AbsorbElementsSpell(self.session, self.wizard, 'AbsorbElementsSpell', spell_props)

@@ -16,7 +16,12 @@ from natural20.actions.help_action import HelpAction, HelpBonusAction
 from natural20.actions.second_wind_action import SecondWindAction
 from natural20.actions.grapple_action import GrappleAction, DropGrappleAction
 from natural20.actions.summon_creatures_action import SummonCreaturesAction, DismissSummonsAction
+from natural20.actions.npc_area_action import NpcAreaAction
+from natural20.actions.post_attack_teleport_action import PostAttackTeleportAction
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
+from natural20.actions.extinguish_flames_action import ExtinguishFlamesAction
+from natural20.actions.break_free_action import BreakFreeAction
+from natural20.actions.attack_surge_action import AttackSurgeAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
 from natural20.actions.ground_interact_action import GroundInteractAction
@@ -26,6 +31,9 @@ from natural20.actions.look_action import LookAction
 from natural20.actions.spell_action import SpellAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
 from natural20.actions.call_lightning_bolt_action import CallLightningBoltAction
+from natural20.actions.aura_of_vitality_heal_action import AuraOfVitalityHealAction
+from natural20.actions.flaming_sphere_action import FlamingSphereAction
+from natural20.actions.dancing_weapon_action import DancingWeaponAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.utils.action_builder import autobuild
 from natural20.actions.shove_action import ShoveAction, PushAction
@@ -116,8 +124,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         DisengageBonusAction, HideAction, HideBonusAction,
         DodgeAction, LookAction, MoveAction,
         StandAction, ShoveAction, HelpAction, HelpBonusAction, UseItemAction, GroundInteractAction,
-        SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction, CallLightningBoltAction,
-        PickpocketAction, SecondWindAction,
+        SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction, CallLightningBoltAction, AuraOfVitalityHealAction,
+        PickpocketAction, SecondWindAction, ExtinguishFlamesAction, BreakFreeAction,
     ]
 
     def __init__(self, session, type, opt=None):
@@ -199,6 +207,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         self.entity_uid = self.properties.get('entity_uid', opt.get('entity_uid', str(uuid.uuid4())))
         self._ensure_max_spell_slots_snapshot()
         self.setup_attributes()
+        from natural20.utils.innate_spellcasting import ensure_innate_pools
+        ensure_innate_pools(self)
+
+        from natural20.utils.giant_ancestry import initialize_racial_traits
+        initialize_racial_traits(self)
 
         if self.properties.get('buttons'):
             for button in self.properties['buttons']:
@@ -494,6 +507,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                             actions.extend(autobuild(session, CallLightningBoltAction, self, battle, map=map))
                         else:
                             actions.append(CallLightningBoltAction(session, self, 'call_lightning_bolt'))
+                    elif action_class == AuraOfVitalityHealAction:
+                        if auto_target:
+                            actions.extend(autobuild(session, AuraOfVitalityHealAction, self, battle, map=map))
+                        else:
+                            actions.append(AuraOfVitalityHealAction(session, self, 'aura_of_vitality_heal'))
                     elif action_class == PickpocketAction:
                         actions.append(PickpocketAction(session, self, 'pickpocket'))
                     elif action_class == SpellAction:
@@ -507,6 +525,13 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                             actions.append(SpellAction(session, self, 'spell'))
                     elif action_class == SecondWindAction:
                         actions.append(SecondWindAction(session, self, 'second_wind'))
+                    elif action_class == ExtinguishFlamesAction:
+                        if auto_target:
+                            actions.extend(ExtinguishFlamesAction.options_for(session, self, battle))
+                        else:
+                            actions.append(ExtinguishFlamesAction(session, self))
+                    elif action_class == BreakFreeAction:
+                        actions.extend(BreakFreeAction.options_for(session, self, battle))
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):
@@ -520,9 +545,30 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                                         actions.append(action)
 
             if not interact_only and not self.familiar():
+                if PostAttackTeleportAction.can(self, battle):
+                    actions.extend(PostAttackTeleportAction.options_for(session, self, battle, map=map,
+                                                                        auto_target=auto_target))
+                if NpcAreaAction.can(self, battle):
+                    actions.extend(NpcAreaAction.options_for(session, self, battle, map=map,
+                                                             auto_target=auto_target))
                 actions.extend(SummonCreaturesAction.options_for(session, self, battle))
                 if DismissSummonsAction.can(self, battle):
                     actions.append(DismissSummonsAction(session, self, 'dismiss_summons'))
+
+            if not interact_only:
+                if FlamingSphereAction.can(self, battle):
+                    if auto_target:
+                        actions.extend(autobuild(session, FlamingSphereAction, self, battle, map=map))
+                    else:
+                        actions.append(FlamingSphereAction(session, self, 'flaming_sphere_move'))
+                if DancingWeaponAction.can(self, battle):
+                    if auto_target:
+                        actions.extend(DancingWeaponAction.auto_build(session, self, battle, map=map))
+                    else:
+                        actions.extend(a for a in DancingWeaponAction.options_for(session, self, battle)
+                                       if a.available(battle))
+                if AttackSurgeAction.can(self, battle):
+                    actions.extend(AttackSurgeAction.build_all(session, self, battle=battle))
 
             if not interact_only and battle is not None and self.is_grappling():
                 for held in list(self.grappling_targets()):
@@ -573,7 +619,26 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         return True
 
     def prepared_spells(self):
-        return self.properties.get("prepared_spells", [])
+        prepared = list(self.properties.get("prepared_spells", []) or [])
+        from natural20.utils.innate_spellcasting import innate_spells
+        for spell in innate_spells(self):
+            if spell not in prepared:
+                prepared.append(spell)
+        return prepared
+
+    def spell_save_dc(self, ability_type='intelligence'):
+        from natural20.utils.innate_spellcasting import innate_save_dc
+        dc = innate_save_dc(self)
+        if dc is not None:
+            return dc
+        return super().spell_save_dc(ability_type)
+
+    def spell_attack_modifier_for(self, spell):
+        from natural20.utils.innate_spellcasting import innate_attack_bonus
+        bonus = innate_attack_bonus(self)
+        if bonus is not None:
+            return bonus + self.item_spell_attack_bonus()
+        return super().spell_attack_modifier_for(spell)
 
     def available_spells(self, battle, touch=False):
         if self.familiar():
@@ -615,6 +680,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             available_actions = self.npc_actions
 
         for npc_action in available_actions:
+            if npc_action.get("type") == "area_save":
+                continue
             if npc_action.get("ammo") and self.item_count(npc_action["ammo"]) <= 0:
                 continue
             if npc_action.get("if") and not self.eval_if(npc_action["if"]):
@@ -779,6 +846,9 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         base_dict["group"] = self.group
         base_dict["_current_hit_die"] = dict(self._current_hit_die)
         base_dict["_max_hit_die"] = dict(self._max_hit_die)
+        base_dict["resources"] = {
+            name: pool.to_dict() for name, pool in (getattr(self, 'resources', None) or {}).items()
+        }
         from natural20.weapon_mastery import mastery_state_to_dict
         base_dict.update(mastery_state_to_dict(self))
         return base_dict
@@ -812,6 +882,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
             npc.concentration = data["concentration"]
         if data.get("temp_hp"):
             npc._temp_hp = data["temp_hp"]
+        if data.get("resources"):
+            from natural20.resource_pool import ResourcePool
+            npc.resources = {
+                name: ResourcePool.from_dict(pdata) for name, pdata in data["resources"].items()
+            }
         from natural20.weapon_mastery import mastery_state_from_dict
         mastery_state_from_dict(npc, data)
         from natural20.utils.polymorph import reapply_after_load

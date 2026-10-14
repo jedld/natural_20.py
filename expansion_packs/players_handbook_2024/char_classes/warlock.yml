@@ -1,0 +1,84 @@
+# Warlock with the Archfey Patron subclass (Player's Handbook 2024, not SRD).
+# The base class is the SRD 5.2 overlay; only the subclass lives here.
+---
+inherit: "@templates/rulesets/5e-2024/char_classes/warlock.yml"
+subclasses:
+  archfey_patron:
+    # Sheet: otherworldly_patron: archfey_patron
+    features:
+      level_3: [archfey_spells, steps_of_the_fey]
+      level_6: [misty_escape]
+      level_10: [beguiling_defenses]
+      level_14: [bewitching_magic]
+    # Always prepared.
+    spells:
+      level_3: [calm_emotions, faerie_fire, misty_step, phantasmal_force, sleep]
+      level_5: [blink, plant_growth]
+      level_7: [dominate_beast, greater_invisibility]
+      level_9: [dominate_person, seeming]
+    resource_pools:
+      steps_of_the_fey:
+        feature: steps_of_the_fey
+        max: ability_mod:charisma
+        min: 1
+        restore_on: long_rest
+      beguiling_defenses:
+        feature: beguiling_defenses
+        max: 1
+        restore_on: long_rest
+    # Steps of the Fey: Misty Step without a slot, CHA mod times per long rest.
+    free_casts:
+      - feature: steps_of_the_fey
+        spell: misty_step
+        pool: steps_of_the_fey
+    # Optional effects when casting Misty Step (Steps of the Fey at level 3,
+    # Misty Escape adds two more at level 6). Listed best-first for the AI.
+    spell_riders:
+      - feature: misty_escape
+        spells: [misty_step]
+        id: dreadful_step
+        name: Dreadful Step
+        origin: best
+        radius: 5
+        save: wisdom
+        damage: 2d4
+        damage_type: psychic
+      - feature: steps_of_the_fey
+        spells: [misty_step]
+        id: taunting_step
+        name: Taunting Step
+        origin: departure
+        radius: 5
+        save: wisdom
+        on_fail: taunt
+      - feature: misty_escape
+        spells: [misty_step]
+        id: disappearing_step
+        name: Disappearing Step
+        invisible_until_next_turn: true
+      - feature: steps_of_the_fey
+        spells: [misty_step]
+        id: refreshing_step
+        name: Refreshing Step
+        temp_hp: 1d10
+    # Misty Escape: cast Misty Step as a Reaction when you take damage.
+    reaction_casts:
+      - feature: misty_escape
+        spell: misty_step
+        trigger: damage_taken
+    # Beguiling Defenses: immune to Charmed; Reaction when hit halves the
+    # damage and makes the attacker save or take that much psychic damage.
+    condition_immunities:
+      - feature: beguiling_defenses
+        conditions: [charmed]
+    hit_reactions:
+      - feature: beguiling_defenses
+        id: beguiling_defenses
+        name: Beguiling Defenses
+        pool: beguiling_defenses
+        restore_with_slot: true
+        requires_sight: true
+        halve_damage: true
+        retaliate:
+          save: wisdom
+          damage_type: psychic

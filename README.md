@@ -308,6 +308,10 @@ The simplest way to run the webapp is from the repository root:
 #            notebook + attachments, NPC memories) so the campaign starts fresh
 ./start_web.sh wild_sheep_chase --reset
 ./start_web.sh --edit --reset death_house
+#   --new    create the campaign (index.json, game.yml, one empty map, DM login
+#            dm/admin) if it doesn't exist yet, then boot it
+./start_web.sh --new --edit my_campaign            # slug -> user_levels/my_campaign
+./n20-webapp/start_web.sh --new ../user_levels/x   # paths are relative to your cwd
 ```
 
 The dev server runs on port 5001 by default (`http://localhost:5001`).

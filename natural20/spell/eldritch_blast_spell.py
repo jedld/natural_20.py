@@ -41,8 +41,11 @@ class EldritchBlastSpell(AttackSpell):
         }
 
     def _damage(self, battle, crit=False, opts=None):
-        # Each beam does 1d10 force damage
-        return DieRoll.roll("1d10", crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.eldritch_blast')))
+        # Each beam does 1d10 force damage (+ Agonizing Blast style riders).
+        from natural20.utils.class_mechanics import cantrip_damage_bonus
+        bonus = cantrip_damage_bonus(self.source, 'eldritch_blast')
+        expr = "1d10" if not bonus else f"1d10{'+' if bonus > 0 else ''}{bonus}"
+        return DieRoll.roll(expr, crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.eldritch_blast')))
 
     def avg_damage(self, battle, opts=None):
         return self._damage(battle, crit=False, opts=opts).expected()
@@ -96,6 +99,9 @@ class EldritchBlastSpell(AttackSpell):
                     "spell": self.properties,
                     "beam": i + 1
                 })
+                push = self._push_item(entity, target, battle, _battle_map)
+                if push:
+                    result.append(push)
             else:
                 result.append({
                     "type": "spell_miss",
@@ -113,4 +119,46 @@ class EldritchBlastSpell(AttackSpell):
                 })
 
         return result
+
+    def _push_item(self, entity, target, battle, battle_map):
+        """Repelling Blast style push on a hit (``cantrip_riders`` ``push``)."""
+        from natural20.utils.class_mechanics import cantrip_push
+        feet = cantrip_push(entity, 'eldritch_blast', target)
+        if not feet:
+            return None
+        if battle_map is None and battle is not None:
+            battle_map = battle.map_for(entity)
+        if battle_map is None:
+            return None
+        return {
+            'type': 'cantrip_push',
+            'source': entity,
+            'target': target,
+            'distance': feet,
+            'map': battle_map,
+            'effect': self,
+            'spell': self.properties,
+        }
+
+    @staticmethod
+    def apply(battle, item, session=None):
+        if item.get('type') != 'cantrip_push':
+            return None
+        source, target, battle_map = item['source'], item['target'], item.get('map')
+        if target is None or battle_map is None or target.dead():
+            return None
+        session = session or (battle.session if battle is not None else source.session)
+        try:
+            src = battle_map.position_of(source)
+            push_to = target.push_from(battle_map, src[0], src[1], distance=int(item['distance']))
+        except Exception:
+            return None
+        if push_to is None or tuple(push_to) == tuple(battle_map.position_of(target)):
+            return None
+        battle_map.move_to(target, *push_to, battle)
+        session.event_manager.received_event({
+            'event': 'forced_push', 'source': source, 'target': target,
+            'distance': int(item['distance']), 'position': list(push_to),
+        })
+        return target
 

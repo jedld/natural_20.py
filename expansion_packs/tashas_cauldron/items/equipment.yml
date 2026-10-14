@@ -1,0 +1,100 @@
+---
+# Alchemist experimental elixirs (Tasha's Cauldron of Everything).
+# EffectConsumableItem: natural20/item_library/effect_consumable.py
+# creator_riders: Restorative Reagents adds temp HP when the maker has it.
+elixir_of_healing:
+  name: Experimental Elixir (Healing)
+  item_class: EffectConsumableItem
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  cost: 0
+  description: The drinker regains 2d4 hit points plus the maker's Intelligence modifier.
+  flavor_text: A ruby-red draught that tastes faintly of cinnamon.
+  heal: 2d4
+  heal_bonus: creator_ability:intelligence
+  creator_riders:
+  - {feature: restorative_reagents, temp_hp: 2d6, temp_hp_bonus: 'creator_ability:intelligence'}
+  icon_prompt: small corked glass vial of glowing red liquid with a white heart sparkle
+elixir_of_swiftness:
+  name: Experimental Elixir (Swiftness)
+  item_class: EffectConsumableItem
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  cost: 0
+  description: The drinker's walking speed increases by 10 feet for 1 hour.
+  flavor_text: A fizzing blue tonic that makes the legs tingle.
+  buffs: {speed_bonus: 10}
+  duration_seconds: 3600
+  creator_riders:
+  - {feature: restorative_reagents, temp_hp: 2d6, temp_hp_bonus: 'creator_ability:intelligence'}
+  icon_prompt: small corked glass vial of pale yellow liquid with wind streak lines
+elixir_of_resilience:
+  name: Experimental Elixir (Resilience)
+  item_class: EffectConsumableItem
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  cost: 0
+  description: The drinker gains a +1 bonus to AC for 10 minutes.
+  flavor_text: A thick grey syrup that leaves the skin briefly stiff.
+  buffs: {ac_bonus: 1}
+  duration_seconds: 600
+  creator_riders:
+  - {feature: restorative_reagents, temp_hp: 2d6, temp_hp_bonus: 'creator_ability:intelligence'}
+  icon_prompt: small corked glass vial of steel blue liquid with a small shield emblem
+elixir_of_boldness:
+  name: Experimental Elixir (Boldness)
+  item_class: EffectConsumableItem
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  cost: 0
+  description: For 1 minute the drinker adds a d4 to every attack roll and saving throw it makes.
+  flavor_text: A golden liquid that burns pleasantly on the way down.
+  buffs: {attack_die: 1d4, save_die: 1d4}
+  duration_seconds: 60
+  creator_riders:
+  - {feature: restorative_reagents, temp_hp: 2d6, temp_hp_bonus: 'creator_ability:intelligence'}
+  icon_prompt: small corked glass vial of bright orange liquid with a golden flame spark
+elixir_of_flight:
+  name: Experimental Elixir (Flight)
+  item_class: EffectConsumableItem
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  cost: 0
+  description: The drinker gains a flying speed of 10 feet for 10 minutes.
+  flavor_text: A pale, almost weightless mist trapped in a vial.
+  buffs: {fly_speed: 10}
+  duration_seconds: 600
+  creator_riders:
+  - {feature: restorative_reagents, temp_hp: 2d6, temp_hp_bonus: 'creator_ability:intelligence'}
+  icon_prompt: small corked glass vial of sky blue liquid with a small white wing
+elixir_of_transformation:
+  name: Experimental Elixir (Transformation)
+  item_class: EffectConsumableItem
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  cost: 0
+  description: The drinker's body is transformed as if by the Alter Self spell for 10 minutes (cosmetic
+    changes only in the engine).
+  flavor_text: A shifting, iridescent liquid that never settles on one colour.
+  duration_seconds: 600
+  creator_riders:
+  - {feature: restorative_reagents, temp_hp: 2d6, temp_hp_bonus: 'creator_ability:intelligence'}
+  icon_prompt: small corked glass vial of swirling violet and green liquid with shimmering mask

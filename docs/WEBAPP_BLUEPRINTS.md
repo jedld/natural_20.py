@@ -29,7 +29,7 @@ Do **not** add new HTTP routes to `app.py` unless they are bootstrap-only (healt
 | `character` | `blueprints/character.py` | `/character_builder/*`, `/character_editor/*`, journal CRUD, `/inventory/container/*`, `/inventory/use` | `character.*` |
 | `notebook` | `blueprints/notebook.py` | `/notebook`, `/notebook/items`, `/notebook/folders`, `/notebook/shared/<id>` — player/campaign notes (SQLite) | `notebook.*` |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, `/actions/batch`, turn order, combat log | `battle.*` |
-| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/equipment`, `/item_card`, `/rest`, audio, entity admin, `/update_resource_pool`, `/update_inspiration`, `/admin/map_sets`, `/admin/map_set/*`, `/admin/sidekick`, `/dm/notes`, `/admin/illumination`, `/move_entity`, `/delete_entity`, `/undo_delete_entity` (DM Delete-key + Ctrl+Z), `/admin/users` + `/admin/manage_users` (login/role/PC-assignment management, backed by `webapp/user_management.py`) | `dm.*` |
+| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/equipment`, `/item_card`, `/attunement` (attune / end / cancel; `force` is DM-only), `/rest`, audio, entity admin, `/update_resource_pool`, `/update_inspiration`, `/admin/map_sets`, `/admin/map_set/*`, `/admin/sidekick`, `/dm/notes`, `/admin/illumination`, `/move_entity`, `/delete_entity`, `/undo_delete_entity` (DM Delete-key + Ctrl+Z), `/admin/users` + `/admin/manage_users` (login/role/PC-assignment management, backed by `webapp/user_management.py`) | `dm.*` |
 | `edit` | `blueprints/edit.py` | `/edit/session`, `/edit/overlay`, `/edit/move`, `/edit/map_graph`, `/edit/map_graph/layout` (campaign YAML authoring; per-DM-session edit mode) | `edit.*` |
 | `merchant` | `blueprints/merchant.py` | `/merchant`, `/merchant/preview`, `/merchant/trade` | `merchant.*` |
 | `client_3d` | `blueprints/client_3d.py` | `/3d` — Three.js VTT sibling (see [VTT_3D.md](VTT_3D.md)) | `client_3d.*` |
@@ -92,7 +92,7 @@ This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid squa
 | `runtime_state.py` | Lazy getters/setters: `get_current_game()`, `get_socketio()`, `get_event_manager()`, tile/map padding, etc. |
 | `auth_utils.py` | `logged_in`, `roles_for_username`, `user_role` |
 | `template_globals.py` | Jinja globals/filters (`t`, `describe_terrain`, `process_action_hash`, …) |
-| `action_utils.py` | Action class resolution, battle action helpers |
+| `action_utils.py` | Action class resolution (falls back to `class_feature_registry.action_class_named`, so registry-only actions such as `SacredWeaponAction` or `AttackOptionAction` need no extra mapping), battle action helpers |
 | `effects.py` | Effect caches, `register_effect_listeners()` (battle-end narration, control override), `register_battle_end_hook_handlers()` (campaign hooks + combat recap + NPC kill reactions) |
 | `special_effects.py` | Client effect payload filtering |
 | `journal_utils.py` | `_record_narration_for_pcs` (shared by effects and battle) |
@@ -236,7 +236,7 @@ Bottom-of-map chrome is stacked in two docks so panels do not cover each other: 
 
 The hamburger (`#floating-menu`) uses the same dark chrome. DM entries are grouped as Combat, Table, Spawn, Authoring (edit mode, map pins, AI assistant), then Session (notes, journal, combat log, world time, log out). Icons are Glyphicons already used elsewhere in the VTT.
 
-`POST /edit/session` with `{ "enabled": true|false }` toggles `session['edit_mode']`. YAML mutations (`/edit/move`, place/remove, etc.) still write `maps/*.yml` via `natural20/map_editor.py` and reload the live map, so the world changes are shared — only the authoring UI is session-scoped. Tokens with no YAML entry (party members added with `/add`, spawned NPCs) are moved live instead (`_move_live_entity`; the response has `persisted: false`), so the position lasts until the map reloads unless the game is saved.
+`POST /edit/session` with `{ "enabled": true|false }` toggles `session['edit_mode']`. YAML mutations (`/edit/move`, place/remove, etc.) still write `maps/*.yml` via `natural20/map_editor.py` and reload the live map, so the world changes are shared — only the authoring UI is session-scoped. Tokens with no `entities` entry are moved live (`_move_live_entity`). For player characters, `_persist_player_position` then writes the square to the map YAML `player:` list through `map_editor.place_player_in_map`. It updates the PC's entry, matched by `overrides.entity_uid` or sheet name, or adds one with the resolved sheet, so the PC respawns there after a restart, including deferred spawns. The response has `persisted: true` for those. Other runtime tokens, such as spawned NPCs, return `persisted: false`, so their position lasts until the map reloads unless the game is saved.
 
 `GET /edit/overlay` is rebuilt from map YAML on each request. It must not call `Session.load_object()` for NPC/PC legend types: those names are missing from `items/objects.yml`, and a catalog miss used to reload the whole YAML file once per entity (about 1.5s on tavern). The client also coalesces overlay reloads so a tile refresh does not fire the endpoint twice.
 
@@ -472,6 +472,32 @@ grappled creature, a chain badge on each token, and the tile hover hint.
   refreshes; a position/pair signature skips no-op redraws. A chain is drawn
   only when both tokens are rendered (fog of war hides the other end).
 - Tests: `tests/test_grapple_info.py`, `webapp/static/grapple_links.test.js`.
+
+## New campaign at startup (`--new`)
+
+`./start_web.sh --new <dir-or-slug>` creates a bootable campaign skeleton
+before the app starts, if `<dir>` has no `index.json` / `game.yml` yet. An
+existing campaign is left untouched and simply booted. A bare slug lands in
+`$N20_CAMPAIGNS_DIR` (`user_levels/`). An argument containing `/` is a path
+relative to the current directory.
+
+The shell calls `python -m natural20.campaign_scaffold --if-missing <path>`
+(`natural20/campaign_scaffold.py`; `scaffold_campaign()` is the reusable API).
+It writes:
+
+- `index.json`: title, `tile_size`, map size, `login_background`, empty `soundtracks` and `default_controllers`, and the DM login `dm` / `admin`.
+- `game.yml`: `ruleset: 5e-2014` (`--ruleset 5e-2024` when calling the module directly), `starting_map`, `maps`, `player_profiles`, and default groups.
+- `maps/start.yml`: an empty 20x15 floor.
+- `assets/title.png`: a placeholder login background.
+- Empty `characters/`, `npcs/`, `items/` and `assets/maps/` folders.
+
+Items, spells, classes, races and NPCs come from `templates/` until the
+campaign overrides them. Combine the flag with `--edit` to start authoring
+right away.
+
+`load_campaign_config` treats `login_background`, `soundtracks` and
+`default_controllers` as optional in `index.json`; `title`, `tile_size`,
+`map` and `logins` are required.
 
 ## Reset saves at startup (`--reset`)
 

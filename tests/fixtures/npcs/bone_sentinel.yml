@@ -1,0 +1,60 @@
+---
+kind: Bone Sentinel
+description: Test undead with any-combination multiattack, Undead Fortitude and a heal-blocking blade.
+size: medium
+race:
+  - undead
+alignment: lawful_evil
+default_ac: 18
+max_hp: 60
+hp_die: 8d8+24
+speed: 30
+passive_perception: 12
+darkvision: 60
+token:
+  - S
+ability:
+  str: 20
+  dex: 10
+  con: 16
+  int: 10
+  wis: 14
+  cha: 10
+saving_throw_proficiencies:
+  - constitution
+languages:
+  - common
+cannot_speak: true
+cr: 5
+xp: 1800
+proficiency_bonus: 3
+attributes:
+  - multiattack
+  - undead_fortitude
+undead_fortitude:
+  bypass: [bludgeoning]
+multiattack:
+  - any_of: [draining_blade, axe]
+    count: 3
+actions:
+  - name: draining_blade
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 8
+    damage: 15
+    damage_die: 3d6+5
+    damage_type: necrotic
+    multiattack_group: 1
+    on_hit:
+      - if: "target:!object"
+        fail: effect:no_healing
+  - name: axe
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 8
+    damage: 14
+    damage_die: 2d8+5
+    damage_type: slashing
+    multiattack_group: 1

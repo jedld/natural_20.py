@@ -137,7 +137,7 @@ def _descend_to_lower_floor(entity, stack, battle_map, wx, wy, elev, battle, ses
         return None
     delta = stack.elevation_delta_ft(elev, lower.elevation_ft)
     damage_die = stack.fall_damage_die(delta)
-    fall_preview = preview_fall_damage(entity, damage_die)
+    fall_preview = preview_fall_damage(entity, damage_die, fall_ft=delta)
     if fall_preview['die'] and session:
         _apply_fall_damage(entity, fall_preview['die'], battle, session)
     if hasattr(entity, 'dead') and entity.dead():
@@ -182,7 +182,7 @@ def apply_voluntary_stack_descent(entity, battle_map, descent_info, *, battle=No
         delta = stack.elevation_delta_ft(elev, lower.elevation_ft)
 
     damage_die = stack.fall_damage_die(delta)
-    fall_preview = preview_fall_damage(entity, damage_die)
+    fall_preview = preview_fall_damage(entity, damage_die, fall_ft=delta)
     if fall_preview['die']:
         _apply_fall_damage(entity, fall_preview['die'], battle, session)
     if hasattr(entity, 'dead') and entity.dead():

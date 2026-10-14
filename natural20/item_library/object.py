@@ -7,6 +7,7 @@ from typing import Tuple
 from typing import Any
 from natural20.entity import Entity
 from natural20.die_roll import DieRoll
+from natural20.exceptions import GameLoopControl
 from natural20.utils.action_builder import autobuild
 from natural20.actions.interact_action import InteractAction
 from natural20.concern.event_loader import EventLoader
@@ -18,7 +19,7 @@ import uuid
 import pdb
 
 
-class InvalidInteractionAction(Exception):
+class InvalidInteractionAction(GameLoopControl):
     def __init__(self, action: str, valid_actions: List[str] = []) -> None:
         self.action = action
         self.valid_actions = valid_actions
@@ -269,6 +270,13 @@ class Object(Entity, Container, EventLoader, Annotatable):
                     "disabled": disabled,
                     "disabled_text": "Already checked"
                 }
+        if self.properties.get('portable_item') and entity is not None and entity is not self:
+            from natural20.utils.portable_object import can_pickup_object
+            ok, reason = can_pickup_object(entity, self)
+            interactions['pick_up'] = {} if ok else {
+                'disabled': True,
+                'disabled_text': reason or 'Cannot pick up',
+            }
         return interactions
 
     def allow_targeting(self):
@@ -346,14 +354,27 @@ class Object(Entity, Container, EventLoader, Annotatable):
 
         return investigate_details
 
+    @staticmethod
+    def _roll_check_for(entity, ability, battle=None):
+        """Roll ``entity``'s skill check, or a plain ability check for an
+        ability name (``strength``/``str``)."""
+        roller = entity if entity is not None and hasattr(entity, f"{ability}_check") else None
+        if roller is not None:
+            return getattr(roller, f"{ability}_check")(battle)
+        if entity is not None and hasattr(entity, 'ability_check'):
+            short = Entity.ABILITY_SHORT_NAMES.get(ability, ability)
+            if short in Entity.ABILITY_SHORT_NAMES.values():
+                return entity.ability_check(short, battle)
+        return None
+
     def resolve(self, entity, action, other_params, opts=None):
         if opts is None:
             opts = {}
         if 'ability_checks' in self.properties:
             for ability, ability_checks in self.properties.get('ability_checks').items():
                 if action == f"{ability}_check":
-                    if hasattr(self, f"{ability}_check"):
-                        check_type_roll = getattr(self, f"{ability}_check")(opts.get('battle'))
+                    check_type_roll = self._roll_check_for(entity, ability, opts.get('battle'))
+                    if check_type_roll is not None:
                         return {
                             'action': action,
                             'ability': ability,
@@ -371,10 +392,21 @@ class Object(Entity, Container, EventLoader, Annotatable):
                 'target': self,
                 'battle': opts.get('battle')
             }
+        if action == 'pick_up' and self.properties.get('portable_item'):
+            return {
+                'action': action,
+                'source': entity,
+                'target': self,
+                'battle': opts.get('battle')
+            }
         return None
 
     def use(self, entity, result, session=None):
         action = result.get('action')
+        if action == 'pick_up':
+            from natural20.utils.portable_object import pickup_object
+            pickup_object(result.get('source') or entity, self, battle=result.get('battle'), session=session)
+            return True
         if action == 'loot':
             self.transfer(result.get('battle'), result.get('source'), result.get('target'), result.get('items'))
             return True

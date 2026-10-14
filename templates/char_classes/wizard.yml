@@ -74,21 +74,27 @@ spell_list:
   level_2:
     - aganazzars_scorcher
     - enlarge_reduce
+    - flaming_sphere
     - hold_person
     - invisibility
+    - magic_weapon
     - melfs_acid_arrow
     - misty_step
     - mirror_image
+    - rope_trick
     - scorching_ray
     - web
   level_3:
     - counterspell
     - dispel_magic
+    - fear
     - fireball
     - fly
+    - gaseous_form
     - haste
     - lightning_bolt
     - protection_from_energy
+    - remove_curse
     - slow
     - stinking_cloud
     - sleet_storm

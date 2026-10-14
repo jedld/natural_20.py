@@ -19,7 +19,6 @@ dagger_plus_one:
     range_max: 120
   type: melee_attack
   weight: 10
-  requires_attunement: true
 quarterstaff_plus_one:
   cost: 0
   damage: 1d6
@@ -36,7 +35,6 @@ quarterstaff_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 light_hammer_plus_one:
   cost: 0
   damage: 1d4
@@ -56,7 +54,6 @@ light_hammer_plus_one:
     range_max: 60
   type: melee_attack
   weight: 2
-  requires_attunement: true
 handaxe_plus_one:
   cost: 0
   damage: 1d6
@@ -76,7 +73,6 @@ handaxe_plus_one:
     range_max: 60
   type: melee_attack
   weight: 10
-  requires_attunement: true
 javelin_plus_one:
   cost: 0
   damage: 1d6
@@ -95,7 +91,6 @@ javelin_plus_one:
     range_max: 120
   type: melee_attack
   weight: 2
-  requires_attunement: true
 light_crossbow_plus_one:
   ammo: bolts
   cost: 0
@@ -116,7 +111,6 @@ light_crossbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 sling_plus_one:
   ammo: pellet
   cost: 0
@@ -135,7 +129,6 @@ sling_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 0
-  requires_attunement: true
 battleaxe_plus_one:
   cost: 0
   damage: 1d8
@@ -152,7 +145,6 @@ battleaxe_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 greataxe_plus_one:
   cost: 0
   damage: 1d12
@@ -169,7 +161,6 @@ greataxe_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 7
-  requires_attunement: true
 longsword_plus_one:
   cost: 0
   damage: 1d8
@@ -186,7 +177,6 @@ longsword_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 3
-  requires_attunement: true
 greatsword_plus_one:
   cost: 0
   damage: 1d12
@@ -203,7 +193,6 @@ greatsword_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 6
-  requires_attunement: true
 longbow_plus_one:
   ammo: arrows
   cost: 0
@@ -224,7 +213,6 @@ longbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 heavy_crossbow_plus_one:
   ammo: bolts
   cost: 0
@@ -246,7 +234,6 @@ heavy_crossbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 18
-  requires_attunement: true
 hand_crossbow_plus_one:
   ammo: bolts
   cost: 0
@@ -267,7 +254,6 @@ hand_crossbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 3
-  requires_attunement: true
 warhammer_plus_one:
   cost: 0
   damage: 1d8
@@ -284,7 +270,6 @@ warhammer_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 2
-  requires_attunement: true
 mace_plus_one:
   cost: 0
   damage: 1d6
@@ -299,7 +284,6 @@ mace_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 trident_plus_one:
   cost: 0
   damage: 1d6
@@ -319,7 +303,6 @@ trident_plus_one:
     range_max: 60
   type: melee_attack
   weight: 4
-  requires_attunement: true
 longsword_plus_two:
   cost: 0
   damage: 1d8
@@ -336,7 +319,6 @@ longsword_plus_two:
   subtype: weapon
   type: melee_attack
   weight: 3
-  requires_attunement: true
 greataxe_plus_two:
   cost: 0
   damage: 1d12
@@ -353,7 +335,6 @@ greataxe_plus_two:
   subtype: weapon
   type: melee_attack
   weight: 7
-  requires_attunement: true
 battleaxe_plus_two:
   cost: 0
   damage: 1d8
@@ -370,7 +351,6 @@ battleaxe_plus_two:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 longbow_plus_two:
   ammo: arrows
   cost: 0
@@ -391,7 +371,6 @@ longbow_plus_two:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 hand_crossbow_plus_two:
   ammo: bolts
   cost: 0
@@ -412,7 +391,6 @@ hand_crossbow_plus_two:
   subtype: weapon
   type: ranged_attack
   weight: 3
-  requires_attunement: true
 dagger_plus_two:
   cost: 0
   damage: 1d4
@@ -433,7 +411,6 @@ dagger_plus_two:
     range_max: 120
   type: melee_attack
   weight: 10
-  requires_attunement: true
 longsword_plus_three:
   cost: 0
   damage: 1d8
@@ -450,7 +427,6 @@ longsword_plus_three:
   subtype: weapon
   type: melee_attack
   weight: 3
-  requires_attunement: true
 greataxe_plus_three:
   cost: 0
   damage: 1d12
@@ -467,7 +443,6 @@ greataxe_plus_three:
   subtype: weapon
   type: melee_attack
   weight: 7
-  requires_attunement: true
 battleaxe_plus_three:
   cost: 0
   damage: 1d8
@@ -484,7 +459,6 @@ battleaxe_plus_three:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 longbow_plus_three:
   ammo: arrows
   cost: 0
@@ -505,7 +479,6 @@ longbow_plus_three:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 studded_leather_plus_one:
   ac: 12
   cost: 0
@@ -515,7 +488,6 @@ studded_leather_plus_one:
   subtype: light
   type: armor
   weight: 13
-  requires_attunement: true
 scale_mail_plus_one:
   ac: 14
   cost: 0
@@ -526,7 +498,6 @@ scale_mail_plus_one:
   metallic: true
   type: armor
   weight: 45
-  requires_attunement: true
 breastplate_plus_one:
   mod_cap: 2
   ac: 14
@@ -538,7 +509,6 @@ breastplate_plus_one:
   metallic: true
   type: armor
   weight: 20
-  requires_attunement: true
 chain_mail_plus_one:
   mod_cap: 0
   ac: 16
@@ -550,7 +520,6 @@ chain_mail_plus_one:
   metallic: true
   type: armor
   weight: 55
-  requires_attunement: true
 plate_plus_one:
   mod_cap: 0
   ac: 18
@@ -562,7 +531,6 @@ plate_plus_one:
   metallic: true
   type: armor
   weight: 65
-  requires_attunement: true
 half_plate_plus_one:
   mod_cap: 0
   ac: 15
@@ -574,7 +542,6 @@ half_plate_plus_one:
   metallic: true
   type: armor
   weight: 40
-  requires_attunement: true
 chain_shirt_plus_one:
   ac: 13
   cost: 0
@@ -586,7 +553,6 @@ chain_shirt_plus_one:
   subtype: medium
   type: armor
   weight: 13
-  requires_attunement: true
 splint_plus_one:
   ac: 17
   cost: 0
@@ -597,7 +563,6 @@ splint_plus_one:
   metallic: true
   type: armor
   weight: 60
-  requires_attunement: true
 studded_leather_plus_two:
   ac: 12
   cost: 0
@@ -607,7 +572,6 @@ studded_leather_plus_two:
   subtype: light
   type: armor
   weight: 13
-  requires_attunement: true
 breastplate_plus_two:
   mod_cap: 2
   ac: 14
@@ -619,7 +583,6 @@ breastplate_plus_two:
   metallic: true
   type: armor
   weight: 20
-  requires_attunement: true
 plate_plus_two:
   mod_cap: 0
   ac: 18
@@ -631,7 +594,6 @@ plate_plus_two:
   metallic: true
   type: armor
   weight: 65
-  requires_attunement: true
 chain_mail_plus_two:
   mod_cap: 0
   ac: 16
@@ -643,7 +605,6 @@ chain_mail_plus_two:
   metallic: true
   type: armor
   weight: 55
-  requires_attunement: true
 plate_plus_three:
   mod_cap: 0
   ac: 18
@@ -655,7 +616,6 @@ plate_plus_three:
   metallic: true
   type: armor
   weight: 65
-  requires_attunement: true
 shield_plus_one:
   bonus_ac: 2
   cost: 0
@@ -665,7 +625,6 @@ shield_plus_one:
   type: shield
   metallic: true
   weight: 6
-  requires_attunement: true
 shield_plus_two:
   bonus_ac: 2
   cost: 0
@@ -675,7 +634,6 @@ shield_plus_two:
   type: shield
   metallic: true
   weight: 6
-  requires_attunement: true
 shield_plus_three:
   bonus_ac: 2
   cost: 0
@@ -685,7 +643,6 @@ shield_plus_three:
   type: shield
   metallic: true
   weight: 6
-  requires_attunement: true
 amulet_of_health:
   cost: 0
   magical: true
@@ -734,7 +691,7 @@ gloves_of_thievery:
   type: accessory
   equippable: true
   weight: 0.5
-  requires_attunement: true
+  requires_attunement: false
   effect: gloves_of_thievery
 flame_tongue_longsword:
   cost: 0
@@ -909,3 +866,60 @@ staff_of_defense:
     charges: 2
     label: Shield
   requires_attunement: true
+test_shadow_cloak:
+  name: Test Shadow Cloak
+  type: accessory
+  magical: true
+  equippable: true
+  weight: 0
+  skill_advantage: [stealth]
+  usable: true
+  item_class: MagicSpellItem
+  spell: misty_step
+  level: 2
+  charges: 1
+  activation: bonus_action
+  on_use: [next_attack_advantage]
+test_wyrmbane_spear:
+  name: Test Wyrmbane Spear
+  type: melee_attack
+  subtype: weapon
+  magical: true
+  damage: 1d6
+  damage_type: piercing
+  proficiency_type: [simple]
+  range: 5
+  properties: [versatile]
+  additional_damage:
+    - damage_die: 3d6
+      damage_type: force
+      target_creature_types: [dragon]
+test_wizard_staff:
+  name: Test Wizard Staff
+  type: accessory
+  equippable: true
+  magical: true
+  requires_attunement: true
+  attunement_class: wizard
+  resistances: [fire]
+test_cursed_amulet:
+  name: Test Cursed Amulet
+  type: accessory
+  equippable: true
+  magical: true
+  cursed: true
+  requires_attunement: true
+  resistances: [cold]
+test_attuned_blade:
+  name: Test Attuned Blade
+  type: melee_attack
+  subtype: weapon
+  magical: true
+  magic_bonus: 2
+  damage: 1d8+1d6
+  damage_type: slashing
+  proficiency_type: [martial]
+  range: 5
+  requires_attunement: true
+  unattuned:
+    damage: 1d8

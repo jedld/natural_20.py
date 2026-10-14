@@ -1,0 +1,72 @@
+# Ranger with the Gloom Stalker subclass (Player's Handbook 2024, not SRD).
+# The base class is the SRD 5.2 overlay; only the subclass lives here.
+---
+inherit: "@templates/rulesets/5e-2024/char_classes/ranger.yml"
+subclasses:
+  gloom_stalker:
+    # Sheet: ranger_archetype: gloom_stalker
+    features:
+      level_3: [dread_ambusher, umbral_sight]
+      level_7: [iron_mind]
+      level_11: [stalkers_flurry]
+      level_15: [shadowy_dodge]
+    # Always prepared.
+    spells:
+      level_3: [disguise_self]
+      level_5: [rope_trick]
+      level_9: [fear]
+      level_13: [greater_invisibility]
+      level_17: [seeming]
+    resource_pools:
+      dreadful_strike:
+        feature: dread_ambusher
+        max: ability_mod:wisdom
+        min: 1
+        restore_on: long_rest
+    # Dread Ambusher: add the Wisdom modifier to initiative rolls ...
+    initiative_bonuses:
+      - feature: dread_ambusher
+        bonus: ability_mod:wisdom
+    # ... and move 10 ft further on the first turn of each combat.
+    first_turn_movement:
+      - feature: dread_ambusher
+        amount: 10
+    # Umbral Sight: darkvision 60 ft (or +60 ft on top of existing
+    # darkvision); creatures relying on darkvision can't see you while you
+    # stand in darkness.
+    senses:
+      - feature: umbral_sight
+        darkvision: 60
+        darkvision_extend: 60
+        evade_darkvision: true
+    # Dreadful Strike: once per turn, extra psychic damage on a weapon hit.
+    # Stalker's Flurry (level 11) bumps the die and adds two riders.
+    attack_options:
+      - id: dreadful_strike
+        feature: dread_ambusher
+        name: Dreadful Strike
+        icon: dreadful_strike
+        timing: on_hit
+        pool: dreadful_strike
+        uses: ability_mod:wisdom
+        min_uses: 1
+        recharge: long_rest
+        once_per_turn: true
+        extra_damage: {3: 2d6, 11: 2d8}
+        damage_type: psychic
+        variants:
+          - id: sudden_strike
+            feature: stalkers_flurry
+            name: Dreadful Strike + Sudden Strike
+            follow_up_attack:
+              range: 5
+          - id: mass_fear
+            feature: stalkers_flurry
+            name: Dreadful Strike + Mass Fear
+            save:
+              ability: wisdom
+              dc_abilities: [wis]
+              radius: 10
+            on_fail:
+              condition: frightened
+              rounds: 0

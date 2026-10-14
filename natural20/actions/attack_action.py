@@ -85,6 +85,10 @@ class AttackAction(Action):
         if entity.properties.get('spiritual'):
            entity = entity.owner
 
+        from natural20.utils.action_restrictions import is_restricted
+        if is_restricted(entity, 'attack'):
+            return False
+
         if battle and options.get('as_bonus_action'):
             return entity.total_bonus_actions(battle) > 0
 
@@ -237,6 +241,9 @@ class AttackAction(Action):
 
     def validate(self, battle_map=None, target=None, battle=None):
         super().validate(battle_map, target=target, battle=battle)
+        from natural20.utils.weapon_loading import action_blocked
+        if action_blocked(self, battle):
+            self.add_validation_issue('validation.attack.loading')
         target = target if target is not None else self.target
         if target is None or not hasattr(target, 'entity_uid'):
             return
@@ -374,6 +381,17 @@ class AttackAction(Action):
                 if drained is None:
                     drained = item['context']['damage'].result()
                 reduce_max_hp(item['source'], drained, battle)
+            elif item['effect'] == 'no_healing':
+                from natural20.effects.no_healing_effect import NoHealingEffect
+                target = item['source']
+                attacker = item['context'].get('source')
+                if not target.object() and not target.dead():
+                    NoHealingEffect.apply_to(target, attacker)
+                    session.event_manager.received_event({
+                        'event': 'no_healing',
+                        'source': attacker,
+                        'target': target,
+                    })
             elif item['effect'] == 'engulf':
                 if not item['context'].get('source').has_casted_effect('engulf'):
                     if not item['source'].immune_to_condition('grappled'):
@@ -395,6 +413,8 @@ class AttackAction(Action):
 
             if not (isinstance(item.get('npc_action'), dict) and item['npc_action'].get('no_damage')):
                 damage_event(item, battle)
+            from natural20.utils.great_weapon_master import note_hew_trigger
+            note_hew_trigger(battle, item, crit=bool(item.get('critical')))
             if item.get('maneuver') in ['disarming_attack', 'riposte']:
                 item['source'].consume_resource('superiority_dice')
             if (
@@ -431,6 +451,11 @@ class AttackAction(Action):
         elif item['type'] == 'blind_miss':
             __class__.consume_resource(battle, item)
             __class__._emit_blind_miss(battle, item, session)
+        elif item['type'] == 'targeting_ward':
+            from natural20.utils.targeting_ward import apply_ward_item
+            apply_ward_item(battle, item, session)
+            if item.get('consume_attack'):
+                __class__.consume_resource(battle, item)
         elif item['type'] == 'disarm':
             target = item['target']
             disarmed_item = item.get('item')
@@ -444,6 +469,8 @@ class AttackAction(Action):
                 })
         elif item['type'] == 'additional_damage':
             __class__._apply_additional_damage(battle, item, session)
+            from natural20.utils.great_weapon_master import note_hew_trigger
+            note_hew_trigger(battle, item)
         elif item['type'] == 'grapple_on_hit':
             target, source = item['target'], item['source']
             if not target.dead() and not target.immune_to_condition('grappled'):
@@ -547,6 +574,11 @@ class AttackAction(Action):
 
             # Free attacks granted by other features (e.g., Monk Flurry of
             # Blows) must not consume action economy or set follow-up flags.
+            if item.get('_hew') and entity_state:
+                entity_state['hew_pending'] = None
+            if item.get('_granted_attack') and entity_state:
+                entity_state['granted_attack'] = None
+
             if item.get('_free_attack'):
                 item['source'].break_stealth()
                 battle.dismiss_help_for(item['target'])
@@ -584,6 +616,8 @@ class AttackAction(Action):
                         count = extra_attack_count(item['source'])
                         if count > 1:
                             state['extra_attacks_remaining'] = count - 1
+                from natural20.utils.weapon_loading import record_attack
+                record_attack(battle, item, new_action=extra_left <= 0)
 
             item['source'].break_stealth()
 
@@ -615,6 +649,7 @@ class AttackAction(Action):
 
             state = battle.entity_state_for(item['source'])
             if state:
+                narrowed = False
                 if (
                     state.get('multiattack_combos')
                     and isinstance(item.get('npc_action'), dict)
@@ -625,9 +660,12 @@ class AttackAction(Action):
                 ):
                     from natural20.utils.multiattack import narrow_multiattack_groups
                     narrow_multiattack_groups(state, item['attack_name'])
+                    narrowed = True
                     if not any(state.get('multiattack', {}).values()):
                         item['source'].clear_multiattack(battle)
                 for attacks in state.get('multiattack', {}).values():
+                    if narrowed and not item['multiattack_clear']:
+                        continue
                     if item['attack_name'] in attacks:
                         attacks.remove(item['attack_name'])
                         if not attacks or item['multiattack_clear']:
@@ -653,7 +691,8 @@ class AttackAction(Action):
             confidence = float(getattr(self, 'blind_confidence', 0.35))
             return confidence * DieRoll.roll(f"1d20+{attack_mod}", disadvantage=True).prob(self.BLIND_ASSUMED_AC)
         advantage_mod, adv_info, attack_mod = self.compute_advantage_info(battle, opts)
-        target_ac, _cover_ac = effective_ac(battle, self.source, self.target)
+        target_ac, _cover_ac = effective_ac(battle, self.source, self.target,
+                                            weapon=self.get_attack_info(opts or {}), thrown=self.thrown)
 
         return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
 
@@ -768,6 +807,12 @@ class AttackAction(Action):
         if target is None:
             raise Exception('target is a required option for :attack')
 
+        if battle is not None:
+            from natural20.utils.targeting_ward import attack_ward_items
+            warded, ward_items = attack_ward_items(self, battle, target)
+            self.result.extend(ward_items)
+            if warded:
+                return self
 
         weapon, attack_name, attack_mod, damage_roll, ammo_type = self.get_weapon_info(opts)
         if (
@@ -802,9 +847,14 @@ class AttackAction(Action):
                 if self.source.has_effect('bless'):
                     bless_roll = DieRoll.roll("1d4", description='dice_roll.bless', entity=self.source, battle=battle)
                     self.attack_roll += bless_roll
+                from natural20.effects.consumable_buff_effect import attack_roll_dice
+                for extra_die in attack_roll_dice(self.source, battle):
+                    self.attack_roll += extra_die
                 if self.source.has_effect('bane'):
                     bane_roll = DieRoll.roll("1d4", description='dice_roll.bane', entity=self.source, battle=battle)
                     self.attack_roll += DieRoll.roll("-" + str(bane_roll.result()), battle=battle, entity=self.source)
+                from natural20.utils.attack_penalties import apply_targeted_penalties
+                self.attack_roll = apply_targeted_penalties(self.attack_roll, self.source, target, battle)
 
                 # Phase 3 modifier registry: any effect that registered an
                 # ``attack_roll`` modifier contributes here.
@@ -834,27 +884,53 @@ class AttackAction(Action):
                             entity=self.source, battle=battle,
                         )
 
+                if self.source.has_effect('attack_roll_bonus'):
+                    effect_bonus = self.source.eval_effect('attack_roll_bonus', {
+                        'stacked': True, 'value': 0, 'weapon_name': self.using,
+                        'target': target, 'battle': battle,
+                    })
+                    if effect_bonus:
+                        sign = '+' if int(effect_bonus) >= 0 else ''
+                        self.attack_roll += DieRoll.roll(
+                            f"{sign}{int(effect_bonus)}", description='attack_modifier:effects',
+                            entity=self.source, battle=battle,
+                        )
+
                 from natural20.sidekick import consume_inspiring_help
                 self.attack_roll = consume_inspiring_help(self.source, self.attack_roll, battle=battle)
 
             # print(f"{self.source.name} rolls a {attack_roll} to attack {target.name}")
             self.source.resolve_trigger('attack_resolved', {'target': target})
 
-            if self.source.class_feature('lucky') and self.attack_roll.nat_1():
+            from natural20.utils.luck_points import has_reroll_ones_trait
+            if has_reroll_ones_trait(self.source) and self.attack_roll.nat_1():
                 self.session.log_event({'event': 'lucky_reroll', 'source': self.source, 'roll': self.attack_roll})
                 prev_roll = self.attack_roll
                 self.attack_roll = self.attack_roll.reroll(lucky=True)
                 self.session.event_manager.received_event({'event': 'lucky_reroll', 'source': self.source, 'old_roll': prev_roll, 'roll': self.attack_roll})
                 # print(f"{self.source.name} uses lucky to reroll the attack roll to {attack_roll}")
 
-            target_ac, _cover_ac = effective_ac(battle, self.source, target)
+            target_ac, _cover_ac = effective_ac(battle, self.source, target, weapon=weapon, thrown=self.thrown)
+
+            if battle is not None and getattr(self, '_luck_checked_roll', None) is not self.attack_roll:
+                from natural20.utils.luck_points import luck_against_attack, luck_on_own_roll
+                self.attack_roll = luck_on_own_roll(self.source, self.attack_roll, target_ac, battle=battle,
+                                                    target=target)
+                self.attack_roll = luck_against_attack(target, self.source, self.attack_roll, target_ac,
+                                                       battle=battle)
+                self._luck_checked_roll = self.attack_roll
 
             force_miss, events = after_attack_roll_hook(battle, target, self.source, self.attack_roll, target_ac, {'original_action': self })
             self.forced_miss = bool(force_miss)
             for event in events:
                 self.result.append(event)
 
-        return self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+        self._resolve_hit(battle, target, weapon, self.attack_roll, damage_roll, attack_name, ammo_type, adv_info)
+        from natural20.actions.post_attack_teleport_action import window_item
+        teleport_window = window_item(self, battle)
+        if teleport_window is not None:
+            self.result.append(teleport_window)
+        return self
 
     def _resolve_blind_attack(self, session, map, battle, opts):
         """Attack a square the attacker can't see into (5e unseen targets).
@@ -926,13 +1002,21 @@ class AttackAction(Action):
                 'escape_dc': grapple.get('escape_dc'),
                 'damage_type': weapon.get('damage_type'),
             })
-        for entry in additional_damage_entries(weapon):
+        from natural20.utils.feature_hit_riders import feature_hit_riders
+        from natural20.utils.great_weapon_master import gwm_hit_riders
+        entries = list(additional_damage_entries(weapon, target=target))
+        entries += feature_hit_riders(self.source, weapon, thrown=bool(self.thrown))
+        entries += gwm_hit_riders(self.source, weapon, battle, as_reaction=bool(self.as_reaction))
+        for entry in entries:
             results.append({
                 'type': 'additional_damage',
                 'source': self.source,
                 'target': target,
                 'battle': battle,
                 'attack_name': attack_name,
+                'weapon': self.using if isinstance(self.using, str) else None,
+                'thrown': bool(self.thrown),
+                '_hew': bool(getattr(self, 'is_hew', False)),
                 'damage_type': entry.get('damage_type', 'necrotic'),
                 'damage': DieRoll.roll(str(entry['damage_die']), crit=crit,
                                        description='dice_roll.additional_damage',
@@ -1079,7 +1163,8 @@ class AttackAction(Action):
             elif attack_roll.nat_1():
                 hit = False
             else:
-                target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target)
+                target_ac, cover_ac_adjustments = effective_ac(battle, self.source, target,
+                                                               weapon=weapon, thrown=self.thrown)
                 from natural20.effects.bardic_inspiration_effect import apply_bardic_inspiration_to_roll
                 self.attack_roll = apply_bardic_inspiration_to_roll(
                     self.attack_roll, self.source, target_ac, 'ge', battle=battle,
@@ -1139,6 +1224,7 @@ class AttackAction(Action):
                     'multiattack_clear': False,
                     'multiattack_hits': True,
                     'knock_unconscious': bool(self.knock_unconscious) and self.can_knock_unconscious(),
+                    '_hew': bool(getattr(self, 'is_hew', False)),
                 }
                 if self.grapple_instead and isinstance(weapon, dict) and weapon.get('grapple_instead'):
                     self.hit_result['grapple_instead'] = True
@@ -1223,7 +1309,9 @@ class AttackAction(Action):
                             'description': description
                         })
 
-                        save_roll = target.save_throw(save_type, battle=battle, opts={'dc': int(dc)})
+                        save_roll = target.save_throw(save_type, battle=battle, opts={
+                            'dc': int(dc), 'save_tags': effect.get('save_tags') or [],
+                        })
                         if save_roll.result() >= int(dc):
                             self.result.append({
                                 'type': 'save_success',
@@ -1274,6 +1362,7 @@ class AttackAction(Action):
                 'battle': battle,
                 'thrown': self.thrown,
                 'type': 'miss',
+                '_hew': bool(getattr(self, 'is_hew', False)),
                 'advantage_mod': self.advantage_mod,
                 'adv_info': adv_info,
                 'second_hand': self.second_hand(),
@@ -1364,6 +1453,8 @@ class AttackAction(Action):
             weapon = self.session.load_weapon(using)
             if not weapon:
                 raise Exception(f"weapon {using} not found")
+            from natural20.utils.item_mechanics import effective_item_meta
+            weapon = effective_item_meta(self.source, weapon, using)
             attack_name = weapon['name']
             ammo_type = weapon.get('ammo', None)
             attack_mod = self.source.attack_roll_mod(weapon)

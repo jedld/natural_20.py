@@ -1,175 +1,42 @@
 """Searing Smite — 1st-level paladin evocation (SRD 5.2). BA after melee hit; not concentration."""
 
-from natural20.action import Action, AsyncReactionHandler
 from natural20.die_roll import DieRoll
+from natural20.spell.extensions.post_hit_smite import PostHitSmiteAction, PostHitSmiteOffer
 from natural20.spell.hold_person_spell import HoldPersonSpell
-from natural20.spell.spell import Spell, consume_resource
+from natural20.spell.spell import Spell
 from natural20.utils.attack_util import damage_event
 
 
-class SearingSmiteAction(Action):
+class SearingSmiteAction(PostHitSmiteAction):
     """Apply Searing Smite after a confirmed melee hit (bonus action, 2024)."""
 
-    def __init__(self, session, source, target, slot_level, spell_details, attack_result):
-        super().__init__(session, source, 'searing_smite')
-        self.target = target
-        self.slot_level = int(slot_level or 1)
-        self.spell_details = spell_details
-        self.attack_result = attack_result or {}
-        self.as_bonus_action = True
+    SPELL_ID = 'searing_smite'
+    DAMAGE_TYPE = 'fire'
 
-    def label(self):
-        return f"Searing Smite (Level {self.slot_level})"
-
-    def button_label(self):
-        return self.label()
-
-    def name(self):
-        return self.label()
-
-    def resolve(self, session, map, opts=None):
-        opts = opts or {}
-        battle = opts.get('battle')
-        dice = 1 + max(0, self.slot_level - 1)
-        attack_roll = self.attack_result.get('attack_roll')
-        is_crit = bool(attack_roll is not None and attack_roll.nat_20())
-        damage_roll = DieRoll.roll(
-            f'{dice}d6',
-            crit=is_crit,
-            battle=battle,
-            entity=self.source,
-            description='dice_roll.spells.searing_smite',
-        )
-        consume_resource(
-            battle,
-            self.source,
-            self.spell_details,
-            cast_level=self.slot_level,
-            casting_class='paladin',
-        )
-        if battle is not None:
-            state = battle.entity_state_for(self.source)
-            if state is not None and state.get('bonus_action', 0) > 0:
-                state['bonus_action'] -= 1
-
+    def rider_items(self, battle, damage_roll):
         effect = SearingSmiteSpell(
-            session, self.source, 'searing_smite', self.spell_details
+            self.session, self.source, 'searing_smite', self.spell_details
         )
         effect.ignited_target = self.target
-        effect.damage_dice = dice
-
-        self.result = [
-            {
-                'type': 'spell_damage',
-                'source': self.source,
-                'target': self.target,
-                'attack_name': self.spell_details.get('name', 'Searing Smite'),
-                'damage_type': 'fire',
-                'damage_roll': damage_roll,
-                'damage': damage_roll,
-                'attack_roll': attack_roll,
-                'spell': self.spell_details,
-                'cast_level': self.slot_level,
-                'trigger': 'searing_smite',
-            },
-            {
-                'type': 'searing_smite',
-                'source': self.source,
-                'target': self.target,
-                'effect': effect,
-                'spell': self.spell_details,
-            },
-        ]
-        return self
+        effect.damage_dice = self.damage_dice_count()
+        return [{
+            'type': 'searing_smite',
+            'source': self.source,
+            'target': self.target,
+            'effect': effect,
+            'spell': self.spell_details,
+        }]
 
 
-class SearingSmiteEffect:
-    """Offer Searing Smite as a bonus-action reaction after a melee hit (2024)."""
+class SearingSmiteEffect(PostHitSmiteOffer):
+    """Offer Searing Smite as a bonus action after a melee hit.
 
-    def __init__(self, owner):
-        self.owner = owner
+    Only under the 5e-2024 ruleset: the 2014 Searing Smite is a different
+    spell (cast before the attack, concentration)."""
 
-    def __str__(self):
-        return 'searing_smite'
-
-    def on_attack_hit(self, entity, opts=None):
-        opts = opts or {}
-        if entity != self.owner:
-            return []
-
-        session = getattr(entity, 'session', None)
-        ruleset = getattr(session, 'ruleset', None) if session else None
-        if not (ruleset and ruleset.name == '5e-2024'):
-            return []
-
-        prepared = []
-        if hasattr(entity, 'prepared_spells'):
-            prepared = entity.prepared_spells() or []
-        if 'searing_smite' not in prepared:
-            return []
-
-        hit_result = opts.get('result') or {}
-        if not hit_result.get('hit?'):
-            return []
-        battle = hit_result.get('battle')
-        if battle is None:
-            return []
-        target = hit_result.get('target')
-        if target is None:
-            return []
-        if hit_result.get('thrown'):
-            return []
-        if entity.total_bonus_actions(battle) <= 0:
-            return []
-
-        weapon_key = hit_result.get('weapon')
-        weapon_meta = hit_result.get('npc_action')
-        if not weapon_meta and weapon_key:
-            weapon_meta = entity.session.load_weapon(weapon_key)
-        if not weapon_meta or weapon_meta.get('type') != 'melee_attack':
-            return []
-
-        slots = getattr(entity, 'spell_slots', {}).get('paladin', {})
-        available = [lvl for lvl, qty in sorted(slots.items()) if lvl > 0 and qty > 0]
-        if not available:
-            return []
-
-        spell_details = entity.session.load_spell('searing_smite')
-        if not spell_details:
-            return []
-        valid_actions = [
-            SearingSmiteAction(entity.session, entity, target, lvl, spell_details, hit_result)
-            for lvl in available
-        ]
-
-        stored_reaction = opts.get('stored_reaction')
-        attack_action = opts.get('action')
-        controller = battle.controller_for(entity)
-        if stored_reaction not in (None, False):
-            selected = stored_reaction
-        elif controller is None:
-            selected = valid_actions[0]
-        else:
-            selected = controller.select_reaction(
-                entity, battle, battle.map_for(entity), valid_actions,
-                {
-                    'type': 'searing_smite',
-                    'trigger': 'on_attack_hit',
-                    'source': entity,
-                    'target': target,
-                },
-            )
-
-        if hasattr(selected, 'send'):
-            raise AsyncReactionHandler(entity, selected, attack_action, 'on_attack_hit')
-        if not selected:
-            return []
-        if isinstance(selected, int) and 0 <= selected < len(valid_actions):
-            selected = valid_actions[selected]
-        if not isinstance(selected, SearingSmiteAction):
-            return []
-        resolved = selected.resolve(entity.session, battle.map_for(entity), {'battle': battle})
-        return resolved.result if resolved.result else []
+    SPELL_ID = 'searing_smite'
+    ACTION_CLASS = SearingSmiteAction
+    REQUIRED_RULESET = '5e-2024'
 
 
 class SearingSmiteSpell(Spell):

@@ -12,12 +12,18 @@ from natural20.entity_class.monk import Monk
 from natural20.entity_class.bard import Bard
 from natural20.entity_class.druid import Druid
 from natural20.entity_class.barbarian import Barbarian
+from natural20.entity_class.data_driven import DataDrivenClass
+# Imported so the class-YAML crafting action registers with the class-feature registry.
+from natural20.actions import craft_item_action  # noqa: F401
+from natural20.actions import class_feature_action  # noqa: F401
+from natural20.actions.extinguish_flames_action import ExtinguishFlamesAction
 from natural20.actions.action_surge_action import ActionSurgeAction
 from natural20.actions.rage_action import RageAction, RecklessAttackAction, EndRageAction
 from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
 from natural20.actions.patient_defense_action import PatientDefenseAction
 from natural20.actions.step_of_the_wind_action import StepOfTheWindAction
 from natural20.actions.martial_arts_bonus_attack_action import MartialArtsBonusAttackAction
+from natural20.actions.hew_attack_action import HewAttackAction
 from natural20.actions.feline_agility_action import FelineAgilityAction
 from natural20.actions.bardic_inspiration_action import BardicInspirationAction
 from natural20.actions.wild_shape_action import WildShapeAction, RevertWildShapeAction, WildShapeAttackAction
@@ -50,9 +56,14 @@ from natural20.actions.summon_familiar_action import SummonFamiliarAction
 from natural20.actions.mage_hand_action import MageHandAction
 from natural20.actions.witch_bolt_sustain_action import WitchBoltSustainAction
 from natural20.actions.call_lightning_bolt_action import CallLightningBoltAction
+from natural20.actions.aura_of_vitality_heal_action import AuraOfVitalityHealAction
 from natural20.actions.pickpocket_action import PickpocketAction, PickpocketBonusAction
 from natural20.actions.speak_action import SpeakAction
 from natural20.actions.disarming_attack_action import DisarmingAttackAction
+from natural20.actions.clouds_jaunt_action import CloudsJauntAction
+from natural20.actions import taunt_action  # noqa: F401  (registers Taunt)
+from natural20.actions.large_form_action import LargeFormAction
+from natural20.utils.giant_ancestry import initialize_racial_traits
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
 from natural20.utils.movement import compute_actual_moves
@@ -77,12 +88,14 @@ from datetime import datetime, timezone
 import pdb
 
 
-class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Sorcerer, Ranger, Monk, Bard, Druid, Barbarian, Lootable, Inventory):
+class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, Sorcerer, Ranger, Monk, Bard, Druid, Barbarian, DataDrivenClass, Lootable, Inventory):
   ACTION_LIST = [
     SpellAction,
+    ExtinguishFlamesAction,
     DisarmingAttackAction,
     AttackAction,
     MartialArtsBonusAttackAction,
+    HewAttackAction,
     FlurryOfBlowsAction,
     PatientDefenseAction,
     StepOfTheWindAction,
@@ -124,11 +137,14 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     MageHandAction,
     WitchBoltSustainAction,
     CallLightningBoltAction,
+    AuraOfVitalityHealAction,
     SpeakAction,
     PickpocketAction,
     PickpocketBonusAction,
     ShellDefenseAction,
     EmergenceAction,
+    CloudsJauntAction,
+    LargeFormAction,
   ]
 
   def __init__(self, session, properties, name=None):
@@ -151,13 +167,21 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     # use ordered dict to maintain order of spell slots
     self.spell_slots = {}
-    self.race_properties = load_campaign_resource_path(
-      self.session.root_path, f"races/{race_file}.yml"
-    )
+    self.race_properties = self._load_race_properties(race_file)
 
     # Merge subrace features with base race features
     if self.subrace() and self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features'):
       self.race_properties['race_features'] = self.race_properties.get('race_features', []) + self.race_properties['subrace'][self.subrace()]['race_features']
+    # A subrace may drop base race traits it replaces (e.g. a 2024 goliath
+    # ancestry chosen under the 2014 goliath template).
+    _subrace_def = self._subrace_properties()
+    _removed_features = set(_subrace_def.get('remove_race_features') or [])
+    if _removed_features:
+      _kept = set(_subrace_def.get('race_features') or [])
+      self.race_properties['race_features'] = [
+        f for f in self.race_properties.get('race_features', []) or []
+        if f not in _removed_features or f in _kept
+      ]
 
     # -- Background loading --------------------------------------------------
     from natural20.background import Background
@@ -191,7 +215,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     self.max_hit_die = {}
     self.resistances = list(self.properties.get("resistances", []))
     # Merge race-level damage resistances (e.g. Tiefling Hellish Resistance).
+    _removed_resistances = set(_subrace_def.get('remove_resistances') or [])
     for r in self.race_properties.get('resistances', []) or []:
+      if r in _removed_resistances:
+        continue
       if r not in self.resistances:
         self.resistances.append(r)
     if self.subrace():
@@ -243,6 +270,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     self._initialize_item_resources()
 
+    initialize_racial_traits(self)
+
+    from natural20.actions.attack_option_action import install_attack_option_hooks
+    install_attack_option_hooks(self)
+
     self.attributes["hp"] = self.properties.get('hp', copy.deepcopy(self.max_hp()))
 
   def _initialize_class_state(self):
@@ -257,17 +289,42 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     setattr(self, f"{klass}_level", level)
     initializer = getattr(self, f"initialize_{klass}", None)
     if initializer is None:
-      raise ValueError(f"Unsupported character class: {klass}")
-    character_class_properties = load_campaign_resource_path(
-      self.session.root_path, f"char_classes/{klass}.yml"
-    )
-    self.class_properties[klass] = character_class_properties
-    initializer()
+      character_class_properties = self._data_class_yaml(klass)
+      if not character_class_properties:
+        raise ValueError(f"Unsupported character class: {klass}")
+      self.class_properties[klass] = character_class_properties
+      self.initialize_data_driven_class(klass)
+    else:
+      character_class_properties = load_campaign_resource_path(
+        self.session.root_path, f"char_classes/{klass}.yml"
+      )
+      self.class_properties[klass] = character_class_properties
+      initializer()
+      self._register_data_class_pools(klass)
     self.max_hit_die[klass] = level
 
     hit_die_details = DieRoll.parse(character_class_properties['hit_die'])
     die_type = int(hit_die_details.die_type)
     self._current_hit_die[die_type] = self._current_hit_die.get(die_type, 0) + level
+
+  def _load_race_properties(self, race_file):
+    """Race YAML; sheet ``race_edition`` (e.g. ``5e-2024``) prefers that edition's
+    overlay race so a character built under other rules keeps its traits."""
+    edition = self.properties.get('race_edition')
+    if edition:
+      from natural20.yaml_loader import ruleset_overlay_root
+      root = ruleset_overlay_root(edition)
+      path = root / 'races' / f"{race_file}.yml" if root is not None else None
+      if path is not None and path.is_file():
+        return load_yaml(path, campaign_root=self.session.root_path)
+    return load_campaign_resource_path(self.session.root_path, f"races/{race_file}.yml")
+
+  def _data_class_yaml(self, klass):
+    """Class YAML for a class without a Python mixin (``None`` when missing)."""
+    try:
+      return load_campaign_resource_path(self.session.root_path, f"char_classes/{klass}.yml") or None
+    except (FileNotFoundError, OSError):
+      return None
 
   def _class_hit_die_sides(self, klass):
     properties = self.class_properties.get(klass)
@@ -301,6 +358,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     old_current_hit_die = old_current_hit_die or {}
     self.spell_slots = {}
     self._initialize_class_state()
+    initialize_racial_traits(self)
 
     # Preserve spent slots while granting any newly unlocked slot capacity.
     for klass, slots in self.spell_slots.items():
@@ -495,7 +553,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         else:
           raise ValueError('class_name is required for multiclass characters')
       if class_name not in class_map:
-        if getattr(self, f"initialize_{class_name}", None) is None:
+        if getattr(self, f"initialize_{class_name}", None) is None and not self._data_class_yaml(class_name):
           raise ValueError(f'Unsupported character class: {class_name}')
         added_class = True
         class_map[class_name] = 0
@@ -605,6 +663,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       self.properties.setdefault('level_history', []).append(summary)
       return summary
 
+  def humanoid(self):
+      """Playable species are humanoid unless the race YAML sets another ``creature_type``."""
+      race = self.properties.get('race')
+      if isinstance(race, list):
+        return super().humanoid()
+      return str((self.race_properties or {}).get('creature_type') or 'humanoid').lower() == 'humanoid'
+
   def size(self):
       if self.has_effect('size_override'):
         return self.eval_effect('size_override')
@@ -615,6 +680,23 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   
   def subrace(self):
       return self.properties.get('subrace')
+
+  def _subrace_properties(self):
+    if not self.subrace():
+      return {}
+    return (self.race_properties.get('subrace') or {}).get(self.subrace()) or {}
+
+  def _race_feature_level_ok(self, feature):
+    """Race YAML ``race_feature_min_level`` gates traits by character level."""
+    min_level = (self._subrace_properties().get('race_feature_min_level') or {}).get(feature)
+    if min_level is None:
+      min_level = (self.race_properties.get('race_feature_min_level') or {}).get(feature)
+    if min_level is None:
+      return True
+    try:
+      return int(self.level()) >= int(min_level)
+    except (TypeError, ValueError, KeyError):
+      return True
   
   def speed(self):
     if getattr(self, '_in_shell', False):
@@ -625,6 +707,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       if beast_speed is not None:
         return beast_speed
     effective_speed = self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('base_speed') or self.race_properties.get('base_speed')
+    if self.is_flying() and self.fly_speed():
+      effective_speed = self.fly_speed()
 
     # Monk - Unarmored Movement (5e SRD): bonus speed while wearing no
     # armor and not wielding a shield.
@@ -633,6 +717,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         from natural20.entity_class.monk import UNARMORED_MOVEMENT_BONUS
         idx = max(1, min(self.monk_level, len(UNARMORED_MOVEMENT_BONUS))) - 1
         effective_speed = (effective_speed or 0) + UNARMORED_MOVEMENT_BONUS[idx]
+
+    if effective_speed and not self.is_flying():
+      from natural20.utils.class_mechanics import class_speed_bonus
+      effective_speed += class_speed_bonus(self)
 
     if self.has_effect('speed_override'):
       effective_speed = self.eval_effect('speed_override', { "stacked": True, "value" : effective_speed})
@@ -654,6 +742,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         self.feline_agility_used = False
     super().reset_turn(battle)
     if entity_state is not None:
+      if not entity_state.get('first_turn_taken'):
+        entity_state['first_turn_taken'] = True
+        from natural20.utils.class_mechanics import first_turn_movement_bonus
+        entity_state['movement'] = entity_state.get('movement', 0) + first_turn_movement_bonus(self)
       self._feline_movement_start = entity_state.get('movement', 0)
 
   def _wearing_armor_or_shield(self):
@@ -734,10 +826,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return []
 
     if opportunity_attack:
+      from natural20.utils.reactive_spell import reactive_spell_actions
+      reactive_spells = reactive_spell_actions(self, battle)
       if AttackAction.can(self, battle, { 'opportunity_attack': True }):
-        return self._player_character_attack_actions(session, battle, opportunity_attack=True)
-      else:
-        return []
+        return self._player_character_attack_actions(session, battle, opportunity_attack=True) + reactive_spells
+      return reactive_spells
 
     # MotM Shell Defense: while withdrawn, the only action is a bonus action to emerge.
     if getattr(self, '_in_shell', False):
@@ -778,6 +871,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(DisengageAction(session, self, 'disengage'))
         elif action_type == SecondWindAction:
           action_list.append(SecondWindAction(session, self, 'second_wind'))
+        elif action_type == ExtinguishFlamesAction:
+          if auto_target:
+            action_list.extend(ExtinguishFlamesAction.options_for(session, self, battle))
+          else:
+            action_list.append(ExtinguishFlamesAction(session, self))
         elif action_type == LayOnHandsAction:
           action_list.append(LayOnHandsAction(session, self, 'lay_on_hands'))
         elif action_type == FirstAidAction:
@@ -786,6 +884,16 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(ActionSurgeAction(session, self, 'action_surge'))
         elif action_type == MartialArtsBonusAttackAction:
           base_action = MartialArtsBonusAttackAction(session, self, 'attack')
+          if not auto_target:
+            action_list.append(base_action)
+          else:
+            for target in battle.valid_targets_for(self, base_action, target_types=['enemies']):
+              targeted = base_action.clone()
+              targeted.target = target
+              action_list.append(targeted)
+        elif action_type == HewAttackAction:
+          base_action = HewAttackAction(session, self, 'attack')
+          base_action.using = HewAttackAction.pending_weapon(self, battle)
           if not auto_target:
             action_list.append(base_action)
           else:
@@ -939,6 +1047,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
             action_list.extend(autobuild(session, CallLightningBoltAction, self, battle, map=map))
           else:
             action_list.append(CallLightningBoltAction(session, self, 'call_lightning_bolt'))
+        elif action_type == AuraOfVitalityHealAction:
+          if auto_target:
+            action_list.extend(autobuild(session, AuraOfVitalityHealAction, self, battle, map=map))
+          else:
+            action_list.append(AuraOfVitalityHealAction(session, self, 'aura_of_vitality_heal'))
         elif action_type == SpeakAction:
           action_list.append(SpeakAction(session, self, 'speak'))
         elif action_type == PickpocketAction:
@@ -947,6 +1060,13 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action = PickpocketAction(session, self, 'pickpocket')
           action.as_bonus_action = True
           action_list.append(action)
+        elif action_type == CloudsJauntAction:
+          if auto_target and battle:
+            action_list.extend(CloudsJauntAction.ai_options(session, self, battle, map))
+          else:
+            action_list.append(CloudsJauntAction(session, self, 'clouds_jaunt'))
+        elif action_type == LargeFormAction:
+          action_list.append(LargeFormAction(session, self, 'large_form'))
     # Phase 4: also consult the class-feature registry. Existing branches
     # above keep working; this is an additive opt-in extension point.
     try:
@@ -978,7 +1098,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       attack_type = 'attack'
 
       if second_weapon:
-        if 'light' in weapon_detail.get('properties', []) and weapon_detail['type'] == 'melee_attack' and TwoWeaponAttackAction.can(self, battle, { 'weapon': item }):
+        ruleset = getattr(session, 'ruleset', None)
+        light_ranged_ok = ruleset is not None and ruleset.two_weapon_fighting_model() == 'attack_action_light'
+        if ('light' in weapon_detail.get('properties', [])
+            and (weapon_detail['type'] == 'melee_attack' or light_ranged_ok)
+            and TwoWeaponAttackAction.can(self, battle, { 'weapon': item })):
           attack_class = TwoWeaponAttackAction
           attack_type = 'two_weapon_attack'
         else:
@@ -993,6 +1117,19 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         action.using = item
         action.thrown = True
         weapon_attacks.append(action)
+
+      # Weapon YAML ``alternate_modes: [<weapon id>]``: the same item can attack
+      # with another weapon profile (a hoopak doubling as a sling).
+      if not opportunity_attack and not second_weapon:
+        for mode in weapon_detail.get('alternate_modes') or []:
+          mode_detail = session.load_weapon(mode)
+          if not mode_detail or mode_detail.get('type') not in valid_weapon_types:
+            continue
+          if 'ammo' in mode_detail and not self.item_count(mode_detail['ammo']) > 0:
+            continue
+          action = AttackAction(session, self, 'attack')
+          action.using = mode
+          weapon_attacks.append(action)
 
     if not second_weapon:
       unarmed_attack = AttackAction(session, self, 'attack')
@@ -1144,6 +1281,16 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     spell_id = (spell or {}).get('id')
     if spell_id and 'cleric' not in keys and spell_id in self.domain_spell_ids():
       keys.append('cleric')
+    if spell_id:
+      for klass in self.class_properties.keys():
+        if klass not in keys and spell_id in self.data_class_spell_list(klass):
+          keys.append(klass)
+      # Sheet ``class_spells: {warlock: [...]}``: spells from other lists that
+      # count as that class's spells (Pact of the Tome, Magical Secrets).
+      for klass, spell_ids in (self.properties.get('class_spells') or {}).items():
+        klass = str(klass).lower()
+        if klass not in keys and klass in self.class_properties and spell_id in (spell_ids or []):
+          keys.append(klass)
     return keys
 
   def prepared_spells(self):
@@ -1160,6 +1307,11 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       if details is None:
         continue
       base.append(spell)
+
+    from natural20.utils.class_mechanics import extra_prepared_spells
+    for spell in extra_prepared_spells(self):
+      if spell not in base:
+        base.append(spell)
 
     # Auto-merge Eldritch Knight spells (Fighter martial archetype)
     martial_archetype = self.properties.get('martial_archetype')
@@ -1215,16 +1367,26 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return True
     if feature in self.properties.get('feats', []):
       return True
-    if feature in self.race_properties.get('race_features', []):
-      return True
-    if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('class_features', []):
-      return True
-    if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features', []):
+    if self._race_feature_level_ok(feature):
+      if feature in self.race_properties.get('race_features', []):
+        return True
+      if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('class_features', []):
+        return True
+      if self.subrace() and feature in self.race_properties.get('subrace', {}).get(self.subrace(), {}).get('race_features', []):
+        return True
+
+    if self.data_class_has_feature(feature):
       return True
 
     for klass, properties in self.class_properties.items():
       if feature in properties.get('class_features', []):
         return True
+
+      # Class YAML ``feature_choices: [eldritch_invocations]``: the sheet list
+      # under that key holds picked options that count as class features.
+      for choice_key in properties.get('feature_choices') or []:
+        if feature in (self.properties.get(choice_key) or []):
+          return True
 
       progression = properties.get('progression', {})
       class_level = self.properties.get('classes', {}).get(klass, self.level())
@@ -1237,6 +1399,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         'rogue': ('roguish_archetype', 'roguish_archetype_features'),
         'wizard': ('arcane_tradition', 'arcane_tradition_features'),
         'fighter': ('martial_archetype', 'martial_archetypes'),
+        'paladin': ('sacred_oath', 'sacred_oaths'),
+        'ranger': ('ranger_archetype', 'ranger_archetypes'),
       }
       subclass_field, feature_field = subclass_feature_fields.get(klass, (None, None))
       subclass = self.properties.get(subclass_field) if subclass_field else None
@@ -1323,7 +1487,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
   
 
   def proficiency_bonus(self):
-    return self._proficiency_bonus_table()[self.level() - 1]
+    from natural20.utils.item_mechanics import item_proficiency_bonus
+    return self._proficiency_bonus_table()[self.level() - 1] + item_proficiency_bonus(self)
   
   def proficient(self, prof):
     if any(prof in c.get('proficiencies', []) for c in self.class_properties.values()):
@@ -1348,30 +1513,40 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       magic = self.session.load_magic_item(name)
     except Exception:
       magic = None
-    if magic is not None:
-      return magic
-    try:
-      return self.session.load_equipment(name)
-    except Exception:
+    meta = magic
+    if meta is None:
+      try:
+        meta = self.session.load_equipment(name)
+      except Exception:
+        meta = None
+    if meta is None:
       return None
+    from natural20.utils.class_mechanics import enhancement_bonus
+    bonus = enhancement_bonus(self, dict(meta, _inventory_key=name))
+    if bonus:
+      meta = dict(meta)
+      meta['magic_bonus'] = int(meta.get('magic_bonus', 0) or 0) + bonus
+    return meta
 
   def equipped_ac(self):
+    from natural20.utils.item_mechanics import effective_item_meta
     equipped = self.properties.get('equipped', [])
     all_items = {}
     for e in equipped:
       meta = self._equipped_item_meta(e)
       if meta is not None:
-        all_items[e] = meta
+        all_items[e] = effective_item_meta(self, meta, e)
     equipped_meta = [all_items[e] for e in equipped if e in all_items]
     # Reverse to prefer last-equipped armor/shield (most recently equipped wins)
     armor = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'armor'), None)
     shield = next((equipment for equipment in reversed(equipped_meta) if equipment['type'] == 'shield'), None)
 
     # Collect magic AC bonus from accessories (Ring of Protection, Cloak of Protection, etc.)
+    from natural20.utils.item_mechanics import is_attuned
     accessory_ac_bonus = 0
     for e in equipped:
       item = all_items.get(e)
-      if item and item.get('type') == 'accessory' and item.get('magic_bonus', 0):
+      if item and item.get('type') == 'accessory' and item.get('magic_bonus', 0) and is_attuned(self, e, item):
         accessory_ac_bonus += item.get('magic_bonus', 0)
 
     # Tortle - Natural Armor (5e SRD): base AC 17, DEX modifier doesn't
@@ -1395,7 +1570,16 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       shield_ac = 0 if shield is None else shield['bonus_ac'] + shield.get('magic_bonus', 0)
       return 10 + self.dex_mod() + self.con_mod() + shield_ac + accessory_ac_bonus
 
-    armor_ac = 10 + self.dex_mod() if armor is None else armor['ac'] + armor.get('magic_bonus', 0) + min(self.dex_mod(), armor['mod_cap'] if 'mod_cap' in armor else self.dex_mod()) + (1 if self.class_feature('defense') else 0)
+    if armor is None:
+      armor_ac = 10 + self.dex_mod()
+    else:
+      dex_cap = armor.get('mod_cap')
+      if dex_cap is None:
+        dex_cap = {'heavy': 0, 'medium': 2}.get(armor.get('subtype'))
+        if dex_cap == 2 and self.class_feature('medium_armor_master'):
+          dex_cap = 3
+      dex_bonus = self.dex_mod() if dex_cap is None else min(self.dex_mod(), dex_cap)
+      armor_ac = armor['ac'] + armor.get('magic_bonus', 0) + dex_bonus + (1 if self.class_feature('defense') else 0)
 
     shield_ac = 0 if shield is None else shield['bonus_ac'] + shield.get('magic_bonus', 0)
 
@@ -1408,7 +1592,9 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     if super().darkvision(distance):
       return True
 
-    return bool(self.race_properties.get('darkvision', None) and (self.race_properties['darkvision'] >= distance))
+    from natural20.utils.class_mechanics import class_darkvision
+    range_ft = class_darkvision(self, self.race_properties.get('darkvision') or 0)
+    return bool(range_ft and range_ft >= distance)
 
   def get_draconic_ancestry(self):
     """Return the draconic ancestry key for this character (Dragonborn only).
@@ -1471,6 +1657,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
 
     if hasattr(self, f"max_slots_for_{character_class}"):
       return getattr(self, f"max_slots_for_{character_class}")(level)
+    if self.is_data_driven_class(character_class):
+      return self.max_slots_for_data_class(character_class, level)
 
     return 0
   
@@ -1700,6 +1888,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       'lay_on_hands_max_pool',
       'divine_sense_count',
       'divine_sense_max_count',
+      'channel_divinity_count',
+      'channel_divinity_max',
       'ki_count',
       'max_ki',
       'bardic_inspiration_count',

@@ -7,6 +7,9 @@ from natural20.action import AsyncReactionHandler
 from natural20.actions.divine_smite_action import DivineSmiteAction
 from natural20.actions.lay_on_hands_action import LayOnHandsAction
 from natural20.spell.searing_smite_spell import SearingSmiteEffect
+from natural20.spell.shining_smite_spell import ShiningSmiteOffer
+# Imported so the Channel Divinity actions register with the class-feature registry.
+from natural20.actions import abjure_foes_action, sacred_weapon_action  # noqa: F401
 
 if TYPE_CHECKING:
     from natural20.player_character import PlayerCharacter
@@ -188,8 +191,34 @@ class Paladin():
         self.lay_on_hands_count = self.lay_on_hands_max_pool
         divine_smite = DivineSmiteEffect(self)
         self.register_event_hook('on_attack_hit', divine_smite, 'on_attack_hit')
-        searing_smite = SearingSmiteEffect(self)
-        self.register_event_hook('on_attack_hit', searing_smite, 'on_attack_hit')
+        for offer_class in (SearingSmiteEffect, ShiningSmiteOffer):
+            self.register_event_hook('on_attack_hit', offer_class(self), 'on_attack_hit')
+        self._init_paladin_channel_divinity()
+
+    def paladin_channel_divinity_max(self):
+        """Channel Divinity uses from class YAML ``channel_divinity_uses`` (by paladin level)."""
+        if not self.class_feature('channel_divinity'):
+            return 0
+        override = self.properties.get('channel_divinity_uses')
+        if isinstance(override, int):
+            return override
+        table = (self.class_properties.get('paladin') or {}).get('channel_divinity_uses') or {}
+        uses = 0
+        for level, count in table.items():
+            try:
+                if self.paladin_level >= int(level):
+                    uses = max(uses, int(count))
+            except (TypeError, ValueError):
+                continue
+        return uses
+
+    def _init_paladin_channel_divinity(self):
+        uses = self.paladin_channel_divinity_max()
+        if uses <= 0:
+            return
+        self.channel_divinity_max = max(getattr(self, 'channel_divinity_max', 0) or 0, uses)
+        self.channel_divinity_count = max(getattr(self, 'channel_divinity_count', 0) or 0,
+                                          self.channel_divinity_max)
 
     def special_actions_for_paladin(self, session, battle):
         actions = []
@@ -275,10 +304,22 @@ class Paladin():
         return self.proficiency_bonus() + self.cha_mod()
 
     def short_rest_for_paladin(self, battle):
-        pass
-    
+        uses = self.paladin_channel_divinity_max()
+        if uses <= 0:
+            return
+        recovery = (self.class_properties.get('paladin') or {}).get('channel_divinity_short_rest_recovery')
+        current = getattr(self, 'channel_divinity_count', 0) or 0
+        limit = max(getattr(self, 'channel_divinity_max', 0) or 0, uses)
+        gain = limit if recovery is None else int(recovery)
+        self.channel_divinity_count = min(limit, current + gain)
+
     def long_rest_for_paladin(self, battle):
-        pass
+        if self.lay_on_hands_max_pool:
+            self.lay_on_hands_count = self.lay_on_hands_max_pool
+        uses = self.paladin_channel_divinity_max()
+        if uses > 0:
+            self.channel_divinity_max = max(getattr(self, 'channel_divinity_max', 0) or 0, uses)
+            self.channel_divinity_count = self.channel_divinity_max
     
     def max_slots_for_paladin(self, level):
         return PALADIN_SPELL_SLOT_TABLE[self.paladin_level - 1][level - 1] if level < len(PALADIN_SPELL_SLOT_TABLE[self.paladin_level - 1]) else 0

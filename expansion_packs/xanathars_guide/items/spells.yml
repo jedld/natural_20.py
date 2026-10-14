@@ -1,0 +1,100 @@
+# Xanathar's Guide to Everything spells (not part of the SRD).
+# Descriptions are paraphrased; mechanics run on generic engine classes
+# (natural20/spell/strike_surge_spell.py, natural20/spell/push_creature_spell.py).
+---
+zephyr_strike:
+  label: Zephyr Strike
+  casting_time: 1:bonus_action
+  components: [verbal]
+  damage_type: force
+  description: >-
+    You move like the wind. Until the spell ends, your movement doesn't provoke opportunity
+    attacks. Once before the spell ends, you can give yourself advantage on one weapon attack
+    roll on your turn; that attack deals an extra 1d8 force damage on a hit, and whether it hits
+    or misses, your walking speed increases by 30 feet until the end of that turn.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 1
+  name: Zephyr Strike
+  range: self
+  no_opportunity_attacks: true
+  attack_surge:
+    advantage: true
+    extra_damage: 1d8
+    damage_type: force
+    speed_bonus: 30
+  hostile: false
+  ai_no_recast: true
+  school: transmutation
+  type: buff
+  spell_list_classes: [Ranger]
+  spell_class: Natural20::StrikeSurge
+gust:
+  label: Gust
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    You seize the air and make it move. Choose one Medium or smaller creature within range: it
+    makes a Strength saving throw or is pushed up to 5 feet away from you. (You can instead nudge
+    an unattended object of 5 pounds or less up to 10 feet, or create a harmless sensory effect
+    with air, such as rustling leaves or slamming shutters; these uses are narrative only.)
+  duration: instant
+  level: 0
+  name: Gust
+  range: 30
+  save: strength
+  push_distance: 5
+  max_size: medium
+  hostile: true
+  school: transmutation
+  type: control
+  spell_list_classes: [Druid, Sorcerer, Wizard]
+  spell_class: Natural20::PushCreature
+thunder_step:
+  label: Thunder Step
+  casting_time: 1:action
+  components: [verbal]
+  damage_type: thunder
+  description: >-
+    You teleport to an unoccupied space you can see within range. Right after you disappear, a
+    thunderous boom sounds, and each creature within 10 feet of the space you left makes a
+    Constitution saving throw, taking 3d10 thunder damage on a failure or half as much on a
+    success. At Higher Levels: the damage increases by 1d10 for each slot level above 3rd.
+  duration: instant
+  level: 3
+  upcast: true
+  name: Thunder Step
+  range: 90
+  departure_radius: 10
+  departure_save: constitution
+  departure_damage: 3d10
+  departure_damage_per_slot: 1d10
+  school: conjuration
+  type: utility
+  spell_list_classes: [Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::ThunderStep
+synaptic_static:
+  label: Synaptic Static
+  casting_time: 1:action
+  components: [verbal, somatic]
+  damage_type: psychic
+  description: >-
+    A burst of psychic energy explodes at a point within range. Each creature in a 20-foot-radius
+    sphere centered there makes an Intelligence saving throw, taking 8d6 psychic damage on a
+    failure or half as much on a success. A creature that fails has muddled thoughts for 1
+    minute: it subtracts 1d6 from its attack rolls, ability checks and Constitution saves to keep
+    concentration, repeating the save at the end of each of its turns.
+  duration: instant
+  level: 5
+  name: Synaptic Static
+  range: 120
+  radius: 20
+  hostile: true
+  muddled:
+    dice: 1d6
+    duration_seconds: 60
+  school: enchantment
+  type: attack
+  spell_list_classes: [Bard, Sorcerer, Warlock, Wizard]
+  spell_class: Natural20::SynapticStatic

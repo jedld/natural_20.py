@@ -41,6 +41,10 @@ When `ruleset: 5e-2024`, YAML resolution order is:
 
 Missing overlay files fall back to 2014 templates (with no hard error).
 
+**Per-character race edition.** A sheet with `race_edition: 5e-2024` loads its race from `templates/rulesets/5e-2024/races/` even when the campaign runs another ruleset. For example, a 2024 gnome imported from D&D Beyond into a 2014 campaign keeps Gnomish Cunning (`save_advantage`) and its lineage `spells`.
+
+**2024 Ranger and Human.** The ranger overlay casts from level 1 with half-caster slots rounding up (`spellcasting.progression: half_round_up`), and has the 2024 progression: Favored Enemy as free Hunter's Mark casts, Deft Explorer, Roving (+10 ft speed unless in heavy armor), Expertise and Tireless (temporary HP action, and a short rest removes one Exhaustion level). Subclasses go under `subclasses.<name>` keyed by `ranger_archetype`. The Gloom Stalker ships in the `players_handbook_2024` pack. The 2024 Human has no ability bonuses and gets Heroic Inspiration after each long rest (`inspiration_on_long_rest`). The D&D Beyond importer rounds single-class half-caster levels up (2014 rangers and paladins get no slots at level 1) and also rounds them up for multiclass characters in 2024 campaigns.
+
 **Campaign-local files win.** If a campaign ships its own `char_classes/fighter.yml`
 (or race/background), that file shadows the ruleset overlay. Prefer omitting
 local copies and relying on templates + overlays, or `inherit: "@templates/..."`
@@ -121,6 +125,49 @@ Chargen (2024 classes with the feature) asks the player to pick that many master
 
 Attack buttons and the character sheet show the mastery when the campaign ruleset enables it. Combat log events use `event: weapon_mastery`.
 
+### Weapon properties and 2024 feats (all editions)
+
+- **Loading** is enforced for player characters in both editions: one Loading shot per Attack action, whatever Extra Attack allows (`natural20/utils/weapon_loading.py`). Feat `weapon_attack_rules` `ignore_properties: [loading]` waives it.
+- **Long range** compares the distance in feet with the weapon's normal `range` (the `thrown.range` for thrown weapons).
+- **Archery** adds +2 to ranged weapon *attack rolls* only, not damage.
+- 2024 Lucky (luck points), Sharpshooter and Crossbow Expert are YAML in the `players_handbook_2024` expansion pack; the mechanics are generic (`feat_mechanics.py`, `luck_points.py`). See `docs/CAMPAIGN_BUILDING.md` → "Other feat YAML mechanics". Lucky is offered after the d20 is rolled, with the same odds as spending it beforehand.
+
+### Paladin and feats
+
+| Feature | 2014 | 2024 |
+|---------|------|------|
+| Channel Divinity | 1 use, all back on a short rest | 2 uses (3 at 11th), one back on a short rest |
+| Sacred Weapon (`Ruleset.sacred_weapon_model`) | Action, 1 minute | Part of the Attack action (no action cost), 10 minutes |
+| Improved Divine Smite / Radiant Strikes | +1d8 radiant on melee weapon hits (11th) | Same, renamed Radiant Strikes |
+| Abjure Foes | — | 9th level Channel Divinity option |
+| Great Weapon Master | Hew bonus attack | Hew plus +PB damage with heavy weapons |
+
+A character can use one feat's rules from another edition through
+`feat_editions` (for example `great_weapon_master: 5e-2024` in a 2014
+campaign). 2024 class features that the campaign's class YAML doesn't grant can
+be listed under `class_features`, and `channel_divinity_uses` overrides the
+Channel Divinity table. The D&D Beyond importer writes all three for 2024
+sheets imported into 2014 campaigns.
+
+### Magic item attunement (both editions)
+
+The attunement rules are the same in DMG 2014 and DMG 2024: attuning takes a
+short rest focused on one item while holding it, a creature can be attuned to
+at most three items (one copy of each), and attunement ends on death, after 24
+hours away from the item, or after another short rest (not while the item is
+cursed). Both rulesets therefore share the defaults:
+
+| Hook | Default | `ruleset_overrides` key |
+|------|---------|-------------------------|
+| `attunement_limit()` | 3 | `attunement_limit` |
+| `attunement_requires_rest()` | `true` | `attunement_requires_rest` (`false`: instant outside combat) |
+| `attunements_per_rest('short_rest' / 'long_rest')` | 1 / 2 | `attunements_per_short_rest` / `attunements_per_long_rest` |
+
+Class features raise the limit through class YAML `attunement` entries. The
+Artificer from `tashas_cauldron` goes to 4, 5 and 6 items. Without attunement,
+an item gives only its nonmagical benefits. See `docs/CAMPAIGN_BUILDING.md` →
+"Managing attunement".
+
 ## Spells (ruleset)
 
 Under `ruleset: 5e-2024`, [`templates/rulesets/5e-2024/items/spells.yml`](../templates/rulesets/5e-2024/items/spells.yml)
@@ -133,6 +180,8 @@ overlays SRD 5.2 text/metadata onto the shared spell catalogue.
 | **True Strike** | Concentration advantage cantrip | Weapon attack using spellcasting ability; optional radiant; cantrip upgrade d6s |
 | **Hex** | Same core curse (SRD 5.2 text in catalogue) | Extra 1d6 necrotic on attack hits + ability-check disadv (concentration) |
 | **Searing Smite** | Not offered as post-hit BA | **Bonus action** after melee/unarmed hit; ongoing fire + CON save to end (not concentration) |
+| **Shining Smite** | Offered as post-hit BA (no 2014 counterpart, so not gated) | Same: 2d6 radiant (+1d6/slot above 2nd), target glows, attacks vs it have advantage, no Invisible benefit |
+| **Aura of Vitality** | Cast as an action, no heal on cast; BA heal usable the same turn | Cast as a **bonus action** and heals one creature on cast (that turn's pulse); Cleric/Druid/Paladin list |
 
 | **Cure Wounds** | 1d8 + mod, +1d8 per slot above 1st | 2d8 + mod, +2d8 per slot above 1st |
 | **Healing Word** | 1d4 + mod, +1d4 per slot above 1st | 2d4 + mod, +2d4 per slot above 1st |
@@ -187,6 +236,90 @@ Both editions end your current concentration as soon as you cast another concent
 Attackers who are blinded, can't see the caster, or perceive the caster with `blindsight` / `truesight` in range are unaffected. A diverted attack logs a `mirror_image_duplicate` event in place of the plain miss line: "...but struck one of X's Mirror Image duplicates instead (duplicate roll ...). The duplicate vanishes (2 left)." The VTT tile carries `mirror_images` (duplicates left). `status_effects.js` draws one drifting, translucent copy of the token per duplicate, and the 3D client shows a pale-blue ring.
 
 Spells that make several attack rolls in one cast (Scorching Ray, Eldritch Blast) pass `opts['attack_index']` to `evaluate_spell_attack`. Each ray then gets its own roll, cached per index for re-resolves. One-shot advantage such as Guiding Bolt's is used up by the first ray only.
+
+### Targeting wards, action restrictions and spell follow-ups
+
+These generic hooks work the same in both editions. Any spell, item or monster trait can reuse them.
+
+**Targeting wards** (`natural20/utils/targeting_ward.py`). An effect registers `targeting_ward` with a handler that returns `{'save_type', 'dc', 'label'}`. A creature that targets the warded creature makes that save first:
+
+- An attack checks the ward in `AttackAction.resolve`. On a failed save the attack is spent but never rolled.
+- A harmful spell (per `friendly_fire.is_harmful`) checks it in `SpellAction.resolve`. A failed save drops the warded creature from the spell's targets. If no creature target is left, the spell and its slot are lost.
+- Area spells aimed at a point are not blocked.
+- Every save logs a `targeting_ward` line: "Ogre tests Crysania's Sanctuary (wisdom save ...) and loses the attack."
+
+Sanctuary (`natural20/spell/sanctuary_spell.py`) uses the ward. It ends when the warded creature attacks (`attack_resolved` hook), casts a spell that affects an enemy (`spell_cast`), or deals damage (`dealt_damage`, which `damage_event` fires on the source).
+
+**Action restrictions** (`natural20/utils/action_restrictions.py`). A stacked `action_restriction` effect returns forbidden kinds. `attack`, `spell`, `speak` and `interact` are checked by `AttackAction.can`, `SpellAction.can_cast`, `SpeakAction.can` and `InteractAction.can`. Gaseous Form (`natural20/spell/gaseous_form_spell.py`) forbids all four. It also gives a 10 ft fly speed (`fly_speed` + `speed_override`), resistance to nonmagical bludgeoning, piercing and slashing damage, and advantage on STR/DEX/CON saves.
+
+**Bonus-action follow-ups.** Flaming Sphere (`natural20/spell/flaming_sphere_spell.py`) places a `FlamingSphereZone`, a persistent zone over the 3×3 squares around the sphere. Any creature whose turn ends there makes a DEX save for half damage. While the caster concentrates on it, `FlamingSphereAction` is offered once per turn as a bonus action:
+
+- It is a `select_radius` whose `origin` is the sphere's square, with a range of 30 ft.
+- Picking an occupied square moves the sphere next to that creature and rams it, forcing the same save.
+- Picking an empty square just moves the sphere.
+
+PCs get the action from `class_feature_registry` and NPCs from `Npc.available_actions`. The VTT marks the sphere's square with `flaming_sphere_marker`.
+
+**Other small SRD spells:**
+
+- Faerie Fire outlines creatures in a 20-foot cube that fail a DEX save. Attackers that can see an outlined creature get advantage (`targeted_advantage_override`), it can't benefit from invisibility (`invisibility_suppressed`), and it sheds dim light.
+- Lesser Restoration ends paralyzed > blinded > poisoned > deafened > a `disease*` status, in that order, unless `opts['condition']` names one.
+- Ray of Sickness poisons a creature that fails its CON save until the end of the caster's next turn.
+- Melf's Acid Arrow deals delayed acid damage at the end of the target's next turn (`AcidArrowBurn`). A miss deals half the initial damage and nothing later.
+- Feather Fall, Prestidigitation, Mending and Identify (`natural20/spell/utility_spells.py`) log an event. Feather Fall's `feather_fall` status also cancels fall damage in `map_stack_descent`.
+
+Entity event hooks are not saved. Effects that need them define `restore_hooks()`, which `relink_spell_entities` calls after a load.
+
+### Ranger and utility spells (edition differences)
+
+| Spell | 2014 (templates) | 2024 (`templates/rulesets/5e-2024/` or pack) |
+|---|---|---|
+| Ensnaring Strike | Bonus-action cast, then fires on the next weapon hit (`weapon_hit.timing: next_hit`) | Bonus action right after a weapon hit (`after_hit`) |
+| Hail of Thorns (pack only) | Not in the SRD. Template entry is a stub (`ExpansionPackOnly`) | `expansion_packs/players_handbook_2024/`: after a ranged hit, 2d10 (+1d10 per slot), no concentration |
+| Magic Weapon | Concentration, +2 at 4th, +3 at 6th | No concentration, +2 at 3rd, +3 at 6th |
+
+How weapon-hit spells work (`natural20/spell/extensions/weapon_hit_spell.py`):
+
+- With `after_hit`, the hit offers `WeaponHitSpellCastAction` through the reaction prompt, and the spell is not on the normal cast list.
+- With `next_hit`, the cast arms the caster, and the first qualifying hit fires the spell.
+
+Ensnaring Strike: the target makes a STR save, with advantage if it is Large or bigger. On a failure it is restrained and takes 1d6 piercing per slot level at the start of each of its turns. `BreakFreeAction` makes the escape check (Athletics against the spell DC) for the target or for an adjacent ally.
+
+Other spells added alongside (the same in both editions):
+
+- **Spike Growth.** Difficult terrain, plus 2d4 piercing per 5 ft moved inside. Only voluntary combat movement triggers it.
+- **Silence.** Blocks verbal spells, speech and hearing inside, and grants thunder immunity. Creatures are not given the Deafened status.
+- **Pass without Trace.** +10 Stealth, but only for creatures chosen at cast time (the 2024 emanation is simplified the same way).
+- **Disguise Self.** Cosmetic. Observers see through it with an Investigation check against the spell DC (`see_through_disguise`).
+- **Rope Trick.** Out of combat only. Members can't be targeted and can't attack or cast.
+- **Fear.** 30-ft cone, WIS save or frightened with forced flight. The creature repeats the save at the end of its turn only when it can't see the caster. Victims don't drop held items.
+- Xanathar's pack (`expansion_packs/xanathars_guide/`):
+  - **Zephyr Strike.** No opportunity attacks, plus one surge: advantage, +1d8 force on a hit, +30 ft of movement after the attack roll.
+  - **Gust.** STR save or a Medium-or-smaller creature is pushed 5 ft. Its object and sensory uses are narrative only.
+
+Magic Weapon's bonus does not make the weapon count as magical for resistance.
+
+### Warlock and Archfey spells (edition differences)
+
+| Spell | 2014 (templates) | 2024 (`templates/rulesets/5e-2024/` or pack) |
+|---|---|---|
+| Blink | d20 at the end of each turn, 11+ goes ethereal | d6, 4+ goes ethereal |
+| Phantasmal Force | 1d6 psychic per turn | 2d8 psychic per turn |
+| Blade Ward | Resistance to bludgeoning, piercing and slashing from weapons for 1 round (`blade_ward.mode: resistance`) | PHB 2024 pack: concentration, attackers subtract 1d4 from attack rolls against you (`mode: attack_penalty`) |
+
+Notes on the other spells (the same in both editions):
+
+- **Banishment, Blink.** The target goes off-plane (`natural20/utils/off_plane.py`). Blink returns you to your own square, or to the nearest free one if it is taken. You don't choose the square. Banishment's "native to another plane" rule isn't modelled.
+- **Hypnotic Pattern, Hold Monster, Dominate spells.** Use `ConditionSaveSpell`. Shaking a creature awake from Hypnotic Pattern isn't modelled.
+- **Calm Emotions.** Allies become immune to charmed and frightened. The ward doesn't suppress a charm or fear that is already on them.
+- **Detect Evil and Good / Detect Poison and Disease.** At the start of each turn, logs the matching creatures within range that the caster has line of sight to.
+- **Contact Other Plane.** INT save, or the caster takes damage and is incapacitated. Contact Patron's free cast succeeds automatically.
+- **Plant Growth.** Overgrowth covers the whole area (`movement_cost: 4`). The rule that lets you exclude some creatures isn't modelled.
+- **Seeming.** Disguise Self for up to 6 creatures. Unwilling targets make a CHA save.
+- Xanathar's pack: **Thunder Step** (teleport, plus 3d10 thunder to creatures near the departure square; bringing a passenger isn't modelled) and **Synaptic Static** (8d6 psychic, and failed saves become Muddled: −1d6 on attack rolls and concentration saves, INT save at the end of each turn to end it; the ability-check penalty isn't modelled).
+- PHB 2024 pack: **Summon Fiend** (demon, devil or yugoloth spirit). The demon's Death Throes fire at 0 HP or when the spell ends, the devil has Devil's Sight and can mix Fiery Strike melee and ranged, and the yugoloth can teleport 30 ft after each Claws attack. The spirit vanishes at 0 HP, which ends the spell. Climb speed isn't modelled.
+- **Dimension Door** (SRD). Uses `MistyStepSpell` with YAML `range: 500` and `require_los: false`, so any empty square in range works. `ai_max_destinations` caps how many squares AI auto-targeting considers. Bringing a willing creature along and the 4d6 damage for an occupied destination aren't modelled; occupied squares can't be picked.
+- **Sending** (SRD). Picks a creature on the same map and logs a `sending` event, with the text taken from `spell_action.message` when set. Creatures with INT 1 or lower get the meaning but not the words (`understood: false`). It is a non-combat spell (`ai_in_combat: false`).
 
 ## Changing edition mid-campaign
 

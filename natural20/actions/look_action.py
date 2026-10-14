@@ -4,6 +4,42 @@ from natural20.action import Action
 from natural20.event_manager import EventManager
 import pdb
 
+def secret_search_config(obj):
+    """``secret_search: {skill: investigation, dc: 16, range: 10}`` on a secret
+    door: only an active search with that skill within ``range`` feet finds it
+    (passive Perception does not)."""
+    config = (getattr(obj, 'properties', None) or {}).get('secret_search')
+    return config if isinstance(config, dict) else None
+
+
+def search_secret_door(item, door, current_map, session):
+    searcher = item["source"]
+    config = secret_search_config(door)
+    door_pos = current_map.position_of(door)
+    feet = current_map.feet_per_grid or 5
+    reach = int(config.get('range', 10)) // feet
+    squares = current_map.entity_squares(searcher)
+    if not squares or min(max(abs(x - door_pos[0]), abs(y - door_pos[1])) for x, y in squares) > reach:
+        return
+    skill = config.get('skill', 'investigation')
+    rolls = item.setdefault('search_rolls', {})
+    if skill not in rolls:
+        rolls[skill] = getattr(searcher, f"{skill}_check")(item.get("battle"))
+    roll = rolls[skill]
+    dc = int(config.get('dc', 10))
+    revealed = roll.result() >= dc
+    if revealed:
+        door.is_secret = False
+    door.perception_results[searcher] = {
+        "secret_dc": dc,
+        "perception_roll": roll.result(),
+        "skill": skill,
+        "revealed": revealed,
+    }
+    if revealed:
+        current_map._log_secret_door_discovery(searcher, door, reason='search')
+
+
 class LookAction(Action):
     def __init__(self, session, source, action_type, opts={}):
         super().__init__(session, source, action_type, opts)
@@ -94,6 +130,9 @@ class LookAction(Action):
                     _, new_annotations = entity.list_annotations(item["source"])
                     for k in new_annotations.keys():
                         item['perception_targets'][k] = new_annotations[k]
+
+                if entity != item["source"] and entity.secret() and secret_search_config(entity):
+                    search_secret_door(item, entity, current_map, session)
 
                 if entity!=item["source"] and entity.secret() and entity.secret_perception_dc() and current_map.can_see(item["source"], entity, ignore_concealment=True, active_perception=perception_results):
                     if entity.secret_perception_dc() <= perception_results:

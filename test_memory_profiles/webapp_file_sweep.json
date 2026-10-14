@@ -1,0 +1,2295 @@
+[
+ {
+  "file": "n20-webapp/tests/webapp/test_action_bar.py",
+  "rc": 1,
+  "seconds": 4.3,
+  "peak_rss_mb": 129.45703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "place Gomerin at 2, 3",
+   "place Wolf at 1, 5",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_action_bar.py::TestActionBarRoutes::test_action_template_context_skips_spells_for_ground_objects",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 passed, 1 warning in 3.74s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_action_button_fallback.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 119.3671875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 2.43s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_action_type_resolution.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 55.203125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 1.02s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_ai_blueprint.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 117.92578125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "4 passed, 1 warning in 2.39s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_ai_config.py",
+  "rc": 0,
+  "seconds": 3.6,
+  "peak_rss_mb": 118.24609375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "................                                                         [100%]",
+   "=============================== warnings summary ===============================",
+   "n20-webapp/tests/webapp/test_ai_config.py::TestAiConfigRoutes::test_get_and_save_roundtrip",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "16 passed, 1 warning in 3.16s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_approach_through_door.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 71.64453125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "sssss                                                                    [100%]",
+   "5 skipped in 1.08s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_asset_utils.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 57.33203125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.02s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_assets_blueprint.py",
+  "rc": 0,
+  "seconds": 2.7,
+  "peak_rss_mb": 120.234375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "9 passed, 1 warning in 2.35s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_attack_action_route.py",
+  "rc": 0,
+  "seconds": 3.4,
+  "peak_rss_mb": 121.55078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "2 passed, 1 warning in 2.98s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_attunement_routes.py",
+  "rc": 0,
+  "seconds": 3.6,
+  "peak_rss_mb": 125.5546875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "6 passed, 1 warning in 3.21s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_auth_blueprint.py",
+  "rc": 0,
+  "seconds": 2.7,
+  "peak_rss_mb": 117.9609375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "4 passed, 1 warning in 2.30s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_autosave_error_emit.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 73.89453125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 1.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_blueprint.py",
+  "rc": 0,
+  "seconds": 2.7,
+  "peak_rss_mb": 118.4375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "4 passed, 1 warning in 2.33s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_end_hooks.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 56.28515625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "5 passed in 1.09s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_llm_provider.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 58.87890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....................                                                     [100%]",
+   "20 passed in 1.02s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_management.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 70.75390625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_party_autofill.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 40.2421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 0.03s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_roll_initiative.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 77.7734375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 1.12s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_battle_target_preview.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 77.96484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.15s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_campaign_config.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 40.25,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_campaign_reset.py",
+  "rc": 0,
+  "seconds": 2.6,
+  "peak_rss_mb": 118.2265625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "2 passed, 1 warning in 2.27s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_character_blueprint.py",
+  "rc": 0,
+  "seconds": 2.7,
+  "peak_rss_mb": 117.87890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "5 passed, 1 warning in 2.29s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_character_builder.py",
+  "rc": 1,
+  "seconds": 2.7,
+  "peak_rss_mb": 121.01953125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "",
+   "n20-webapp/tests/webapp/test_character_builder.py:80: AssertionError",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_character_builder.py::test_create_warlock_character",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 warning in 2.37s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_character_builder_languages.py",
+  "rc": 1,
+  "seconds": 1.3,
+  "peak_rss_mb": 67.44921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "            background_def,",
+   "            ['common', 'elvish'],",
+   "            race_def=race_def,",
+   "        )",
+   ">       assert not ok",
+   "E       assert not True",
+   "",
+   "n20-webapp/tests/webapp/test_character_builder_languages.py:36: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_character_builder_languages.py::test_validate_background_language_rejects_granted_pick",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 2 passed in 1.06s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_character_builder_restrictions.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 40.72265625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_character_builder_utils.py",
+  "rc": 1,
+  "seconds": 1.4,
+  "peak_rss_mb": 74.21484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "",
+   "        if not self.create and original is DEFAULT:",
+   ">           raise AttributeError(",
+   "                \"%s does not have the attribute %r\" % (target, name)",
+   "            )",
+   "E           AttributeError: <module 'webapp.blueprints.helpers.character_builder_utils' from '/home/jedld/workspace/natural_20.py/n20-webapp/webapp/blueprints/helpers/character_builder_utils.py'> does not have the attribute 'roles_for_username'",
+   "",
+   "../../miniforge3/lib/python3.13/unittest/mock.py:1473: AttributeError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_character_builder_utils.py::TestCharacterBuilderUtils::test_can_edit_character_controller",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 15 passed in 1.11s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_character_selection.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 55.77734375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........                                                                 [100%]",
+   "8 passed in 1.01s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_combat_callout_phrasing.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 64.4296875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 1.05s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_complete_ui_cleaning.py",
+  "rc": 0,
+  "seconds": 1.2,
+  "peak_rss_mb": 62.5078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "  Did you mean to use `assert` instead of `return`?",
+   "  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+   "    warnings.warn(",
+   "",
+   "n20-webapp/tests/webapp/test_complete_ui_cleaning.py::test_end_to_end_flow",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but n20-webapp/tests/webapp/test_complete_ui_cleaning.py::test_end_to_end_flow returned <class 'bool'>.",
+   "  Did you mean to use `assert` instead of `return`?",
+   "  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "3 passed, 3 warnings in 0.98s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_conversation_prompt.py",
+  "rc": 1,
+  "seconds": 2.7,
+  "peak_rss_mb": 133.31640625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "",
+   "n20-webapp/webapp/conversation_service.py:2991: AttributeError",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_conversation_prompt.py::test_conversation_prompt_explicitly_allows_in_character_refusals",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 warning in 2.34s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_conversation_summon.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 65.58203125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...........                                                              [100%]",
+   "11 passed in 1.05s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_conversation_tts.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 65.203125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".............                                                            [100%]",
+   "13 passed in 1.12s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_cosyvoice_provider.py",
+  "rc": 0,
+  "seconds": 1.7,
+  "peak_rss_mb": 66.98046875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........................................................................ [ 97%]",
+   "..                                                                       [100%]",
+   "74 passed in 1.40s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_ai_history.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 59.62109375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 0.98s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_assistant_rest.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 56.4609375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.02s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_blueprint.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 118.8125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...............                                                          [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "15 passed, 1 warning in 2.45s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_impersonate_conversation.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 65.8984375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "5 passed in 1.09s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_notes.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 66.7109375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_npc_impersonation.py",
+  "rc": 1,
+  "seconds": 2.7,
+  "peak_rss_mb": 119.21875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "INFO     werkzeug:conversation_service.py:5738 [Talk] delivered_to=[] eligible_responders=[]",
+   "INFO     werkzeug:conversation_service.py:5849 [Talk] complete speaker=corin_guard elapsed_ms=0.7",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_dm_npc_impersonation.py::test_dm_impersonation_records_npc_speech_without_llm_reply",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 warning in 2.30s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_edit_mode.py",
+  "rc": 0,
+  "seconds": 3.0,
+  "peak_rss_mb": 118.45703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "5 passed, 1 warning in 2.61s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_edit_mode_session.py",
+  "rc": 0,
+  "seconds": 3.8,
+  "peak_rss_mb": 123.69140625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..........                                                               [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "10 passed, 1 warning in 3.38s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_effects_helpers.py",
+  "rc": 1,
+  "seconds": 0.4,
+  "peak_rss_mb": 54.36328125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "",
+   "        if not self.create and original is DEFAULT:",
+   ">           raise AttributeError(",
+   "                \"%s does not have the attribute %r\" % (target, name)",
+   "            )",
+   "E           AttributeError: <module 'webapp.blueprints.helpers.effects' from '/home/jedld/workspace/natural_20.py/n20-webapp/webapp/blueprints/helpers/effects.py'> does not have the attribute 'filter_effect_payloads'",
+   "",
+   "../../miniforge3/lib/python3.13/unittest/mock.py:1473: AttributeError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_effects_helpers.py::TestEffectsHelpers::test_emit_active_effects_for_client_with_effects",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 passed in 0.14s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_elevenlabs_bake.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 41.5,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "9 passed in 0.06s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_end_of_turn_animations.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 73.44921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.21s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_endpoint_name_parity.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 117.74609375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "3 passed, 1 warning in 2.46s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_entity_delete_undo.py",
+  "rc": 0,
+  "seconds": 1.7,
+  "peak_rss_mb": 68.69921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "9 passed in 1.33s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_entity_rag_handler.py",
+  "rc": 1,
+  "seconds": 1.8,
+  "peak_rss_mb": 96.6640625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "        search_order = []",
+   "        if prefer_map is not None:",
+   "            search_order.append(prefer_map)",
+   ">       for map_obj in getattr(self.game_session, 'maps', {}).values():",
+   "                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+   "E       TypeError: 'Mock' object is not iterable",
+   "",
+   "n20-webapp/webapp/entity_rag_handler.py:2712: TypeError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_entity_rag_handler.py::TestEntityRAGHandler::test_build_conversation_response_plan_clamps_entity_approach_distance",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 11 passed in 1.49s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_entity_registry_lookup.py",
+  "rc": 0,
+  "seconds": 2.2,
+  "peak_rss_mb": 75.17578125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 1.91s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_entity_respawn.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 63.68359375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "        registry.ensure_user_entities_spawned('shorvalu')",
+   "        registry.ensure_user_entities_spawned('shorvalu')",
+   "",
+   "        assert len(warnings) == 1",
+   ">       assert 'Could not materialize assigned character shorvalu for user shorvalu' in warnings[0]",
+   "E       AssertionError: assert 'Could not materialize assigned character shorvalu for user shorvalu' in '[timing] materialize_failed entity=shorvalu user=shorvalu lookup_ms=0.0'",
+   "",
+   "n20-webapp/tests/webapp/test_entity_respawn.py:158: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_entity_respawn.py::test_ensure_user_entities_spawned_logs_missing_assignment_once",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 3 passed in 1.20s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_equip_light_refresh.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 118.39453125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "6 passed, 1 warning in 2.49s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_forced_conversation.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 56.421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..........                                                               [100%]",
+   "10 passed in 1.19s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_formatted_response.py",
+  "rc": 0,
+  "seconds": 1.7,
+  "peak_rss_mb": 81.26953125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "n20-webapp/tests/webapp/test_formatted_response.py::test_formatted_response",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but n20-webapp/tests/webapp/test_formatted_response.py::test_formatted_response returned <class 'bool'>.",
+   "  Did you mean to use `assert` instead of `return`?",
+   "  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 1.32s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_game_loop_async.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 72.96875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 1.19s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_goal_arrival_conversation.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 114.41015625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 2.52s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_grapple_instead_opt.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 55.19140625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.12s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_highlight_doors.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 40.5,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_jev_provider.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 58.7421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "............................                                             [100%]",
+   "28 passed in 1.11s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_journal_unread.py",
+  "rc": 0,
+  "seconds": 2.0,
+  "peak_rss_mb": 80.4375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.64s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_journal_utils.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.140625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "            with patch('webapp.blueprints.helpers.journal_utils.session', {'username': 'player1'}):",
+   "                with patch.object(self.mod, 'entities_controlled_by', return_value=['pc2']):",
+   "                    character = 'pc2'",
+   "                    allowed, error = self.mod._journal_owner_check(character)",
+   ">                   self.assertFalse(allowed)",
+   "E                   AssertionError: True is not false",
+   "",
+   "n20-webapp/tests/webapp/test_journal_utils.py:55: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_journal_utils.py::TestJournalUtils::test_journal_owner_check_forbidden",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 passed in 1.18s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_legendary_phase.py",
+  "rc": 1,
+  "seconds": 2.5,
+  "peak_rss_mb": 90.5703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "                </button>",
+   "                <div class=\"resource-pools-body\">",
+   "                    {% for resource_name, resource in _pools.items() %}",
+   ">                   {% set label = resource_name | resource_pool_label %}",
+   "    ^^^^^^^^^^^^^^^^^^^^^^^^^",
+   "E                   jinja2.exceptions.TemplateAssertionError: No filter named 'resource_pool_label'.",
+   "",
+   "n20-webapp/webapp/templates/turn.jinja:69: TemplateAssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_legendary_phase.py::test_turn_panel_shows_end_legendary_action_button",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 2 passed in 2.17s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llama_cpp_provider.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 118.1328125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "3 passed, 1 warning in 2.43s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_context_budget.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 62.1484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 1.08s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_conversation_controller.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 59.55078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 1.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_conversation_player_actions.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 59.23828125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_init.py",
+  "rc": 1,
+  "seconds": 1.3,
+  "peak_rss_mb": 60.70703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "                      self.call_count,",
+   "                      self._calls_repr()))",
+   ">           raise AssertionError(msg)",
+   "E           AssertionError: Expected 'initialize_provider' to be called once. Called 0 times.",
+   "",
+   "../../miniforge3/lib/python3.13/unittest/mock.py:990: AssertionError",
+   "------------------------------ Captured log call -------------------------------",
+   "WARNING  webapp.blueprints.helpers.llm_init:llm_init.py:57 ANTHROPIC_API_KEY not set, LLM features will be disabled",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_llm_init.py::TestLlmInit::test_configure_llm_handler_anthropic_custom_model",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed in 1.06s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_logging.py",
+  "rc": 1,
+  "seconds": 1.6,
+  "peak_rss_mb": 79.7578125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "INFO     werkzeug:llm_handler.py:2297 [LLMHandler] Unknown function: get_battle_status",
+   "INFO     werkzeug:llm_handler.py:1753 [LLMHandler] DM tool round 2 follow-up: I'm here to help with your D&D game! I can provide information about characters, maps, battles, and more. What would you like to know?",
+   "Available functions:",
+   "- get_map_info()",
+   "- get_entities()",
+   "- get_player_characters()",
+   "- get_npcs()",
+   "- get_enti",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_llm_logging.py::test_llm_logging - TypeEr...",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed in 1.23s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_mcp_bridge.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 59.27734375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "............................                                             [100%]",
+   "28 passed in 1.06s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_llm_npc_conversation_cleaning.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 59.18359375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "9 passed in 1.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_log_visibility.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 74.3828125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ">       assert delivered_sids == {'sid-source', 'sid-target', 'sid-watcher', 'sid-dm'}",
+   "E       AssertionError: assert {'sid-dm', 's... 'sid-target'} == {'sid-dm', 's...'sid-watcher'}",
+   "E",
+   "E         Extra items in the right set:",
+   "E         'sid-watcher'",
+   "E         Use -v to get more diff",
+   "",
+   "n20-webapp/tests/webapp/test_log_visibility.py:158: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_log_visibility.py::test_conversation_logs_are_emitted_only_to_participants_overhearers_and_dm",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 passed in 1.20s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_login_ui.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 40.234375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_long_rest_npc_simulation.py",
+  "rc": 1,
+  "seconds": 1.6,
+  "peak_rss_mb": 82.57421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "            from natural20.environment_zones import tick_environment_zones",
+   "            tick_environment_zones(self.maps, event_manager=self.game_session.event_manager)",
+   "        except Exception:",
+   ">           self.logger.exception('Exploration environment zone tick failed')",
+   "            ^^^^^^^^^^^",
+   "E           AttributeError: 'GameManagement' object has no attribute 'logger'",
+   "",
+   "n20-webapp/webapp/utils.py:2622: AttributeError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_long_rest_npc_simulation.py::test_advance_world_time_skips_emit_when_suppressed",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 7 passed in 1.33s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_map_graph.py",
+  "rc": 0,
+  "seconds": 4.0,
+  "peak_rss_mb": 158.828125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........                                                                 [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "8 passed, 1 warning in 3.51s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_map_reload.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 73.4296875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 1.12s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_mcp_protocol.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.3125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....................                                                    [100%]",
+   "21 passed in 1.14s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_mcp_tools.py",
+  "rc": 0,
+  "seconds": 2.0,
+  "peak_rss_mb": 82.7890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "................                                                         [100%]",
+   "16 passed in 1.72s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_merchant_trade.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 119.4375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "6 passed, 1 warning in 2.42s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_move_animation_path.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 73.2890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.13s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_movement_travel_time.py",
+  "rc": 0,
+  "seconds": 4.8,
+  "peak_rss_mb": 194.19921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 4.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_navigation_blueprint.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 118.3125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "4 passed, 1 warning in 2.46s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_notebook.py",
+  "rc": 0,
+  "seconds": 1.7,
+  "peak_rss_mb": 65.96484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "5 passed in 1.38s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_background_llm.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 55.015625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 1.13s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_conversation_mode.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 56.484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_damage_reaction.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.828125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "............                                                             [100%]",
+   "12 passed in 1.14s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_environment_ticks.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 56.45703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..........                                                               [100%]",
+   "10 passed in 1.18s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_escort_movement.py",
+  "rc": 0,
+  "seconds": 5.9,
+  "peak_rss_mb": 162.66796875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 5.19s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_gift_transfer.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 64.18359375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 1.16s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_item_exchange.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 113.8203125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".................                                                        [100%]",
+   "17 passed in 2.47s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_item_offer_notify.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 78.3515625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.19s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_kill_reaction.py",
+  "rc": 0,
+  "seconds": 4.1,
+  "peak_rss_mb": 92.0078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 3.75s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_llm_provider.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 59.53515625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 1.16s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_movement.py",
+  "rc": 1,
+  "seconds": 3.1,
+  "peak_rss_mb": 127.91015625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "Setting up attributes for garden_outhouse_bear with max hp: d10(5 + 6 + 7 + 8) + 12=38",
+   "Setting up attributes for Ahmed Noke with max hp: d8(1 + 5 + 7 + 4 + 5 + 7 + 5)=34",
+   "Setting up attributes for interior_wolf_1 with max hp: d8(4 + 4) + 2=10",
+   "Setting up attributes for interior_wolf_2 with max hp: d8(5 + 7) + 2=14",
+   "Setting up attributes for interior_bear with max hp: d10(2 + 9 + 6 + 3) + 12=32",
+   "Setting up attributes for polymorph_wolf_1 with max hp: d8(5 + 1) + 2=8",
+   "Setting up attributes for polymorph_wolf_2 with max hp: d8(5 + 2) + 2=9",
+   "Setting up attributes for polymorph_wolf_3 with max hp: d8(8 + 4) + 2=14",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_npc_movement.py::TestNpcMovementDoorNavigation::test_build_move_step_cross_map_landmark_via_stairs",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 3 passed in 2.68s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_spawner_utils.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 55.609375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.15s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_stat_block_innate.py",
+  "rc": 0,
+  "seconds": 2.7,
+  "peak_rss_mb": 84.7578125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 2.39s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_npc_voice.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 41.4921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........                                                                 [100%]",
+   "8 passed in 0.05s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_object_spawner_utils.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 40.5,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "5 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_ollama_fixes.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 81.28125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "n20-webapp/tests/webapp/test_ollama_fixes.py::test_ollama_fixes",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but n20-webapp/tests/webapp/test_ollama_fixes.py::test_ollama_fixes returned <class 'bool'>.",
+   "  Did you mean to use `assert` instead of `return`?",
+   "  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 1.22s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_path_cost_consistency.py",
+  "rc": 0,
+  "seconds": 2.5,
+  "peak_rss_mb": 93.03125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 2.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_pc_in_character_polish.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 64.6328125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 1.16s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_pickpocket_reaction.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 64.87890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "        webapp_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'webapp')",
+   "        if webapp_dir not in sys.path:",
+   "            sys.path.insert(0, webapp_dir)",
+   "        importlib.import_module('webapp.conversation_service')",
+   ">       from tests.webapp.test_npc_damage_reaction import _StubNpc, _StubPc, _build_service",
+   "E       ModuleNotFoundError: No module named 'tests.webapp.test_npc_damage_reaction'",
+   "",
+   "n20-webapp/tests/webapp/test_pickpocket_reaction.py:110: ModuleNotFoundError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_pickpocket_reaction.py::test_handle_npc_pickpocket_detected_runs_reply_turn",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 2 passed in 1.19s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_pickpocket_route.py",
+  "rc": 1,
+  "seconds": 3.8,
+  "peak_rss_mb": 122.3515625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "place Vrogrog at 2, 3",
+   "place Zugnak at 1, 5",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_pickpocket_route.py::TestPickpocketRoute::test_pickpocket_target_then_item_selection",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 passed, 1 warning in 3.36s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_player_character_restore.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 63.18359375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.22s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_player_describe_see.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.76953125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........................                                                 [100%]",
+   "24 passed in 1.18s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_player_gift_offer.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.6484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "4 passed in 1.16s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_player_insight.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.6015625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..........                                                               [100%]",
+   "10 passed in 1.17s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_player_perception.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 65.80078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..........                                                               [100%]",
+   "10 passed in 1.17s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_player_skill_check.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 66.02734375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "        rendered = service.render_conversation_payload_for_username('player1', pip, payload)",
+   ">       assert rendered['message'] == \"You're getting awfully bold today, aren't you?\"",
+   "E       assert \"Chai'harurd ...g'shorn chai?\" == \"You're getti..., aren't you?\"",
+   "E",
+   "E         - You're getting awfully bold today, aren't you?",
+   "E         + Chai'harurd daino vuntcho'va broout keafout, crnittroong'shorn chai?",
+   "",
+   "n20-webapp/tests/webapp/test_player_skill_check.py:144: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_player_skill_check.py::test_whisper_target_hears_message_even_when_marked_visual_only",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 2 passed in 1.21s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_pov_utils.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 63.1640625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..........                                                               [100%]",
+   "10 passed in 1.17s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_pvp_autofill.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 117.7421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 2.52s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_qwen3_provider.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 55.9609375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 1.13s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_qwen3_vllm_provider.py",
+  "rc": 1,
+  "seconds": 2.3,
+  "peak_rss_mb": 128.36328125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ">           assert found.endswith(\"npc_lenka_ash.wav\")",
+   "E           AssertionError: assert False",
+   "E            +  where False = <built-in method endswith of str object at 0x76ecb2760270>('npc_lenka_ash.wav')",
+   "E            +    where <built-in method endswith of str object at 0x76ecb2760270> = '/home/jedld/workspace/natural_20.py/user_levels/death_house/assets/voice_samples/npc_lenka_ash.mp3'.endswith",
+   "",
+   "n20-webapp/tests/webapp/test_qwen3_vllm_provider.py:352: AssertionError",
+   "------------------------------ Captured log call -------------------------------",
+   "WARNING  webapp.tts.qwen3_vllm_provider:qwen3_vllm_provider.py:460 [TTS] No reference audio found for NPC 'missing_voice_uid_xyz'",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_qwen3_vllm_provider.py::test_discover_reference_audio_cross_campaign",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 14 passed in 1.96s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_rag.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 63.3984375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ">           if msg[\"role\"] == \"user\":",
+   "               ^^^^^^^^^^^",
+   "E           TypeError: string indices must be integers, not 'str'",
+   "",
+   "n20-webapp/webapp/llm_handler.py:433: TypeError",
+   "----------------------------- Captured stdout call -----------------------------",
+   "=== Testing Mock Provider ===",
+   "Mock provider initialization: SUCCESS",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_rag.py::test_mock_provider - TypeError: s...",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed in 1.23s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_reaction_resume.py",
+  "rc": 1,
+  "seconds": 1.6,
+  "peak_rss_mb": 78.2109375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "            msg = (\"Expected '%s' to have been called once. Called %s times.%s\"",
+   "                   % (self._mock_name or 'mock',",
+   "                      self.call_count,",
+   "                      self._calls_repr()))",
+   ">           raise AssertionError(msg)",
+   "E           AssertionError: Expected 'mock' to have been called once. Called 0 times.",
+   "",
+   "../../miniforge3/lib/python3.13/unittest/mock.py:958: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_reaction_resume.py::test_mid_turn_reaction_lets_the_ai_finish_then_ends_that_turn_once",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 2 passed in 1.32s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_ready_action_handler.py",
+  "rc": 0,
+  "seconds": 5.8,
+  "peak_rss_mb": 84.83984375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".......                                                                  [100%]",
+   "7 passed in 5.40s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_real_response.py",
+  "rc": 0,
+  "seconds": 1.7,
+  "peak_rss_mb": 81.26953125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "n20-webapp/tests/webapp/test_real_response.py::test_real_ollama_response",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but n20-webapp/tests/webapp/test_real_response.py::test_real_ollama_response returned <class 'bool'>.",
+   "  Did you mean to use `assert` instead of `return`?",
+   "  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 1.32s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_real_scenario.py",
+  "rc": 1,
+  "seconds": 1.6,
+  "peak_rss_mb": 79.48046875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "- **NPCs**",
+   "  - **Name:** Goblin Warrior",
+   "    **Type:** NPC",
+   "    **Position:** [5, 7]",
+   "    **HP:** 7/7",
+   "    **Level:** 1",
+   "    **Status:** Alive",
+   "This gives you a complete overview of all characters in your current game session. Would you like me to provide more specific details about any particular character or help you analyze the party composition?",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_real_scenario.py::test_real_scenario - Ty...",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed in 1.31s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_reload_map_render_epoch.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 73.16796875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 1.21s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_resample.py",
+  "rc": 0,
+  "seconds": 1.3,
+  "peak_rss_mb": 119.26171875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........                                                                 [100%]",
+   "8 passed in 0.91s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_reset_saves.py",
+  "rc": 0,
+  "seconds": 3.0,
+  "peak_rss_mb": 118.19140625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "9 passed, 1 warning in 2.58s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_room_service_buzzer.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 73.44921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 1.15s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_route_inventory_parity.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 117.98828125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "4 passed, 1 warning in 2.46s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_session_username.py",
+  "rc": 0,
+  "seconds": 0.4,
+  "peak_rss_mb": 47.73046875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 0.09s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_sidekick_follow.py",
+  "rc": 0,
+  "seconds": 3.0,
+  "peak_rss_mb": 118.6953125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........                                                                 [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "8 passed, 1 warning in 2.62s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_socketio_event_parity.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 117.94140625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "3 passed, 1 warning in 2.43s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_socketio_handlers.py",
+  "rc": 0,
+  "seconds": 2.8,
+  "peak_rss_mb": 117.890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 2.42s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_special_effects_flag.py",
+  "rc": 0,
+  "seconds": 2.9,
+  "peak_rss_mb": 118.5625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....                                                                     [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "4 passed, 1 warning in 2.46s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_stack_path_resolution.py",
+  "rc": 0,
+  "seconds": 3.3,
+  "peak_rss_mb": 132.19921875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 2.66s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_stack_pov_sync.py",
+  "rc": 0,
+  "seconds": 1.6,
+  "peak_rss_mb": 80.20703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.24s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_staff_container_exchange.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 71.58203125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 1.21s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_steal_reaction.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 64.71484375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "        webapp_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'webapp')",
+   "        if webapp_dir not in sys.path:",
+   "            sys.path.insert(0, webapp_dir)",
+   "        importlib.import_module('webapp.conversation_service')",
+   ">       from tests.webapp.test_npc_damage_reaction import _StubNpc, _StubPc, _build_service",
+   "E       ModuleNotFoundError: No module named 'tests.webapp.test_npc_damage_reaction'",
+   "",
+   "n20-webapp/tests/webapp/test_steal_reaction.py:112: ModuleNotFoundError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_steal_reaction.py::test_handle_npc_steal_detected_runs_reply_turn",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 3 passed in 1.19s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_switch_map_emit.py",
+  "rc": 0,
+  "seconds": 1.6,
+  "peak_rss_mb": 73.73046875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 1.24s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_talk_continue.py",
+  "rc": 1,
+  "seconds": 1.5,
+  "peak_rss_mb": 69.30078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "            msg = (\"Expected '%s' to have been called once. Called %s times.%s\"",
+   "                   % (self._mock_name or 'mock',",
+   "                      self.call_count,",
+   "                      self._calls_repr()))",
+   ">           raise AssertionError(msg)",
+   "E           AssertionError: Expected 'apply_conversation_keywords' to have been called once. Called 0 times.",
+   "",
+   "../../miniforge3/lib/python3.13/unittest/mock.py:958: AssertionError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_talk_continue.py::test_talk_continue_emits_next_beat",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed in 1.22s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_talk_route_recipients.py",
+  "rc": 1,
+  "seconds": 3.0,
+  "peak_rss_mb": 133.16015625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "INFO     werkzeug:conversation_service.py:5449 [Talk] inbound speaker=rumblebelly message='hello' volume=normal distance_ft=30 targets=['thorn_durst'] language=common",
+   "INFO     werkzeug:conversation_service.py:5738 [Talk] delivered_to=['thorn_durst'] eligible_responders=['thorn_durst']",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_talk_route_recipients.py::test_talk_replies_are_sent_to_requesting_dm",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed, 1 warning in 2.64s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_template_globals.py",
+  "rc": 0,
+  "seconds": 0.4,
+  "peak_rss_mb": 47.5,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "5 passed in 0.09s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_thinking_fix.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 61.7421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 1.09s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_thinking_model.py",
+  "rc": 0,
+  "seconds": 1.6,
+  "peak_rss_mb": 81.54296875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "=============================== warnings summary ===============================",
+   "n20-webapp/tests/webapp/test_thinking_model.py::test_thinking_model_handling",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/_pytest/python.py:171: PytestReturnNotNoneWarning: Test functions should return None, but n20-webapp/tests/webapp/test_thinking_model.py::test_thinking_model_handling returned <class 'bool'>.",
+   "  Did you mean to use `assert` instead of `return`?",
+   "  See https://docs.pytest.org/en/stable/how-to/assert.html#return-not-none for more information.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "1 passed, 1 warning in 1.26s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_line_cache.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 64.90625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "..                                                                       [100%]",
+   "2 passed in 1.18s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_manager.py",
+  "rc": 0,
+  "seconds": 1.8,
+  "peak_rss_mb": 62.23828125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "....................................                                     [100%]",
+   "36 passed in 1.49s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_model_config.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 41.5,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_pipeline.py",
+  "rc": 0,
+  "seconds": 3.4,
+  "peak_rss_mb": 55.59375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "3 passed in 3.10s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_preferences.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 41.46875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 0.05s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_streaming.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 41.4765625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".                                                                        [100%]",
+   "1 passed in 0.04s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_text_chunking.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 55.6640625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "........                                                                 [100%]",
+   "8 passed in 1.14s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_vllm_phase1.py",
+  "rc": 0,
+  "seconds": 2.2,
+  "peak_rss_mb": 143.078125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "9 passed in 1.79s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_tts_voice_manager.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 60.90625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "6 passed in 1.13s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_turn_emit_timing.py",
+  "rc": 1,
+  "seconds": 1.6,
+  "peak_rss_mb": 81.421875,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "aggressive_pairs = None",
+   "",
+   "    def loop_environment(self, aggressive_pairs=None):",
+   ">       if not self.auto_battle:",
+   "               ^^^^^^^^^^^^^^^^",
+   "E       AttributeError: 'GameManagement' object has no attribute 'auto_battle'",
+   "",
+   "n20-webapp/webapp/utils.py:1576: AttributeError",
+   "=========================== short test summary info ============================",
+   "FAILED n20-webapp/tests/webapp/test_turn_emit_timing.py::test_game_loop_emits_turn_state_before_manual_handoff",
+   "!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!",
+   "1 failed in 1.31s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_unseen_target_attack_route.py",
+  "rc": 0,
+  "seconds": 4.8,
+  "peak_rss_mb": 125.30859375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "......                                                                   [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "6 passed, 1 warning in 4.33s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_use_item_route.py",
+  "rc": 0,
+  "seconds": 3.9,
+  "peak_rss_mb": 122.703125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "...                                                                      [100%]",
+   "=============================== warnings summary ===============================",
+   "../../miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75",
+   "  /home/jedld/miniforge3/lib/python3.13/site-packages/flask_session/filesystem/filesystem.py:75: DeprecationWarning: FileSystemSessionInterface is deprecated and will be removed in a future release. Instead use the CacheLib backend directly.",
+   "    warnings.warn(",
+   "",
+   "-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html",
+   "3 passed, 1 warning in 3.48s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_user_management.py",
+  "rc": 0,
+  "seconds": 1.5,
+  "peak_rss_mb": 62.80859375,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".....                                                                    [100%]",
+   "5 passed in 1.21s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_voice_baking.py",
+  "rc": 0,
+  "seconds": 1.4,
+  "peak_rss_mb": 58.890625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   "............                                                             [100%]",
+   "12 passed in 1.15s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_voice_framework.py",
+  "rc": 0,
+  "seconds": 0.3,
+  "peak_rss_mb": 41.72265625,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".................                                                        [100%]",
+   "17 passed in 0.06s"
+  ]
+ },
+ {
+  "file": "n20-webapp/tests/webapp/test_dm_turn_hold.py",
+  "rc": 0,
+  "seconds": 1.6,
+  "peak_rss_mb": 75.36328125,
+  "killed_by_budget": false,
+  "timed_out": false,
+  "tail": [
+   ".........                                                                [100%]",
+   "9 passed in 1.28s"
+  ]
+ }
+]

@@ -8,6 +8,8 @@ import inflect
 import i18n
 import uuid
 
+from natural20.exceptions import GameLoopControl
+
 # Cache the list of Action subclasses to avoid repeated runtime introspection.
 # battle.commit() and commit_and_update iterate this for every result item.
 _ACTION_SUBCLASSES = None
@@ -16,15 +18,17 @@ _ACTION_SUBCLASSES = None
 def get_action_subclasses():
     """Return a cached list of Action subclasses (lazy-initialised)."""
     global _ACTION_SUBCLASSES
-    if _ACTION_SUBCLASSES is None:
-        try:
-            from natural20 import action as _action_mod
-            _ACTION_SUBCLASSES = list(_action_mod.Action.__subclasses__())
-        except Exception:
-            _ACTION_SUBCLASSES = []
+    try:
+        from natural20 import action as _action_mod
+        current = _action_mod.Action.__subclasses__()
+    except Exception:
+        return _ACTION_SUBCLASSES or []
+    # Action modules imported lazily (spell follow-up actions) join later.
+    if _ACTION_SUBCLASSES is None or len(current) != len(_ACTION_SUBCLASSES):
+        _ACTION_SUBCLASSES = list(current)
     return _ACTION_SUBCLASSES
 # typed: true
-class AsyncReactionHandler(Exception):
+class AsyncReactionHandler(GameLoopControl):
     def __init__(self, source, generator, action, reaction_type):
         self.reaction_type = reaction_type
         self.generator = generator
@@ -49,7 +53,7 @@ class AsyncReactionHandler(Exception):
         return f"{self.source} -> {self.reaction_type} on {self.action} by {self.action.source}"
 
 
-class BardicInspirationPrompt(Exception):
+class BardicInspirationPrompt(GameLoopControl):
     """Pause resolution so the player can choose whether to spend BI."""
 
     def __init__(self, entity, die_roll, context, generator):

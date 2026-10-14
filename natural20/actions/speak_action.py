@@ -20,7 +20,8 @@ class SpeakAction(Action):
         """Speaking is always available if the entity can speak (is conversable)."""
         if not entity.conversable():
             return False
-        return True
+        from natural20.utils.action_restrictions import is_restricted
+        return not is_restricted(entity, 'speak')
 
     def __repr__(self) -> str:
         if self.targets:

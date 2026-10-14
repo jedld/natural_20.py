@@ -9,6 +9,7 @@ _DEFAULT_INTERACT_BUTTONS = {
     'loot': {'label': 'Loot', 'image': 'interact_loot'},
     'carry': {'label': 'Carry', 'image': 'interact_pickup_drop'},
     'take': {'label': 'Take', 'image': 'interact_pickup_drop'},
+    'pick_up': {'label': 'Pick Up', 'image': 'interact_pickup_drop'},
     'buzz': {'label': 'Ring for Room Service', 'image': 'interact_use'},
     'party_travel': {'label': 'Travel with Party'},
 }
@@ -78,6 +79,9 @@ class InteractAction(Action):
 
     @staticmethod
     def can(entity, battle):
+        from natural20.utils.action_restrictions import is_restricted
+        if is_restricted(entity, 'interact'):
+            return False
         return battle is None or not battle.ongoing or entity.free_object_interaction(battle)
 
     @staticmethod

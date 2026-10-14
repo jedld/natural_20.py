@@ -66,7 +66,8 @@ def entity_in_magical_silence(entity) -> bool:
                 return True
         except Exception:
             continue
-    return False
+    from natural20.utils.silence import entity_in_silenced_area
+    return entity_in_silenced_area(entity)
 
 
 def entities_familiar(source, target) -> bool:

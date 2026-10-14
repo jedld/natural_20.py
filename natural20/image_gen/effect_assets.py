@@ -50,7 +50,12 @@ _EFFECT_FALLBACK_SPELL_SLUGS: dict[str, str] = {
 
 # Slugs still required when class discovery cannot instantiate the effect.
 _EXTRA_RUNTIME_EFFECT_SLUGS = frozenset({
+    "acid_arrow",
+    "disguise_self",
     "engulf",
+    "ray_of_sickness",
+    "rope_trick",
+    "silence_ward",
     "life_drain",
     "protection",
     "stench",
@@ -124,7 +129,7 @@ class EffectAssetAudit:
 
 
 def is_valid_effect_slug(slug: str) -> bool:
-    if not slug or slug.startswith("<"):
+    if not slug or slug.startswith("<") or slug == "none":
         return False
     if any(ch in slug for ch in " ()\t\n"):
         return False
@@ -191,6 +196,10 @@ def resolve_effect_tile_slug(cls: type, instance: Any | None = None) -> tuple[st
         slug = str(built).strip().lower()
         if is_valid_effect_slug(slug):
             return slug, "__str__"
+        if slug == "none":
+            # Named from constructor data (e.g. the condition it carries), so
+            # the token shows another effect's icon instead.
+            return "", "dynamic"
 
     if built is not None:
         id_attr = getattr(cls, "id", None)
@@ -251,6 +260,8 @@ def scan_effect_classes(
     for module_name, cls in _iter_effect_classes():
         instance = build_dummy_effect_instance(cls)
         slug, source = resolve_effect_tile_slug(cls, instance)
+        if source == "dynamic":
+            continue
         issues: list[str] = []
         if not is_valid_effect_slug(slug):
             issues.append(f"invalid tile slug: {slug!r}")

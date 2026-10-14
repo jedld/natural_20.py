@@ -1,6 +1,86 @@
-# SRD 5.2 Ranger overlay — Weapon Mastery at level 1.
+# SRD 5.2 Ranger overlay.
+#
+# Spellcasting starts at level 1 (half caster, rounding up), Favored Enemy
+# turns into free Hunter's Mark casts, and Roving / Tireless are YAML-driven
+# through natural20/utils/class_mechanics.py. Subclasses can be added under
+# `subclasses.<name>` (keyed by the sheet's `ranger_archetype`).
 ---
 inherit: "@templates/char_classes/ranger.yml"
 class_features:
   - weapon_mastery
 weapon_mastery_known: 2
+subclass_property: ranger_archetype
+spellcasting:
+  ability: wisdom
+  progression: half_round_up
+progression:
+  level_1:
+    class_features:
+      - spellcasting
+      - favored_enemy
+  level_2:
+    class_features:
+      - deft_explorer
+      - fighting_style
+  level_3:
+    class_features:
+      - ranger_archetype
+  level_5:
+    class_features:
+      - extra_attack
+  level_6:
+    class_features:
+      - roving
+  level_9:
+    class_features:
+      - expertise
+  level_10:
+    class_features:
+      - tireless
+  level_13:
+    class_features:
+      - relentless_hunter
+  level_14:
+    class_features:
+      - natures_veil
+  level_17:
+    class_features:
+      - precise_hunter
+  level_18:
+    class_features:
+      - feral_senses
+  level_20:
+    class_features:
+      - foe_slayer
+resource_pools:
+  favored_enemy:
+    feature: favored_enemy
+    max: {1: 2, 5: 3, 9: 4, 13: 5, 17: 6}
+    restore_on: long_rest
+  tireless:
+    feature: tireless
+    max: ability_mod:wisdom
+    min: 1
+    restore_on: long_rest
+free_casts:
+  - feature: favored_enemy
+    spell: hunters_mark
+    pool: favored_enemy
+speed_bonuses:
+  - feature: roving
+    amount: 10
+    unless_armor: [heavy]
+feature_actions:
+  - feature: tireless
+    id: tireless
+    label: Tireless
+    activation: action
+    pool: tireless
+    temp_hp:
+      dice: 1d8
+      bonus: ability_mod:wisdom
+      min: 1
+rest_effects:
+  - feature: tireless
+    rest: short_rest
+    reduce_exhaustion: 1

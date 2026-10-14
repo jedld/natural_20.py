@@ -1,5 +1,6 @@
 from natural20.die_roll import DieRoll
 from natural20.item_library.object import Object
+from natural20.utils.healing import effective_heal_roll
 
 class HealingPotion(Object):
     def __init__(self, session, map, properties):
@@ -37,7 +38,8 @@ class HealingPotion(Object):
             entity=entity,
             battle=battle
         )
-        return { "hp_gain_roll": hp_regain_roll }
+        target = getattr(action, 'target', None) or entity
+        return { "hp_gain_roll": effective_heal_roll(target, hp_regain_roll) }
 
     def use(self, entity, result, session=None):
-        entity.heal(result["hp_gain_roll"].result())
+        entity.heal(effective_heal_roll(entity, result["hp_gain_roll"]).result())

@@ -23,6 +23,7 @@ Lookup is read-only — existing branches keep working untouched.
 
 from __future__ import annotations
 
+import inspect
 from typing import Callable, List
 
 
@@ -38,7 +39,9 @@ def register_class_feature(*, feature_id, action_class, provides=None,
     ``provides``: optional ``(entity) -> bool`` predicate; defaults to
         ``action_class.can(entity, None)``.
     ``builder``: optional ``(session, entity, feature_id) -> Action``;
-        defaults to ``action_class(session, entity, feature_id)``.
+        defaults to ``action_class(session, entity, feature_id)``. A builder
+        that declares a ``battle`` keyword parameter also receives the live
+        battle. It may return a list; entries are kept when ``available(battle)``.
     """
     def _register(cls):
         _REGISTRY[str(feature_id)] = {
@@ -54,8 +57,24 @@ def register_class_feature(*, feature_id, action_class, provides=None,
     return _register
 
 
+def _accepts_battle(builder) -> bool:
+    try:
+        return 'battle' in inspect.signature(builder).parameters
+    except (TypeError, ValueError):
+        return False
+
+
 def unregister_class_feature(feature_id) -> bool:
     return _REGISTRY.pop(str(feature_id), None) is not None
+
+
+def action_class_named(class_name):
+    """Registered action class whose ``__name__`` is ``class_name`` (or ``None``)."""
+    for spec in _REGISTRY.values():
+        cls = spec.get('action_class')
+        if cls is not None and cls.__name__ == class_name:
+            return cls
+    return None
 
 
 def registered_features() -> List[str]:
@@ -79,11 +98,20 @@ def collect_class_feature_actions(session, entity, battle=None) -> list:
             continue
         builder = spec.get('builder')
         try:
-            action = (
-                builder(session, entity, feature_id) if callable(builder)
-                else action_class(session, entity, feature_id)
-            )
+            if callable(builder):
+                if _accepts_battle(builder):
+                    action = builder(session, entity, feature_id, battle=battle)
+                else:
+                    action = builder(session, entity, feature_id)
+            else:
+                action = action_class(session, entity, feature_id)
         except Exception:
+            continue
+        if isinstance(action, list):
+            for entry in action:
+                ready = getattr(entry, 'available', None)
+                if not callable(ready) or ready(battle):
+                    out.append(entry)
             continue
         out.append(action)
     return out

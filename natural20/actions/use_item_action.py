@@ -46,10 +46,41 @@ class UseItemAction(Action):
         return action
     
     @staticmethod
+    def activation_cost(item_properties):
+        """Action-economy cost of using an item: YAML ``activation`` (default ``action``)."""
+        cost = str((item_properties or {}).get('activation') or 'action').strip().lower()
+        return cost if cost in ('action', 'bonus_action', 'reaction', 'free') else 'action'
+
+    @staticmethod
+    def _has_resource_for(entity, battle, cost):
+        if battle is None or cost == 'free':
+            return True
+        if cost == 'bonus_action':
+            return (entity.total_bonus_actions(battle) or 0) > 0
+        if cost == 'reaction':
+            return (entity.total_reactions(battle) or 0) > 0
+        return (entity.total_actions(battle) or 0) > 0
+
+    @staticmethod
     def can(entity, battle):
-        return battle is None or entity.total_actions(battle) > 0
+        if battle is None or entity.total_actions(battle) > 0:
+            return True
+        try:
+            entries = entity.usable_items()
+        except Exception:
+            return False
+        for entry in entries or []:
+            props = entity.session.load_equipment(entry.get('name')) or {}
+            cost = UseItemAction.activation_cost(props)
+            if cost != 'action' and UseItemAction._has_resource_for(entity, battle, cost):
+                return True
+        return False
 
     def can_use_on(self, entity, battle=None):
+        props = getattr(self.target_item, 'properties', None) or {}
+        if not self.as_reaction and not self._has_resource_for(
+                self.source, battle, self.activation_cost(props)):
+            return False
         return self.target_item.can_use(entity, battle)
 
     def usable_items(self):
@@ -138,7 +169,7 @@ class UseItemAction(Action):
             raise Exception(f"item {item_details.get('name', item)} not usable!")
 
         inventory_entry = (getattr(self.source, 'inventory', None) or {}).get(item) or {}
-        for meta_key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid'):
+        for meta_key in ('room_label', 'room_landmark', 'notify_npc', 'source_entity_uid', 'crafted_by'):
             if inventory_entry.get(meta_key) is not None:
                 item_details[meta_key] = inventory_entry.get(meta_key)
 
@@ -158,9 +189,15 @@ class UseItemAction(Action):
             klass = MagicSpellItem
         elif item_class == 'PotionEffectItem':
             klass = PotionEffectItem
+        elif item_class == 'EffectConsumableItem':
+            from natural20.item_library.effect_consumable import EffectConsumableItem
+            klass = EffectConsumableItem
         elif item_class == 'RoomServiceBuzzerItem':
             from natural20.item_library.room_service_buzzer import RoomServiceBuzzerItem
             klass = RoomServiceBuzzerItem
+        elif item_class == 'ThrownFlaskItem':
+            from natural20.item_library.thrown_flask import ThrownFlaskItem
+            klass = ThrownFlaskItem
         else:
             raise Exception(f"item class {item_class} not found")
         return klass
@@ -202,7 +239,8 @@ class UseItemAction(Action):
                 session = battle.session
             if session:
                 session.event_manager.received_event({"event": "use_item", "source": item["source"], "item": item["item"],
-                                                      "target": item["target"], "hp_gain_roll": item.get("hp_gain_roll")})
+                                                      "target": item["target"], "hp_gain_roll": item.get("hp_gain_roll"),
+                                                      "temp_hp_roll": item.get("temp_hp_roll")})
             item["item"].use(item["target"], item)
             if item["item"].consumable():
                 item["source"].deduct_item(
@@ -221,4 +259,23 @@ class UseItemAction(Action):
                         battle.entity_state_for(item["source"])["reaction"] = max(
                             0, battle.entity_state_for(item["source"]).get("reaction", 0) - 1)
                 else:
-                    battle.entity_state_for(item["source"])["action"] -= 1
+                    cost = UseItemAction.activation_cost(
+                        getattr(item["item"], 'properties', None))
+                    if cost != 'free':
+                        battle.consume(item["source"], cost)
+            UseItemAction._apply_on_use_riders(item)
+
+    @staticmethod
+    def _apply_on_use_riders(item):
+        """Item YAML ``on_use`` riders granted to the user (e.g. ``next_attack_advantage``)."""
+        props = getattr(item.get("item"), 'properties', None) or {}
+        riders = props.get('on_use') or []
+        if isinstance(riders, str):
+            riders = [riders]
+        user = item.get("source")
+        if user is None:
+            return
+        for rider in riders:
+            if rider == 'next_attack_advantage':
+                from natural20.effects.next_attack_advantage_effect import NextAttackAdvantageEffect
+                NextAttackAdvantageEffect.grant(user, label=f"{props.get('name') or 'item'}_advantage")

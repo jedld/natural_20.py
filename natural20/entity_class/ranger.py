@@ -42,9 +42,18 @@ class Ranger:
     def ranger_spell_casting_modifier(self):
         return self.wis_mod()
 
+    def _ranger_yaml_slots(self):
+        props = (getattr(self, 'class_properties', None) or {}).get('ranger') or {}
+        return bool(props.get('spellcasting'))
+
     def max_slots_for_ranger(self, level):
-        return RANGER_SPELL_SLOT_TABLE[self.ranger_level - 1][level - 1] if level < len(RANGER_SPELL_SLOT_TABLE[self.ranger_level - 1]) else 0
+        if self._ranger_yaml_slots():
+            return self.max_slots_for_data_class('ranger', level)
+        row = RANGER_SPELL_SLOT_TABLE[self.ranger_level - 1]
+        return row[level] if 0 < level < len(row) else 0
 
     def reset_ranger_spell_slots(self):
+        if self._ranger_yaml_slots():
+            return self.reset_data_class_spell_slots('ranger')
         return OrderedDict((index, slots) for index, slots in enumerate(RANGER_SPELL_SLOT_TABLE[self.ranger_level - 1]))
 

@@ -21,6 +21,9 @@ TYPE_LABELS = {
     'provisions': 'Provisions',
     'gear': 'Adventuring Gear',
     'arcane_focus': 'Arcane Focus',
+    'druidic_focus': 'Druidic Focus',
+    'gaming': 'Gaming Set',
+    'gaming_set': 'Gaming Set',
     'spellbook': 'Spellbook',
     'accessory': 'Wondrous Item',
     'container': 'Container',
@@ -369,15 +372,21 @@ def build_item_card(entity, item_name: str, container_name: Optional[str] = None
             charges = None
 
     attunement_bits = []
-    if item.get('attunement_class'):
-        attunement_bits.append(_title_token(item['attunement_class']))
-    if item.get('attunement_race'):
-        attunement_bits.append(_title_token(item['attunement_race']))
+    for key in ('attunement_class', 'attunement_race', 'attunement_alignment'):
+        attunement_bits.extend(_title_token(entry) for entry in _as_list(item.get(key)) if entry)
+    if item.get('attunement_spellcaster'):
+        attunement_bits.append('Spellcaster')
     attunement_note = None
+    attunement = None
     if item.get('requires_attunement'):
         attunement_note = 'Requires attunement'
         if attunement_bits:
             attunement_note = f"Requires attunement by a {' or '.join(attunement_bits)}"
+        try:
+            from natural20.utils.attunement import attunement_row
+            attunement = attunement_row(entity, item_name)
+        except Exception:
+            attunement = None
 
     category = 'gear'
     if item_type in WEAPON_TYPES:
@@ -414,6 +423,7 @@ def build_item_card(entity, item_name: str, container_name: Optional[str] = None
         'magic_bonus': item.get('magic_bonus') or 0,
         'requires_attunement': bool(item.get('requires_attunement')),
         'attunement_note': attunement_note,
+        'attunement': attunement,
         'flavor': _flavor_text(item),
         'description': (item.get('description') or '').strip() or None,
         'content': (item.get('content') or '').strip() or None,

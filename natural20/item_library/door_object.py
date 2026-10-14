@@ -431,6 +431,10 @@ class DoorObject(Object):
             self.is_concealed = False
         elif state == "unsecret":
             self.is_secret = False
+        elif state == "unlocked":
+            self.unlock()
+        elif state == "locked":
+            self.lock()
         elif state == "concealed":
             self.is_concealed = True
         elif state == "activated":

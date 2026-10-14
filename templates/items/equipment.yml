@@ -26,6 +26,7 @@ chain_mail:
   type: armor
   metallic: true
   weight: 55
+  stealth_disadvantage: true
 ring_mail:
   ac: 14
   cost: 30
@@ -34,6 +35,7 @@ ring_mail:
   subtype: heavy
   type: armor
   weight: 40
+  stealth_disadvantage: true
 splint:
   ac: 17
   cost: 200
@@ -43,6 +45,7 @@ splint:
   type: armor
   metallic: true
   weight: 60
+  stealth_disadvantage: true
 plate:
   ac: 18
   cost: 1500
@@ -52,6 +55,7 @@ plate:
   metallic: true
   type: armor
   weight: 65
+  stealth_disadvantage: true
 chain_shirt:
   ac: 13
   cost: 50
@@ -71,6 +75,7 @@ scale_mail:
   metallic: true
   type: armor
   weight: 45
+  stealth_disadvantage: true
 spellbook:
   cost: 50
   name: Spellbook
@@ -167,6 +172,7 @@ half_plate:
   metallic: true
   type: armor
   weight: 40
+  stealth_disadvantage: true
 component_pouch:
   cost: 25
   name: Component Pouch
@@ -474,6 +480,20 @@ charcoal:
   flavor_text: Sticks of willow charcoal for sketching or the forge.
   type: tool
   weight: 0.1
+chest:
+  cost: 5
+  name: Chest
+  flavor_text: An iron-banded wooden chest with a hasp for a lock.
+  description: >-
+    A chest holds 12 cubic feet / 300 pounds of gear. Set it down on the ground to open it like any other chest;
+    pick it back up (with its contents) if you can carry the combined weight.
+  type: container
+  weight: 25
+  size: medium
+  capacity_lbs: 300
+  capacity_cu_ft: 12
+  max_item_size: medium
+  placeable_object: chest
 chisels:
   cost: 0.5
   name: Chisels
@@ -1017,6 +1037,76 @@ bullseye_lantern:
   light:
     bright: 60
     dim: 60
+lamp:
+  cost: 0.5
+  name: Lamp
+  flavor_text: A clay oil lamp with a short wick and a finger loop.
+  description: >-
+    A lamp casts bright light in a 15-foot radius and dim light for an additional 30 feet. Once lit, it burns for 6 hours on a flask (1 pint) of oil.
+  type: light_source
+  weight: 1
+  light:
+    bright: 15
+    dim: 30
+hooded_lantern:
+  cost: 5
+  name: Hooded Lantern
+  flavor_text: A tin lantern with a sliding shutter to choke its light down to a glimmer.
+  description: >-
+    A hooded lantern casts bright light in a 30-foot radius and dim light for an additional 30 feet. Once lit, it burns for 6 hours on a flask (1 pint) of oil. As an action, you can lower the hood, reducing the light to dim light in a 5-foot radius.
+  type: light_source
+  weight: 2
+  light:
+    bright: 30
+    dim: 30
+pouch:
+  cost: 0.5
+  name: Pouch
+  flavor_text: A drawstring pouch of cloth or soft leather.
+  description: >-
+    A cloth or leather pouch can hold up to 20 sling bullets or 50 blowgun needles, among other things.
+  type: gear
+  weight: 1
+grappling_hook:
+  cost: 2
+  name: Grappling Hook
+  flavor_text: Four iron tines and a ring for the rope.
+  description: >-
+    A hooked iron grapnel that can be tied to a rope and thrown to catch on ledges, battlements, or rigging.
+  type: gear
+  weight: 4
+ball_bearings:
+  cost: 1
+  name: Ball Bearings (bag of 1,000)
+  flavor_text: A pouch of tiny steel balls that clatter like hail when spilled.
+  description: >-
+    As an action, you can spill these tiny metal balls from their pouch to cover a level, square area that is 10 feet on a side. A creature moving across the covered area must succeed on a DC 10 Dexterity saving throw or fall prone. A creature moving through the area at half speed doesn't need to make the save.
+  type: gear
+  weight: 2
+bell:
+  cost: 1
+  name: Bell
+  flavor_text: A small brass bell with a clear, carrying ring.
+  description: >-
+    A small bell, useful as an alarm when tied to a door or tripwire.
+  type: gear
+  weight: 0
+lock:
+  cost: 10
+  name: Lock
+  flavor_text: A heavy iron padlock with its key.
+  description: >-
+    A key is provided with the lock. Without the key, a creature proficient with thieves' tools can pick this lock with a successful DC 15 Dexterity check.
+  type: gear
+  weight: 1
+military_saddle:
+  cost: 20
+  name: Military Saddle
+  flavor_text: A high-backed war saddle that holds a rider fast through the shock of a charge.
+  description: >-
+    A military saddle braces the rider, helping you keep your seat on an active mount in battle. It gives you advantage on any check you make to remain mounted.
+  type: gear
+  weight: 30
 playing_cards:
   cost: 0.5
   name: Playing Card Set
@@ -1024,3 +1114,167 @@ playing_cards:
   description: A set of illustrated playing cards.
   type: game
   weight: 0
+platinum_piece:
+  cost: 10
+  name: Platinum Piece (pp)
+  flavor_text: A heavy, bright coin that buys what a purse of gold would.
+  type: currency
+  weight: 0.02
+electrum_piece:
+  cost: 0.5
+  name: Electrum Piece (ep)
+  flavor_text: A pale gold-silver coin of electrum.
+  type: currency
+  weight: 0.02
+flask:
+  cost: 0.02
+  name: Flask
+  flavor_text: A stoppered clay or tin flask, good for a pint of whatever you need to carry.
+  description: A flask holds 1 pint of liquid.
+  type: container
+  weight: 1
+  max_item_size: tiny
+robes:
+  cost: 1
+  name: Robes
+  flavor_text: Loose, ankle-length robes belted at the waist, the habit of scholars and clergy.
+  type: clothing
+  weight: 4
+shovel:
+  cost: 2
+  name: Shovel
+  flavor_text: An iron spade on an ash handle, its edge worn bright from digging.
+  type: tool
+  weight: 5
+amber:
+  cost: 100
+  name: Amber
+  flavor_text: A warm, honey-gold lump of fossil resin, clear enough to read by.
+  type: gemstone
+  weight: 0
+pearl:
+  cost: 100
+  name: Pearl
+  flavor_text: A smooth, lustrous pearl that shifts between white and rose in the light.
+  type: gemstone
+  weight: 0
+alchemists_supplies:
+  cost: 50
+  name: "Alchemist's Supplies"
+  flavor_text: Glass beakers, a small burner, tongs, and stoppered jars of reagents in a padded case.
+  description: >-
+    Tools for mixing and refining chemical concoctions. Proficiency lets you add your proficiency bonus to ability checks that use them, such as identifying a potion or brewing something volatile.
+  type: tool
+  weight: 8
+calligraphers_supplies:
+  cost: 10
+  name: "Calligrapher's Supplies"
+  flavor_text: Cut quills, inks in several colors, and a roll of fine parchment.
+  description: >-
+    Pens, inks, and paper for elegant lettering. Proficiency lets you add your proficiency bonus to ability checks that use them, such as copying a document or spotting a forgery.
+  type: tool
+  weight: 5
+smiths_tools:
+  cost: 20
+  name: "Smith's Tools"
+  flavor_text: Hammers, tongs, and a small file wrapped in a soot-stained leather apron.
+  description: >-
+    Tools for working hot metal. Proficiency lets you add your proficiency bonus to ability checks that use them, such as repairing armor or judging a blade's quality.
+  type: tool
+  weight: 8
+tinkers_tools:
+  cost: 50
+  name: "Tinker's Tools"
+  flavor_text: Tiny screwdrivers, pliers, wire, and a jumble of spare gears in a fold-out kit.
+  description: >-
+    Tools for mending small mechanical objects. Proficiency lets you add your proficiency bonus to ability checks that use them, such as fixing a broken mechanism or building a clockwork trinket.
+  type: tool
+  weight: 10
+alchemists_fire:
+  cost: 50
+  name: "Alchemist's Fire"
+  flavor_text: A glass flask of sticky orange fluid that flares into flame the instant it meets air.
+  description: >-
+    As an action, throw the flask at a creature up to 20 feet away. Make a ranged attack, treating the flask as an improvised weapon. On a hit, the target catches fire and takes 1d4 fire damage at the start of each of its turns. The fire keeps burning until someone within reach (the target included) uses an action and succeeds on a DC 10 Dexterity check to put it out.
+  type: gear
+  item_class: ThrownFlaskItem
+  usable: true
+  consumable: true
+  hostile: true
+  thrown_range: 20
+  burning:
+    damage: 1d4
+    damage_type: fire
+    extinguish_dc: 10
+  weight: 1
+# Gaming sets (SRD tools). Proficiency adds your proficiency bonus to checks
+# made to play the game.
+dice_set:
+  cost: 0.1
+  name: Dice Set
+  flavor_text: A handful of carved bone dice in a drawstring bag.
+  description: >-
+    A set of dice for games of chance. If you are proficient with it, add your proficiency bonus to ability checks made
+    to play.
+  type: gaming_set
+  weight: 0
+dragonchess_set:
+  cost: 1
+  name: Dragonchess Set
+  flavor_text: A folding three-tiered board with lacquered pieces shaped like dragons, knights and wyrms.
+  description: >-
+    A board and pieces for a strategy game played across three stacked levels. If you are proficient with it, add your
+    proficiency bonus to ability checks made to play.
+  type: gaming_set
+  weight: 0.5
+playing_card_set:
+  cost: 0.5
+  name: Playing Card Set
+  flavor_text: A worn deck of painted cards, the corners soft from many hands.
+  description: >-
+    A deck of cards for games of chance and skill. If you are proficient with it, add your proficiency bonus to ability
+    checks made to play.
+  type: gaming_set
+  weight: 0
+three_dragon_ante_set:
+  cost: 1
+  name: Three-Dragon Ante Set
+  flavor_text: A deck of dragon-themed cards and a stack of ante tokens, popular in taverns and barracks.
+  description: >-
+    A card game of wagers and dragon suits. If you are proficient with it, add your proficiency bonus to ability checks
+    made to play.
+  type: gaming_set
+  weight: 0
+# Druidic focuses (SRD). A druid can use one as a spellcasting focus.
+sprig_of_mistletoe:
+  cost: 1
+  name: Sprig of Mistletoe
+  flavor_text: A fresh sprig of mistletoe tied with a twist of green thread.
+  description: A druid can use this sprig as a spellcasting focus.
+  type: druidic_focus
+  spellcasting_focus: druid
+  weight: 0
+totem:
+  cost: 1
+  name: Totem
+  flavor_text: A carved token hung with feathers, teeth and bits of bone.
+  description: A druid can use this totem as a spellcasting focus.
+  type: druidic_focus
+  spellcasting_focus: druid
+  weight: 0
+wooden_staff:
+  cost: 5
+  name: Wooden Staff
+  flavor_text: A long staff of living-grain wood, smooth where the hands rest.
+  description: A druid can use this staff as a spellcasting focus.
+  type: druidic_focus
+  spellcasting_focus: druid
+  weight: 4
+yew_wand:
+  cost: 10
+  name: Yew Wand
+  flavor_text: A slim wand of yew, its tip still bearing a curl of bark.
+  description: A druid can use this wand as a spellcasting focus.
+  type: druidic_focus
+  spellcasting_focus: druid
+  weight: 1
