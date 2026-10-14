@@ -337,6 +337,22 @@ def build_cast_options_for_spell(
     cast_options: list[dict[str, Any]] = []
     seen_levels: set[int] = set()
 
+    if base_level > 0 and spell_name:
+        from natural20.utils.class_mechanics import free_cast_label
+        try:
+            free_label = free_cast_label(entity, spell_name)
+        except Exception:
+            free_label = None
+        if free_label:
+            seen_levels.add(base_level)
+            cast_options.append({
+                'at_level': base_level,
+                'class': None,
+                'is_upcast': False,
+                'free_cast': True,
+                'label': f"{spell_level_label(base_level)} ({free_label})",
+            })
+
     for klass in _spell_cast_classes(entity, spell_details):
         for at_level in effective_cast_levels(
             entity, base_level, klass, scales_with_slot=scales,

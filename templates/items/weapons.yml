@@ -340,6 +340,26 @@ longsword:
   subtype: weapon
   type: melee_attack
   weight: 3
+lance:
+  cost: 10
+  damage: 1d12
+  damage_type: piercing
+  meta:
+    noise_source: 5
+    noise_target: 5
+  modifiers: null
+  name: Lance
+  flavor_text: A long cavalry spear with a vamplate guard, built to be couched under the arm and driven home at a gallop.
+  proficiency_type:
+    - martial
+  # SRD: two hands unless mounted; mounted combat is not modeled, so always two-handed.
+  properties:
+    - reach
+    - two_handed
+  range: 10
+  subtype: weapon
+  type: melee_attack
+  weight: 6
 rapier:
   cost: 25
   damage: 1d8

@@ -27,6 +27,8 @@ map's ``running_water_squares``.
 
 from __future__ import annotations
 
+import re
+
 DEFAULT_LEGENDARY_RESISTANCE_USES = 3
 
 MIST_FORM_STATUS = 'mist_form'
@@ -276,6 +278,63 @@ def try_legendary_resistance(entity, save_roll, dc, save_type, battle=None, conc
         'remaining': legendary_resistance_remaining(entity),
     })
     return adjusted
+
+
+# --------------------------------------------------------------------------
+# Undead Fortitude
+# --------------------------------------------------------------------------
+
+DEFAULT_UNDEAD_FORTITUDE_BYPASS = ('radiant',)
+
+
+def undead_fortitude_config(entity):
+    """``None`` unless the creature has Undead Fortitude.
+
+    Enabled by ``undead_fortitude: true`` / a mapping, or by listing it under
+    ``attributes``. ``bypass`` lists damage types that skip the save (SRD
+    zombie: radiant); critical hits always skip it.
+    """
+    config = _props(entity).get('undead_fortitude')
+    if not config:
+        has_feature = getattr(entity, 'class_feature', None)
+        if not (callable(has_feature) and has_feature('undead_fortitude')):
+            return None
+        config = True
+    if not isinstance(config, dict):
+        config = {}
+    bypass = config.get('bypass', DEFAULT_UNDEAD_FORTITUDE_BYPASS)
+    if isinstance(bypass, str):
+        bypass = [bypass]
+    return {
+        'bypass': [str(t).lower() for t in bypass or []],
+        'dc_base': int(config.get('dc_base', 5) or 5),
+    }
+
+
+def try_undead_fortitude(entity, damage, damage_type=None, critical=False, battle=None):
+    """When damage would drop ``entity`` to 0 HP: CON save (DC base + damage) to stay at 1 HP.
+
+    Returns True when the creature stays up. The caller has already
+    subtracted ``damage`` from its hit points.
+    """
+    config = undead_fortitude_config(entity)
+    if not config or damage <= 0:
+        return False
+    if critical or str(damage_type or '').lower() in config['bypass']:
+        return False
+    dc = config['dc_base'] + int(damage)
+    save_roll = entity.save_throw('constitution', battle, opts={'dc': dc})
+    success = save_roll.result() >= dc
+    _emit(entity, {
+        'event': 'undead_fortitude',
+        'source': entity,
+        'roll': save_roll,
+        'dc': dc,
+        'success': success,
+    })
+    if success:
+        entity.attributes['hp'] = 1
+    return success
 
 
 # --------------------------------------------------------------------------
@@ -705,13 +764,30 @@ def attack_target_issue(source, target, npc_action):
     return None
 
 
-def additional_damage_entries(npc_action):
+def additional_damage_entries(npc_action, target=None):
+    """``additional_damage`` riders of an NPC action or weapon.
+
+    An entry with ``target_creature_types`` only applies when ``target`` is one
+    of those types (e.g. a lance that deals extra force damage to dragons).
+    Without a ``target`` every entry is returned (AI damage estimates).
+    """
     entries = (npc_action or {}).get('additional_damage') if isinstance(npc_action, dict) else None
     if not entries:
         return []
     if isinstance(entries, dict):
         entries = [entries]
-    return [e for e in entries if isinstance(e, dict) and e.get('damage_die')]
+    out = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get('damage_die'):
+            continue
+        types = entry.get('target_creature_types')
+        if types and target is not None:
+            allowed = {str(t).lower() for t in types}
+            words = {w for d in _creature_types_of(target) for w in re.findall(r'[a-z]+', d)}
+            if not allowed & words:
+                continue
+        out.append(entry)
+    return out
 
 
 def average_roll(die):
@@ -731,3 +807,112 @@ def grapple_instead_config(npc_action):
     if not isinstance(config, dict):
         return None
     return {'escape_dc': config.get('escape_dc')}
+
+
+# ---------------------------------------------------------------------------
+# Death Burst (SRD mephits, magmin; summoned demon spirits' Death Throes)
+# ---------------------------------------------------------------------------
+
+def death_burst_config(entity):
+    """NPC YAML ``death_burst: {radius, save, dc, damage_die, damage_type}``
+    (``death_throes`` is accepted as an alias)."""
+    props = _props(entity)
+    config = props.get('death_burst') or props.get('death_throes')
+    return config if isinstance(config, dict) else None
+
+
+def _burst_candidates(entity, battle_map, origin, radius_ft):
+    found = []
+    for x, y in battle_map.squares_in_radius(tuple(origin), radius_ft, require_los=False):
+        for creature in battle_map.entities_at(x, y):
+            if creature is entity or creature in found or not hasattr(creature, 'take_damage'):
+                continue
+            if getattr(creature, 'dead', lambda: False)():
+                continue
+            if not getattr(creature, 'allow_targeting', lambda: True)():
+                continue
+            found.append(creature)
+    return found
+
+
+def _feet_between(battle_map, a, b):
+    try:
+        return battle_map.distance(a, b) * battle_map.feet_per_grid
+    except Exception:
+        return float('inf')
+
+
+def _chain_targets(entity, battle_map, origin, config, battle=None):
+    """Nearest creature within ``range`` of the dying creature, then up to
+    ``arc_targets`` others within ``arc_range`` of that first one (foes of the
+    dying creature first, nearest first)."""
+    first_pool = _burst_candidates(entity, battle_map, origin, int(config.get('range', 30)))
+    if not first_pool:
+        return []
+    first = min(first_pool, key=lambda c: _feet_between(battle_map, entity, c))
+    first_pos = battle_map.position_of(first)
+    others = [c for c in _burst_candidates(entity, battle_map, first_pos, int(config.get('arc_range', 15)))
+              if c is not first]
+
+    def is_ally(creature):
+        if battle is not None:
+            try:
+                return bool(battle.allies(entity, creature))
+            except Exception:
+                pass
+        return getattr(entity, 'group', None) == getattr(creature, 'group', None)
+
+    others.sort(key=lambda c: (is_ally(c), _feet_between(battle_map, first, c)))
+    return [first] + others[:int(config.get('arc_targets', 2))]
+
+
+def trigger_death_burst(entity, battle=None):
+    """On death, creatures make the save, taking ``damage_die`` (half on a
+    success unless ``half_on_success: false``).
+
+    ``targeting: radius`` (default) hits every other creature within
+    ``radius`` feet. ``targeting: chain`` hits the nearest creature within
+    ``range`` and arcs to ``arc_targets`` more within ``arc_range`` of it.
+    ``on_fail_condition: stunned`` adds a condition until the end of the
+    target's next turn on a failed save."""
+    config = death_burst_config(entity)
+    if not config:
+        return []
+    battle_map = _map_for(entity, battle)
+    if battle_map is None:
+        return []
+    from natural20.die_roll import DieRoll
+    from natural20.spell.extensions.save_check import SaveCheck
+    try:
+        origin = battle_map.position_of(entity)
+    except Exception:
+        return []
+    if origin is None:
+        return []
+    dc = int(config.get('dc', 10))
+    save_type = config.get('save', 'dexterity')
+    damage_type = config.get('damage_type', 'fire')
+    if config.get('targeting') == 'chain':
+        targets = _chain_targets(entity, battle_map, origin, config, battle)
+    else:
+        targets = _burst_candidates(entity, battle_map, origin, int(config.get('radius', 10)))
+    if not targets:
+        return []
+    roll = DieRoll.roll(str(config.get('damage_die', '2d6')), entity=entity, battle=battle,
+                        description='dice_roll.death_burst')
+    condition = config.get('on_fail_condition')
+    hit = []
+    for creature in targets:
+        save = SaveCheck.make(creature, save_type, dc, battle=battle, opts={'is_magical': True})
+        if save.passed and config.get('half_on_success', True) is False:
+            continue
+        amount = roll.result() // 2 if save.passed else roll.result()
+        _emit(entity, {'source': entity, 'target': creature, 'event': 'death_burst',
+                       'damage': amount, 'damage_type': damage_type, 'saved': save.passed})
+        creature.take_damage(amount, battle=battle, damage_type=damage_type,
+                             session=entity.session, roll_info=roll)
+        if condition and not save.passed and not creature.dead():
+            from natural20.effects.timed_condition_effect import TimedConditionEffect
+            TimedConditionEffect.apply_to(creature, str(condition), source=entity, battle=battle)
+        hit.append(creature)
+    return hit

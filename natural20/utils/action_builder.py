@@ -124,6 +124,10 @@ def acquire_targets(param, entity, battle, map=None):
     if param.get("exclude_self", False):
         possible_targets = {target for target in possible_targets if target != entity}
 
+    if param.get("candidates") is not None:
+        allowed = set(param["candidates"])
+        possible_targets = {target for target in possible_targets if target in allowed}
+
     if param.get("require_humanoid"):
         possible_targets = {
             target for target in possible_targets
@@ -483,7 +487,14 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             for choice in param["choices"]:
                 if _match and choice[1] not in _match:
                     continue
+                # ``next`` handlers take the choice value, as the web UI sends it.
+                if isinstance(choice, (list, tuple)) and len(choice) == 2:
+                    choice = choice[1]
                 choice_options.append(choice)
+            # Optional add-ons listed best-first: AI builds take the first only
+            # instead of multiplying every option by every choice.
+            if param.get('ai_first_only') and not _match:
+                choice_options = choice_options[:1]
             if not choice_options:
                 if is_verbose:
                     print(f"No matching choices for {entity.name}")
@@ -503,21 +514,26 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
             # Check all 8 directions (3x3 grid minus the center)
             position_choices = []
             _range = param.get("range", 5) // 5
+            require_los = param.get("require_los", True)
+            x_lo, x_hi = max(0, cur_x - _range), min(map.size[0] - 1, cur_x + _range)
+            y_lo, y_hi = max(0, cur_y - _range), min(map.size[1] - 1, cur_y + _range)
 
-            for dx in range(-_range, _range + 1):
-                for dy in range(-_range, _range + 1):
-                    if dx == 0 and dy == 0:
+            for new_x in range(x_lo, x_hi + 1):
+                for new_y in range(y_lo, y_hi + 1):
+                    if new_x == cur_x and new_y == cur_y:
                         continue
 
-                    new_x = cur_x + dx
-                    new_y = cur_y + dy
                     if (map.passable(entity, new_x, new_y, battle, allow_squeeze=False)
-                        and map.can_see_square(entity, (new_x, new_y))
+                        and (not require_los or map.can_see_square(entity, (new_x, new_y)))
                             and map.placeable(entity, new_x, new_y, battle, squeeze=False)):
                         if match and [new_x, new_y] not in match:
                             continue
 
                         position_choices.append([new_x, new_y])
+            max_choices = param.get("max_choices")
+            if not match and max_choices and len(position_choices) > int(max_choices):
+                stride = len(position_choices) / float(max_choices)
+                position_choices = [position_choices[int(i * stride)] for i in range(int(max_choices))]
             params_list.append(position_choices)
             if len(position_choices)==0:
                 if is_verbose:
@@ -693,7 +709,9 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
     until the next step is an Action or None.
     """
     # Build the initial set of parameters from the action class
-    build_info = action_class.build(session, entity)
+    build_info = opts.get('build_info')
+    if build_info is None:
+        build_info = action_class.build(session, entity)
     previous_builds = [build_info]
     next_builds = []
     is_verbose = opts.get("verbose", False)

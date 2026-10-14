@@ -188,6 +188,8 @@ def speech_block_reason(entity) -> Optional[str]:
         return 'silenced'
     if _in_beast_form(entity):
         return 'beast_form'
+    if (getattr(entity, 'properties', None) or {}).get('cannot_speak'):
+        return 'cannot_speak'
     if not _languages(entity):
         return 'no_language'
     return None

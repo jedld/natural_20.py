@@ -1,0 +1,40 @@
+# SRD 5.2 (2024) Goliath. Replaces templates/races/goliath.yml for 5e-2024 campaigns.
+base_speed: 35
+size: medium
+languages:
+  - common
+language_choice: 1
+race_features:
+  - large_form
+  - powerful_build
+race_feature_min_level:
+  large_form: 5
+resource_pools:
+  giant_ancestry:
+    max: proficiency_bonus
+    restore_on: long_rest
+    features: [clouds_jaunt, fires_burn, frosts_chill, hills_tumble, stones_endurance, storms_thunder]
+  large_form:
+    max: 1
+    restore_on: long_rest
+    features: [large_form]
+# Giant Ancestry: pick one. Every boon draws on the shared giant_ancestry pool.
+subrace:
+  cloud_giant:
+    description: Cloud's Jaunt - bonus action, teleport up to 30 ft to an unoccupied space you can see.
+    race_features: [clouds_jaunt]
+  fire_giant:
+    description: Fire's Burn - when you hit with an attack roll and deal damage, add 1d10 fire damage.
+    race_features: [fires_burn]
+  frost_giant:
+    description: Frost's Chill - when you hit with an attack roll and deal damage, add 1d6 cold damage and reduce the target's speed by 10 ft until the start of your next turn.
+    race_features: [frosts_chill]
+  hill_giant:
+    description: Hill's Tumble - when you hit a Large or smaller creature with an attack roll and deal damage, you can knock it prone.
+    race_features: [hills_tumble]
+  stone_giant:
+    description: Stone's Endurance - when you take damage, use your reaction to roll 1d12 + Constitution modifier and reduce the damage by that much.
+    race_features: [stones_endurance]
+  storm_giant:
+    description: Storm's Thunder - when a creature within 60 ft damages you, use your reaction to deal 1d8 thunder damage to it.
+    race_features: [storms_thunder]

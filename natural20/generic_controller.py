@@ -56,6 +56,7 @@ class GenericController(Controller):
         "grapple",
         "drop_grapple",
         "escape_grapple",
+        "break_free",
         "look"
     ]
 
@@ -218,7 +219,17 @@ class GenericController(Controller):
     def select_action(self, battle, entity, available_actions = None) -> Optional[Action]:
         if available_actions is None:
             available_actions = []
-        available_actions = [a for a in available_actions if not is_unbuilt_spell(a)]
+        # Incapacitated creatures (banished, stunned, paralyzed, petrified,
+        # unconscious, dead) can't take actions; return None so the turn ends.
+        if getattr(entity, 'incapacitated', lambda: False)():
+            return None
+        from natural20.utils.escape_plan import escape_action
+        escape = escape_action(battle, entity)
+        if escape is not None:
+            return escape
+        from natural20.utils.pointless_actions import ai_forbidden_interaction
+        available_actions = [a for a in available_actions
+                             if not is_unbuilt_spell(a) and not ai_forbidden_interaction(a)]
         if len(available_actions) > 0:
             action = self._sort_actions(entity, battle, available_actions)
             if len(action) > 0:
@@ -256,11 +267,26 @@ class GenericController(Controller):
         return action
 
     def move_for(self, entity: Entity, battle) -> Optional[Action]:
+        # Incapacitated creatures can't move either.
+        if getattr(entity, 'incapacitated', lambda: False)():
+            return None
+        from natural20.utils.escape_plan import escape_action, escape_pending
+        if escape_pending(entity):
+            return None
+        escape = escape_action(battle, entity)
+        if escape is not None:
+            return escape
         release = self.grapple_release_action(entity, battle)
         if release is not None:
             return release
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)
+        from natural20.utils.fear import flee_source, flee_choice
+        if flee_source(entity) is not None:
+            flee = flee_choice(entity, battle, available_actions)
+            # Cornered before dashing: nowhere to run, so the creature may act normally.
+            if flee is not None or (battle.entity_state_for(entity) or {}).get('action', 0) <= 0:
+                return flee
         # environment, entity = self._build_environment(battle, entity)
         scored = self._sort_actions_with_scores(entity, battle, available_actions)
         if not scored:
@@ -813,7 +839,7 @@ class GenericController(Controller):
             elif action.action_type == 'speak':
                 # Speaking costs nothing, so it would otherwise be picked forever.
                 continue
-            elif action.action_type == 'summon_creatures':
+            elif action.action_type in ('summon_creatures', 'npc_area_ability'):
                 sorted_actions.append((action, action.ai_value(battle, len(enemy_positions))))
             elif action.action_type == 'dismiss_summons':
                 continue
@@ -862,6 +888,10 @@ class GenericController(Controller):
                 # Look is useful when we can't see anyone
                 score = 0.3 if len(enemy_positions) == 0 else 0.0
                 sorted_actions.append((action, score))
+            elif action.action_type == 'post_attack_teleport':
+                sorted_actions.append((action, action.ai_value(battle)))
+            elif action.action_type == 'break_free':
+                sorted_actions.append((action, action.ai_value(battle)))
             elif action.action_type in ('dash', 'disengage', 'dodge', 'hide'):
                 # Mild default value; will be preferred only when other options are poor
                 sorted_actions.append((action, 0.1))

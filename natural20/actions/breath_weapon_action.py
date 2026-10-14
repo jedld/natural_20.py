@@ -113,29 +113,20 @@ class BreathWeaponAction(Action):
         num_dice = int(dice_str.replace('d6', ''))
         return num_dice * 3.5  # Average of d6 is 3.5
 
+    _ABILITY_NAMES = {
+        'str': 'strength', 'dex': 'dexterity', 'con': 'constitution',
+        'int': 'intelligence', 'wis': 'wisdom', 'cha': 'charisma',
+    }
+
+    def _full_save_ability(self) -> str:
+        return self._ABILITY_NAMES.get(self.save_ability, self.save_ability)
+
     def _get_save_dc(self) -> int:
-        """Calculate spell save DC using proper formula.
-        
-        Formula: 8 + proficiency bonus + ability modifier
-        """
-        save_ability = self.save_ability
-        
-        # Expand short ability names to full names for ability_mod()
-        ability_name_map = {
-            'str': 'strength', 'strength': 'strength',
-            'dex': 'dexterity', 'dexterity': 'dexterity',
-            'con': 'constitution', 'constitution': 'constitution',
-            'int': 'intelligence', 'intelligence': 'intelligence',
-            'wis': 'wisdom', 'wisdom': 'wisdom',
-            'cha': 'charisma', 'charisma': 'charisma',
-        }
-        full_ability_name = ability_name_map.get(save_ability, save_ability)
-        
-        # Calculate manually: 8 + proficiency + ability modifier
+        """Breath Weapon DC: 8 + proficiency bonus + the breather's Constitution modifier."""
         proficiency_bonus = getattr(self.source, 'proficiency_bonus', lambda: 2)
         if callable(proficiency_bonus):
             proficiency_bonus = proficiency_bonus()
-        ability_mod = self.source.ability_mod(full_ability_name)
+        ability_mod = self.source.ability_mod('constitution')
         if ability_mod is None:
             ability_mod = 0
         return 8 + proficiency_bonus + ability_mod
@@ -163,9 +154,11 @@ class BreathWeaponAction(Action):
         results = []
         for target in targets:
             # Target makes saving throw
-            save_result = target.saving_throw(self.save_ability, battle=battle)
-            
-            if save_result and save_result.total >= dc:
+            save_result = target.save_throw(self._full_save_ability(), battle=battle, opts={
+                'dc': dc, 'save_tags': ['dragon_breath', 'breath_weapon'],
+            })
+
+            if save_result is not None and save_result.result() >= dc:
                 # Success - half damage
                 half_damage = damage_roll.result() // 2
                 results.append({

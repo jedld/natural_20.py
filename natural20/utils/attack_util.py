@@ -66,6 +66,19 @@ def damage_event(item, battle):
             'event': 'uncanny_dodge',
         })
 
+    hit_marker = None
+    if item.get('attack_roll') is not None and item.get('source') is not target:
+        from natural20.utils.reaction_casts import consume_hit_marker
+        hit_marker = consume_hit_marker(target, item.get('source'))
+        if hit_marker and hit_marker.get('halve_damage') and not item.get('uncanny_dodge'):
+            if hasattr(item['damage'], 'half'):
+                item['damage'] = item['damage'].half()
+            else:
+                item['damage'] = int(item['damage']) // 2
+            sneak = item.get('sneak_attack')
+            if sneak is not None and sneak is not False:
+                item['sneak_attack'] = sneak.half() if hasattr(sneak, 'half') else int(sneak) // 2
+
     dmg = item['damage'].result() if isinstance(item['damage'], Rollable) else item['damage']
     dmg += item['sneak_attack'].result() if item.get('sneak_attack') is not None else 0
 
@@ -99,12 +112,21 @@ def damage_event(item, battle):
     if item.get('grapple_instead') and not dmg:
         return
 
+    source = item.get('source')
+    if dmg and source is not None and source is not target and hasattr(source, 'resolve_trigger'):
+        source.resolve_trigger('dealt_damage', {'target': target, 'battle': battle, 'item': item})
+
+    hp_before = target.hp() if hit_marker else None
     item['target'].take_damage(dmg, battle=battle, critical=critical,
                                session=session,
                                damage_type=item['damage_type'],
-                               roll_info=item['damage'],
+                               roll_info=item['damage'] if isinstance(item['damage'], Rollable) else None,
                                sneak_attack=item.get('sneak_attack', False),
                                item=item)
+    if hit_marker and hit_marker.get('retaliate'):
+        from natural20.utils.reaction_casts import retaliate
+        taken = max(0, int(hp_before or 0) - int(target.hp() or 0)) or int(dmg or 0)
+        retaliate(hit_marker, target, item.get('source'), taken, battle)
 
 
 
@@ -220,6 +242,12 @@ def after_attack_roll_hook(battle, target, source, attack_roll, effective_ac, op
             events.extend(registry_events)
         if ctx.get('force_miss'):
             force_miss = True
+
+    if not force_miss and battle is not None and attack_roll is not None:
+        from natural20.utils.reaction_casts import hit_reaction_window
+        primary_target = target if not isinstance(target, list) else (target[0] if target else None)
+        events.extend(hit_reaction_window(battle, primary_target, source, attack_roll, effective_ac,
+                                          opts.get('original_action') or opts.get('hit_reaction_action')))
 
     return force_miss, events
 
@@ -473,6 +501,9 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
 
     from natural20.actions.wrath_of_the_storm_action import wrath_of_the_storm_reaction
     events.extend(wrath_of_the_storm_reaction(battle, target, attacker, damage_opts))
+
+    from natural20.utils.giant_ancestry import storms_thunder_reaction
+    events.extend(storms_thunder_reaction(battle, target, attacker, damage_opts))
 
     # Phase 3 reaction registry: trigger 'damage_taken' window for any
     # handler registered via ``Battle.register_reaction_trigger``.

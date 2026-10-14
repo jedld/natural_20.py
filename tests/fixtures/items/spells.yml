@@ -1795,10 +1795,12 @@ melfs_acid_arrow:
   description: A shimmering green arrow streaks toward a target.
   duration: instant
   level: 2
+  upcast: true
   name: Melf's Acid Arrow
   range: 90
+  hostile: true
   school: evocation
-  type: ranged_spell_attack
+  type: ranged_attack
   spell_list_classes:
   - Wizard
   spell_class: Natural20::MelfsAcidArrow

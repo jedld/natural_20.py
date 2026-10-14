@@ -6,8 +6,10 @@
 #   magical: true                # marks the item as magical (bypasses non-magical resistance)
 #   magic_bonus: <int>           # flat bonus to attack/damage (weapons) or AC (armor/shields)
 #   properties: [...]            # extra D&D properties (e.g. sentient, attunement)
-#   requires_attunement: true    # needs attunement to use
-#   attunement_race/class: ...   # restricted attunement
+#   requires_attunement: true    # needs attunement to use (natural20/utils/attunement.py)
+#   attunement_class/race/alignment: ...  # restricted attunement (string or list)
+#   attunement_spellcaster: true # only creatures that cast spells from their own features
+#   unattuned: {damage: 1d8}     # overrides used while not attuned (mundane form)
 # ============================================================================
 
 # ----------------------------------------------------------------------------
@@ -35,7 +37,6 @@ dagger_plus_one:
     range_max: 120
   type: melee_attack
   weight: 10
-  requires_attunement: true
 
 quarterstaff_plus_one:
   cost: 0
@@ -55,7 +56,6 @@ quarterstaff_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 
 light_hammer_plus_one:
   cost: 0
@@ -78,7 +78,6 @@ light_hammer_plus_one:
     range_max: 60
   type: melee_attack
   weight: 2
-  requires_attunement: true
 
 handaxe_plus_one:
   cost: 0
@@ -101,7 +100,6 @@ handaxe_plus_one:
     range_max: 60
   type: melee_attack
   weight: 10
-  requires_attunement: true
 
 javelin_plus_one:
   cost: 0
@@ -123,7 +121,6 @@ javelin_plus_one:
     range_max: 120
   type: melee_attack
   weight: 2
-  requires_attunement: true
 
 light_crossbow_plus_one:
   ammo: bolts
@@ -147,7 +144,6 @@ light_crossbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 
 sling_plus_one:
   ammo: pellet
@@ -169,7 +165,6 @@ sling_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 0
-  requires_attunement: true
 
 # ----------------------------------------------------------------------------
 # +1 Weapons (Martial)
@@ -192,7 +187,6 @@ battleaxe_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 
 greataxe_plus_one:
   cost: 0
@@ -212,7 +206,6 @@ greataxe_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 7
-  requires_attunement: true
 
 longsword_plus_one:
   cost: 0
@@ -232,7 +225,6 @@ longsword_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 3
-  requires_attunement: true
 
 greatsword_plus_one:
   cost: 0
@@ -252,7 +244,6 @@ greatsword_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 6
-  requires_attunement: true
 
 longbow_plus_one:
   ammo: arrows
@@ -276,7 +267,6 @@ longbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 
 heavy_crossbow_plus_one:
   ammo: bolts
@@ -301,7 +291,6 @@ heavy_crossbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 18
-  requires_attunement: true
 
 hand_crossbow_plus_one:
   ammo: bolts
@@ -325,7 +314,6 @@ hand_crossbow_plus_one:
   subtype: weapon
   type: ranged_attack
   weight: 3
-  requires_attunement: true
 
 warhammer_plus_one:
   cost: 0
@@ -345,7 +333,6 @@ warhammer_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 2
-  requires_attunement: true
 
 mace_plus_one:
   cost: 0
@@ -363,7 +350,6 @@ mace_plus_one:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 
 trident_plus_one:
   cost: 0
@@ -386,7 +372,6 @@ trident_plus_one:
     range_max: 60
   type: melee_attack
   weight: 4
-  requires_attunement: true
 
 # ----------------------------------------------------------------------------
 # +2 Weapons
@@ -409,7 +394,6 @@ longsword_plus_two:
   subtype: weapon
   type: melee_attack
   weight: 3
-  requires_attunement: true
 
 greataxe_plus_two:
   cost: 0
@@ -429,7 +413,6 @@ greataxe_plus_two:
   subtype: weapon
   type: melee_attack
   weight: 7
-  requires_attunement: true
 
 battleaxe_plus_two:
   cost: 0
@@ -449,7 +432,6 @@ battleaxe_plus_two:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 
 longbow_plus_two:
   ammo: arrows
@@ -473,7 +455,6 @@ longbow_plus_two:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 
 hand_crossbow_plus_two:
   ammo: bolts
@@ -497,7 +478,6 @@ hand_crossbow_plus_two:
   subtype: weapon
   type: ranged_attack
   weight: 3
-  requires_attunement: true
 
 dagger_plus_two:
   cost: 0
@@ -521,7 +501,6 @@ dagger_plus_two:
     range_max: 120
   type: melee_attack
   weight: 10
-  requires_attunement: true
 
 # ----------------------------------------------------------------------------
 # +3 Weapons
@@ -544,7 +523,6 @@ longsword_plus_three:
   subtype: weapon
   type: melee_attack
   weight: 3
-  requires_attunement: true
 
 greataxe_plus_three:
   cost: 0
@@ -564,7 +542,6 @@ greataxe_plus_three:
   subtype: weapon
   type: melee_attack
   weight: 7
-  requires_attunement: true
 
 battleaxe_plus_three:
   cost: 0
@@ -584,7 +561,6 @@ battleaxe_plus_three:
   subtype: weapon
   type: melee_attack
   weight: 4
-  requires_attunement: true
 
 longbow_plus_three:
   ammo: arrows
@@ -608,7 +584,6 @@ longbow_plus_three:
   subtype: weapon
   type: ranged_attack
   weight: 2
-  requires_attunement: true
 
 # ----------------------------------------------------------------------------
 # Magic Armor
@@ -624,7 +599,6 @@ studded_leather_plus_one:
   subtype: light
   type: armor
   weight: 13
-  requires_attunement: true
 
 scale_mail_plus_one:
   ac: 14
@@ -638,7 +612,7 @@ scale_mail_plus_one:
   metallic: true
   type: armor
   weight: 45
-  requires_attunement: true
+  stealth_disadvantage: true
 
 breastplate_plus_one:
   mod_cap: 2
@@ -653,7 +627,6 @@ breastplate_plus_one:
   metallic: true
   type: armor
   weight: 20
-  requires_attunement: true
 
 chain_mail_plus_one:
   mod_cap: 0
@@ -668,7 +641,7 @@ chain_mail_plus_one:
   metallic: true
   type: armor
   weight: 55
-  requires_attunement: true
+  stealth_disadvantage: true
 
 plate_plus_one:
   mod_cap: 0
@@ -683,7 +656,7 @@ plate_plus_one:
   metallic: true
   type: armor
   weight: 65
-  requires_attunement: true
+  stealth_disadvantage: true
 
 half_plate_plus_one:
   mod_cap: 0
@@ -698,7 +671,7 @@ half_plate_plus_one:
   metallic: true
   type: armor
   weight: 40
-  requires_attunement: true
+  stealth_disadvantage: true
 
 chain_shirt_plus_one:
   ac: 13
@@ -713,7 +686,6 @@ chain_shirt_plus_one:
   subtype: medium
   type: armor
   weight: 13
-  requires_attunement: true
 
 splint_plus_one:
   ac: 17
@@ -727,7 +699,7 @@ splint_plus_one:
   metallic: true
   type: armor
   weight: 60
-  requires_attunement: true
+  stealth_disadvantage: true
 
 # +2 Armor
 studded_leather_plus_two:
@@ -741,7 +713,6 @@ studded_leather_plus_two:
   subtype: light
   type: armor
   weight: 13
-  requires_attunement: true
 
 breastplate_plus_two:
   mod_cap: 2
@@ -756,7 +727,6 @@ breastplate_plus_two:
   metallic: true
   type: armor
   weight: 20
-  requires_attunement: true
 
 plate_plus_two:
   mod_cap: 0
@@ -771,7 +741,7 @@ plate_plus_two:
   metallic: true
   type: armor
   weight: 65
-  requires_attunement: true
+  stealth_disadvantage: true
 
 chain_mail_plus_two:
   mod_cap: 0
@@ -786,7 +756,7 @@ chain_mail_plus_two:
   metallic: true
   type: armor
   weight: 55
-  requires_attunement: true
+  stealth_disadvantage: true
 
 # +3 Armor
 plate_plus_three:
@@ -802,7 +772,7 @@ plate_plus_three:
   metallic: true
   type: armor
   weight: 65
-  requires_attunement: true
+  stealth_disadvantage: true
 
 # ----------------------------------------------------------------------------
 # Magic Shields
@@ -818,7 +788,6 @@ shield_plus_one:
   type: shield
   metallic: true
   weight: 6
-  requires_attunement: true
 
 shield_plus_two:
   bonus_ac: 2
@@ -831,7 +800,6 @@ shield_plus_two:
   type: shield
   metallic: true
   weight: 6
-  requires_attunement: true
 
 shield_plus_three:
   bonus_ac: 2
@@ -844,7 +812,6 @@ shield_plus_three:
   type: shield
   metallic: true
   weight: 6
-  requires_attunement: true
 
 # ----------------------------------------------------------------------------
 # Magic Accessories
@@ -861,8 +828,10 @@ amulet_of_health:
   equippable: true
   weight: 1
   requires_attunement: true
-  # Sets minimum CON score to 19 (handled in code via effect)
+  # Sets minimum CON score to 19 (natural20/utils/item_mechanics.py)
   effect: amulet_of_health
+  ability_set:
+    con: 19
 
 ring_of_protection:
   cost: 0
@@ -890,8 +859,10 @@ headband_of_intellect:
   equippable: true
   weight: 0.5
   requires_attunement: true
-  # Sets minimum INT to 19
+  # Sets minimum INT to 19 (natural20/utils/item_mechanics.py)
   effect: headband_of_intellect
+  ability_set:
+    int: 19
 
 cloak_of_protection:
   cost: 0
@@ -915,11 +886,11 @@ gloves_of_thievery:
   name: Gloves of Thievery
   flavor_text: Supple gloves that seem to find the edge of a lock as if they had eyes.
   description: >-
-    These gloves are invisible while worn. While wearing them, you gain a bonus to Dexterity (Sleight of Hand) checks and to checks made to pick locks. Requires attunement. (SRD 5.2)
+    These gloves are invisible while worn. While wearing them, you gain a bonus to Dexterity (Sleight of Hand) checks and to checks made to pick locks. (SRD 5.2)
   type: accessory
   equippable: true
   weight: 0.5
-  requires_attunement: true
+  requires_attunement: false
   # Proficiency bonus to Sleight of Hand, Acrobatics, Stealth
   effect: gloves_of_thievery
 
@@ -973,6 +944,8 @@ flame_tongue_longsword:
   type: melee_attack
   weight: 3
   requires_attunement: true
+  unattuned:
+    damage: 1d8
 
 frost_brand_longsword:
   cost: 0
@@ -993,6 +966,8 @@ frost_brand_longsword:
   type: melee_attack
   weight: 3
   requires_attunement: true
+  unattuned:
+    damage_type: slashing
 
 sun_blade:
   cost: 0
@@ -1019,34 +994,144 @@ sun_blade:
   type: melee_attack
   weight: 2
   requires_attunement: true
-  attunement_class:
-    - bard
-    - fighter
-    - paladin
-    - ranger
-    - sorcerer
-    - warlock
-    - wizard
+  # Unattuned it is only a hilt, swung as an improvised weapon.
+  unattuned:
+    damage: 1d4
+    damage_2: 1d4
+    damage_type: bludgeoning
 
 # ----------------------------------------------------------------------------
 # Armor with special properties
 # ----------------------------------------------------------------------------
 dragon_scale_mail:
   ac: 14
+  mod_cap: 2
   cost: 0
   magic_bonus: 1
   magical: true
+  rarity: very_rare
   name: Dragon Scale Mail
   flavor_text: Armor of overlapping dragon scales, still faintly warm, still faintly proud.
   description: >-
-    Dragon scale mail is made of the scales of one kind of dragon. While wearing it, you gain a +1 bonus to AC, you have advantage on saving throws against the Frightful Presence and breath weapons of dragons, and you have resistance to one damage type determined by the dragon kind. Requires attunement.
-  subtype: heavy
+    Scale mail made from the scales of one kind of dragon. While wearing it, you gain a +1 bonus to AC, you have advantage on saving throws against dragons' Frightful Presence and breath weapons, and you resist one damage type determined by the dragon kind (pick a colored variant). Requires attunement.
+  subtype: medium
   metallic: true
   type: armor
-  weight: 50
+  weight: 45
+  stealth_disadvantage: true
   requires_attunement: true
-  # Resistance to one damage type (chosen on attunement)
-  damage_resistance: null
+  save_advantage_against:
+    - dragon_breath
+    - frightful_presence
+dragon_scale_mail_black:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Black)
+  resistances:
+    - acid
+dragon_scale_mail_blue:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Blue)
+  resistances:
+    - lightning
+dragon_scale_mail_brass:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Brass)
+  resistances:
+    - fire
+dragon_scale_mail_bronze:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Bronze)
+  resistances:
+    - lightning
+dragon_scale_mail_copper:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Copper)
+  resistances:
+    - acid
+dragon_scale_mail_gold:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Gold)
+  resistances:
+    - fire
+dragon_scale_mail_green:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Green)
+  resistances:
+    - poison
+dragon_scale_mail_red:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Red)
+  resistances:
+    - fire
+dragon_scale_mail_silver:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (Silver)
+  resistances:
+    - cold
+dragon_scale_mail_white:
+  inherit: dragon_scale_mail
+  name: Dragon Scale Mail (White)
+  resistances:
+    - cold
+
+# Mithral Armor (SRD): the base armor's AC and weight, but no Stealth
+# disadvantage and no Strength requirement. Variants inherit the shared
+# fields from mithral_breastplate and set the base armor's stats.
+mithral_breastplate:
+  ac: 14
+  cost: 800
+  magical: true
+  rarity: uncommon
+  name: Mithral Breastplate
+  flavor_text: Silvery mithral plates so light and supple they hardly whisper when the wearer moves.
+  description: >-
+    Armor forged from mithral, a light and flexible metal. It keeps the AC of the ordinary armor it copies, but it never gives disadvantage on Dexterity (Stealth) checks and has no Strength requirement. A mithral chain shirt or breastplate can be worn under normal clothes.
+  subtype: medium
+  metallic: true
+  type: armor
+  weight: 20
+  stealth_disadvantage: false
+mithral_chain_shirt:
+  inherit: mithral_breastplate
+  ac: 13
+  name: Mithral Chain Shirt
+  weight: 13
+mithral_scale_mail:
+  inherit: mithral_breastplate
+  ac: 14
+  name: Mithral Scale Mail
+  weight: 45
+mithral_ring_mail:
+  inherit: mithral_breastplate
+  ac: 14
+  name: Mithral Ring Mail
+  subtype: heavy
+  weight: 40
+mithral_half_plate:
+  inherit: mithral_breastplate
+  ac: 15
+  cost: 1500
+  name: Mithral Half Plate
+  weight: 40
+mithral_chain_mail:
+  inherit: mithral_breastplate
+  ac: 16
+  name: Mithral Chain Mail
+  subtype: heavy
+  weight: 55
+mithral_splint:
+  inherit: mithral_breastplate
+  ac: 17
+  name: Mithral Splint Armor
+  subtype: heavy
+  weight: 60
+mithral_plate:
+  inherit: mithral_breastplate
+  ac: 18
+  cost: 2500
+  name: Mithral Plate Armor
+  subtype: heavy
+  weight: 65
 
 cloak_of_displacement:
   ac: 0
@@ -1162,3 +1247,438 @@ staff_of_defense:
       charges: 2
       label: Shield
   requires_attunement: true
+
+# ----------------------------------------------------------------------------
+# Dancing Sword (SRD) — one entry per sword type. ``dancing`` drives the
+# bonus-action toss/hover attack (natural20/actions/dancing_weapon_action.py).
+# ``proficiency_type`` also lists the base weapon so per-weapon proficiencies
+# (e.g. rapier) apply.
+# ----------------------------------------------------------------------------
+dancing_longsword:
+  cost: 0
+  damage: 1d8
+  damage_2: 1d10
+  damage_type: slashing
+  magical: true
+  rarity: very_rare
+  name: Dancing Longsword
+  flavor_text: The blade trembles in its scabbard, as if impatient to fight on its own.
+  description: >-
+    As a bonus action you can toss this sword into the air and speak its command word. It hovers, flies up to 30 feet and
+    strikes a creature of your choice within 5 feet of it, using your attack roll and your ability modifier for damage.
+    While it hovers you can use a bonus action to send it up to 30 feet to another spot within 30 feet of you and strike
+    again. After its fourth strike it flies back to your hand (or drops at your feet if your hands are full). It stops
+    hovering if you grab it or move more than 30 feet away from it. Requires attunement.
+  proficiency_type:
+    - martial
+    - longsword
+  properties:
+    - versatile
+  range: 5
+  subtype: weapon
+  type: melee_attack
+  weight: 3
+  weapon_mastery:
+    - sap
+  requires_attunement: true
+  dancing:
+    attacks: 4
+    move_feet: 30
+    leash_feet: 30
+
+dancing_shortsword:
+  cost: 0
+  damage: 1d6
+  damage_type: piercing
+  magical: true
+  rarity: very_rare
+  name: Dancing Shortsword
+  flavor_text: A short blade that seems to tug toward the nearest foe.
+  description: >-
+    As a bonus action you can toss this sword into the air and speak its command word. It hovers, flies up to 30 feet and
+    strikes a creature of your choice within 5 feet of it, using your attack roll and your ability modifier for damage.
+    While it hovers you can use a bonus action to send it up to 30 feet to another spot within 30 feet of you and strike
+    again. After its fourth strike it flies back to your hand (or drops at your feet if your hands are full). It stops
+    hovering if you grab it or move more than 30 feet away from it. Requires attunement.
+  proficiency_type:
+    - martial
+    - shortsword
+  properties:
+    - finesse
+    - light
+  range: 5
+  subtype: weapon
+  type: melee_attack
+  weight: 2
+  weapon_mastery:
+    - vex
+  requires_attunement: true
+  dancing:
+    attacks: 4
+    move_feet: 30
+    leash_feet: 30
+
+dancing_scimitar:
+  cost: 0
+  damage: 1d6
+  damage_type: slashing
+  magical: true
+  rarity: very_rare
+  name: Dancing Scimitar
+  flavor_text: A curved blade that spins lazily in the air whenever it is let go.
+  description: >-
+    As a bonus action you can toss this sword into the air and speak its command word. It hovers, flies up to 30 feet and
+    strikes a creature of your choice within 5 feet of it, using your attack roll and your ability modifier for damage.
+    While it hovers you can use a bonus action to send it up to 30 feet to another spot within 30 feet of you and strike
+    again. After its fourth strike it flies back to your hand (or drops at your feet if your hands are full). It stops
+    hovering if you grab it or move more than 30 feet away from it. Requires attunement.
+  proficiency_type:
+    - martial
+    - scimitar
+  properties:
+    - finesse
+    - light
+  range: 5
+  subtype: weapon
+  type: melee_attack
+  weight: 3
+  weapon_mastery:
+    - nick
+  requires_attunement: true
+  dancing:
+    attacks: 4
+    move_feet: 30
+    leash_feet: 30
+
+dancing_greatsword:
+  cost: 0
+  damage: 2d6
+  damage_type: slashing
+  magical: true
+  rarity: very_rare
+  name: Dancing Greatsword
+  flavor_text: A heavy blade that rises from the ground on its own when its owner calls.
+  description: >-
+    As a bonus action you can toss this sword into the air and speak its command word. It hovers, flies up to 30 feet and
+    strikes a creature of your choice within 5 feet of it, using your attack roll and your ability modifier for damage.
+    While it hovers you can use a bonus action to send it up to 30 feet to another spot within 30 feet of you and strike
+    again. After its fourth strike it flies back to your hand (or drops at your feet if your hands are full). It stops
+    hovering if you grab it or move more than 30 feet away from it. Requires attunement.
+  proficiency_type:
+    - martial
+    - greatsword
+  properties:
+    - heavy
+    - two_handed
+  range: 5
+  subtype: weapon
+  type: melee_attack
+  weight: 6
+  weapon_mastery:
+    - graze
+  requires_attunement: true
+  dancing:
+    attacks: 4
+    move_feet: 30
+    leash_feet: 30
+
+dancing_rapier:
+  cost: 0
+  damage: 1d8
+  damage_type: piercing
+  magical: true
+  rarity: very_rare
+  name: Dancing Rapier
+  flavor_text: A needle-thin blade that flicks back and forth like a duellist warming up.
+  description: >-
+    As a bonus action you can toss this sword into the air and speak its command word. It hovers, flies up to 30 feet and
+    strikes a creature of your choice within 5 feet of it, using your attack roll and your ability modifier for damage.
+    While it hovers you can use a bonus action to send it up to 30 feet to another spot within 30 feet of you and strike
+    again. After its fourth strike it flies back to your hand (or drops at your feet if your hands are full). It stops
+    hovering if you grab it or move more than 30 feet away from it. Requires attunement.
+  proficiency_type:
+    - martial
+    - rapier
+  properties:
+    - finesse
+  range: 5
+  subtype: weapon
+  type: melee_attack
+  weight: 2
+  weapon_mastery:
+    - vex
+  requires_attunement: true
+  dancing:
+    attacks: 4
+    move_feet: 30
+    leash_feet: 30
+
+# ----------------------------------------------------------------------------
+# Ioun Stones (SRD) — worn (equipped) and attuned, the stone orbits the
+# owner's head. Mechanics keys are read by natural20/utils/item_mechanics.py;
+# Protection's AC comes from the accessory ``magic_bonus``.
+# ----------------------------------------------------------------------------
+ioun_stone_of_absorption:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Absorption
+  flavor_text: A pale lavender ellipsoid that hums faintly whenever magic is near.
+  description: >-
+    While this stone orbits your head, you can use your reaction to cancel a spell of 4th level or lower that targets
+    only you, as long as you can see the caster. The stone can absorb 20 levels of spells before it burns out and turns
+    dull grey. (Descriptive only: absorb the spell manually.) Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+
+ioun_stone_of_agility:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Agility
+  flavor_text: A deep red sphere that darts around its owner with nervous speed.
+  description: >-
+    While this stone orbits your head, your Dexterity score rises by 2, to a maximum of 20. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  ability_bonus:
+    dex: 2
+    max: 20
+
+ioun_stone_of_awareness:
+  cost: 0
+  magical: true
+  rarity: rare
+  name: Ioun Stone of Awareness
+  flavor_text: A dark blue rhomboid that seems to watch the room on its owner's behalf.
+  description: >-
+    While this stone orbits your head, you can't be surprised. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  cannot_be_surprised: true
+
+ioun_stone_of_fortitude:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Fortitude
+  flavor_text: A pink rhomboid with a steady, heartbeat-like glow.
+  description: >-
+    While this stone orbits your head, your Constitution score rises by 2, to a maximum of 20. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  ability_bonus:
+    con: 2
+    max: 20
+
+ioun_stone_of_greater_absorption:
+  cost: 0
+  magical: true
+  rarity: legendary
+  name: Ioun Stone of Greater Absorption
+  flavor_text: A marbled lavender and green ellipsoid that drinks the light around it.
+  description: >-
+    While this stone orbits your head, you can use your reaction to cancel a spell of 8th level or lower that targets
+    only you, as long as you can see the caster. The stone can absorb 50 levels of spells before it burns out and turns
+    dull grey. (Descriptive only: absorb the spell manually.) Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+
+ioun_stone_of_insight:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Insight
+  flavor_text: An incandescent blue sphere that sharpens the senses of whoever it circles.
+  description: >-
+    While this stone orbits your head, your Wisdom score rises by 2, to a maximum of 20. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  ability_bonus:
+    wis: 2
+    max: 20
+
+ioun_stone_of_intellect:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Intellect
+  flavor_text: A marbled scarlet and blue sphere that spins faster when its owner thinks hard.
+  description: >-
+    While this stone orbits your head, your Intelligence score rises by 2, to a maximum of 20. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  ability_bonus:
+    int: 2
+    max: 20
+
+ioun_stone_of_leadership:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Leadership
+  flavor_text: A marbled pink and green sphere that lends its owner an easy presence.
+  description: >-
+    While this stone orbits your head, your Charisma score rises by 2, to a maximum of 20. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  ability_bonus:
+    cha: 2
+    max: 20
+
+ioun_stone_of_mastery:
+  cost: 0
+  magical: true
+  rarity: legendary
+  name: Ioun Stone of Mastery
+  flavor_text: A pale green prism that makes every practiced motion feel effortless.
+  description: >-
+    While this stone orbits your head, your proficiency bonus rises by 1. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  proficiency_bonus: 1
+
+ioun_stone_of_protection:
+  cost: 0
+  magical: true
+  magic_bonus: 1
+  rarity: rare
+  name: Ioun Stone of Protection
+  flavor_text: A dusty rose prism that flickers into the path of incoming blows.
+  description: >-
+    While this stone orbits your head, you gain a +1 bonus to AC. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+
+ioun_stone_of_regeneration:
+  cost: 0
+  magical: true
+  rarity: legendary
+  name: Ioun Stone of Regeneration
+  flavor_text: A pearly white spindle whose glow knits small wounds shut.
+  description: >-
+    While this stone orbits your head, you regain 15 hit points at the end of each hour, as long as you have at least
+    1 hit point. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  regain_hp:
+    amount: 15
+    every_seconds: 3600
+    min_hp: 1
+
+ioun_stone_of_reserve:
+  cost: 0
+  magical: true
+  rarity: rare
+  name: Ioun Stone of Reserve
+  flavor_text: A vibrant purple prism that holds a faint echo of every spell poured into it.
+  description: >-
+    This stone can hold up to 3 levels of spells cast into it. While it orbits your head, you can cast any spell stored
+    in it, using the original caster's slot level, save DC, attack bonus and casting ability. (Descriptive only.)
+    Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+
+ioun_stone_of_strength:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Ioun Stone of Strength
+  flavor_text: A pale blue rhomboid that makes heavy loads feel lighter.
+  description: >-
+    While this stone orbits your head, your Strength score rises by 2, to a maximum of 20. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  ability_bonus:
+    str: 2
+    max: 20
+
+ioun_stone_of_sustenance:
+  cost: 0
+  magical: true
+  rarity: rare
+  name: Ioun Stone of Sustenance
+  flavor_text: A clear spindle that leaves its owner neither hungry nor thirsty.
+  description: >-
+    While this stone orbits your head, you don't need to eat or drink. (Descriptive only.) Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+
+wand_of_the_war_mage_plus_one:
+  cost: 0
+  magical: true
+  rarity: uncommon
+  name: Wand of the War Mage, +1
+  flavor_text: A slim wand of dark wood, its tip scorched from countless battle spells.
+  description: >-
+    While holding this wand, you gain a +1 bonus to spell attack rolls, and you ignore Half
+    Cover when making a spell attack roll. Requires attunement by a spellcaster.
+  type: accessory
+  subtype: wand
+  image: wand
+  equippable: true
+  weight: 1
+  requires_attunement: true
+  attunement_spellcaster: true
+  spell_attack_bonus: 1
+  spell_attack_ignore_cover: [half]
+
+wand_of_the_war_mage_plus_two:
+  inherit: wand_of_the_war_mage_plus_one
+  rarity: rare
+  name: Wand of the War Mage, +2
+  description: >-
+    While holding this wand, you gain a +2 bonus to spell attack rolls, and you ignore Half
+    Cover when making a spell attack roll. Requires attunement by a spellcaster.
+  spell_attack_bonus: 2
+
+wand_of_the_war_mage_plus_three:
+  inherit: wand_of_the_war_mage_plus_one
+  rarity: very_rare
+  name: Wand of the War Mage, +3
+  description: >-
+    While holding this wand, you gain a +3 bonus to spell attack rolls, and you ignore Half
+    Cover when making a spell attack roll. Requires attunement by a spellcaster.
+  spell_attack_bonus: 3
+
+periapt_of_proof_against_poison:
+  cost: 0
+  magical: true
+  rarity: rare
+  name: Periapt of Proof against Poison
+  flavor_text: A delicate silver chain holding a brilliant-cut black gem.
+  description: >-
+    While you wear this pendant, you have Immunity to Poison damage and the Poisoned condition.
+  type: accessory
+  equippable: true
+  weight: 0
+  damage_immunities: [poison]
+  condition_immunities: [poisoned]

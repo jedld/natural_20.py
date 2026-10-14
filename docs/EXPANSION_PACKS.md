@@ -192,4 +192,20 @@ Repo path: `expansion_packs/tashas_sidekicks/` (Expert / Spellcaster / Warrior c
 }
 ```
 
-Without the pack, sidekick **membership and player control** still work. `apply_sidekick_class` no-ops when the class YAML is missing. CR ≤ 1/2 is pack policy (warn + DM override), not a core hard fail. See [CAMPAIGN_BUILDING.md](CAMPAIGN_BUILDING.md#sidekick-npcs).
+Without the pack, sidekick **membership and player control** still work. (Tasha's Sidekicks only.)
+
+## Tasha’s Cauldron pack (Artificer)
+
+Repo path: `expansion_packs/tashas_cauldron/`. **Not SRD.** It contains the Artificer class with the Alchemist subclass (`char_classes/artificer.yml`) and the Experimental Elixirs (`items/equipment.yml`). Opt in with `"expansion_packs": {"tashas_cauldron": "tashas_cauldron"}`.
+
+The artificer has no Python mixin; it runs entirely from YAML as a data-driven class. See [CAMPAIGN_BUILDING.md → Data-driven classes](CAMPAIGN_BUILDING.md#data-driven-classes-yaml-only) for the YAML blocks it uses. The pack README lists each feature, the mechanic it maps to, and the known simplifications. `apply_sidekick_class` no-ops when the class YAML is missing. CR ≤ 1/2 is pack policy (warn + DM override), not a core hard fail. See [CAMPAIGN_BUILDING.md](CAMPAIGN_BUILDING.md#sidekick-npcs).
+
+## Player's Handbook 2024 pack
+
+Repo path: `expansion_packs/players_handbook_2024/`. **Not SRD.** It holds 2024 PHB content missing from SRD 5.2:
+
+- the Gloom Stalker ranger subclass (`char_classes/ranger.yml`, which inherits the SRD 5.2 ranger overlay);
+- the Wayfarer background;
+- the Lucky, Sharpshooter and Crossbow Expert feats.
+
+Opt in with `"expansion_packs": {"players_handbook_2024": "players_handbook_2024"}` and use `ruleset: 5e-2024`. The pack README maps each feature to its YAML mechanic and lists the simplifications.

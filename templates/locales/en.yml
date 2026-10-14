@@ -158,6 +158,7 @@ en:
     athletics: Rolling for an athletics check
     attack: Rolling for attack (to hit)
     damage: Roll for attack damage
+    luck_point: Rolling an extra d20 (luck point)
     death_saving_throw: Roll for death saving throw
     description: '%{description} (%{roll_str})'
     dexterity: Roll for dexterity (skill check)
@@ -431,6 +432,10 @@ en:
         too_many_creatures: More than nine creatures are in the area (the hut can hold you plus nine Medium or smaller creatures).
         creature_too_large: A creature larger than Medium is in the area.
         blocks_spell_line: Spells and magical effects cannot pass through the hut's dome.
+      magic_weapon:
+        no_weapon: The target has no nonmagical weapon equipped.
+      push_creature:
+        too_large: The target is too large to be pushed by this spell.
       message:
         blocked: Barriers or magical silence block the Message spell.
         link_expired: The Message spell link has expired.
@@ -441,6 +446,7 @@ en:
       charmed_by_target: You can't attack the creature that charmed you.
       target_condition: The target doesn't meet this attack's requirements (e.g. it must be grappled, incapacitated, restrained or willing).
       target_creature_type: This attack can't affect that kind of creature.
+      loading: This Loading weapon was already fired during this Attack action.
   waive_opportunity_attack: Waive Opportunity Attack
   with_advantage: advantage
   with_disadvantage: disadvantage

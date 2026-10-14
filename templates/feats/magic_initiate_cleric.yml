@@ -1,0 +1,24 @@
+magic_initiate_cleric:
+  name: Magic Initiate (Cleric)
+  category: origin
+  edition: 5e-2024
+  description: |
+    You know two cleric cantrips and one level 1 cleric spell, using
+    Intelligence, Wisdom or Charisma (your choice) to cast them. The level 1
+    spell is always prepared; you can cast it once without a spell slot per
+    Long Rest, and with any spell slots you have.
+
+    Sheet: list the chosen spells under `cantrips` / `prepared_spells` and map
+    each to its ability in `spell_abilities`.
+  resource_pools:
+    magic_initiate_cleric:
+      max: 1
+      restore_on: long_rest
+  free_casts:
+    magic_initiate_cleric:
+      spell_property: magic_initiate_cleric_spell
+      spell_source: spell_abilities
+      spell_level: 1
+      spell_list: cleric
+      pool: magic_initiate_cleric
+  prerequisites: []

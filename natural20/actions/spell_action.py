@@ -53,6 +53,9 @@ class SpellAction(Action):
         # time (per RAW: "you cast it as normal but hold its energy"), so
         # releasing the held spell as a reaction must not deduct it again.
         self.skip_consume_at_resolve = False
+        # Resource pool paying for this cast instead of a spell slot
+        # (class YAML ``free_casts``).
+        self.free_cast_pool = None
 
     def __str__(self):
         name = "SpellAction: unknown"
@@ -76,7 +79,8 @@ class SpellAction(Action):
             'level': self.level,
             'at_level': self.at_level,
             'casting_time': self.casting_time,
-            'spellcasting_class': self.spellcasting_class
+            'spellcasting_class': self.spellcasting_class,
+            'free_cast_pool': self.free_cast_pool,
         }
         if self.target:
             hash['target'] = SpellAction._serialize_target(self.target)
@@ -102,6 +106,7 @@ class SpellAction(Action):
         action.casting_time = data['casting_time']
         action.target = data['target']
         action.spellcasting_class = data.get('spellcasting_class')
+        action.free_cast_pool = data.get('free_cast_pool')
         if data.get('using'):
             action.using = data['using']
         return action
@@ -151,6 +156,15 @@ class SpellAction(Action):
 
         slot_owner = entity.owner if entity.familiar() else entity
 
+        from natural20.utils.action_restrictions import is_restricted
+        if is_restricted(entity, 'spell'):
+            return False
+
+        # Cast only through the post-hit offer (natural20/spell/extensions/weapon_hit_spell.py).
+        from natural20.spell.extensions.weapon_hit_spell import weapon_hit_timing
+        if weapon_hit_timing(spell_details) == 'after_hit':
+            return False
+
         if not as_scroll:
             if spell_details['level'] > 0:
                 has_slot = False
@@ -162,6 +176,10 @@ class SpellAction(Action):
                     elif slot_owner.spell_slots_count(at_level, class_key) > 0:
                         has_slot = True
                         break
+
+                if not has_slot and at_level == spell_details['level']:
+                    from natural20.utils.class_mechanics import free_cast_pool_for
+                    has_slot = free_cast_pool_for(slot_owner, spell_details.get('id') or spell) is not None
 
                 if not has_slot:
                     return False
@@ -263,7 +281,14 @@ class SpellAction(Action):
             action.spell_action = spell_class(self.session, self.source, spell_class_key, spell)
             action.spell_action.action = action
             slot_owner = action.source.owner if action.source.familiar() else action.source
-            if action.at_level > 0 and hasattr(slot_owner, 'next_spell_slot_level'):
+            # A cast at the spell's own level uses a free cast (Steps of the Fey,
+            # Mystic Arcanum, ...) before a slot, which for Pact Magic would
+            # otherwise be bumped to the pact slot level.
+            if action.at_level == action.level and action.level > 0:
+                from natural20.utils.class_mechanics import free_cast_pool_for
+                action.free_cast_pool = free_cast_pool_for(slot_owner, spell_slug)
+            if (not action.free_cast_pool and action.at_level > 0
+                    and hasattr(slot_owner, 'next_spell_slot_level')):
                 for class_key in slot_owner.spell_list_classes_for(spell):
                     slot_level = slot_owner.next_spell_slot_level(class_key, action.at_level)
                     if slot_level is not None:
@@ -288,7 +313,10 @@ class SpellAction(Action):
         spell_action.at_level = self.at_level
         spell_action.target = self.target
         spell_action.spellcasting_class = self.spellcasting_class
+        spell_action.free_cast_pool = getattr(self, 'free_cast_pool', None)
         spell_action.skip_consume_at_resolve = getattr(self, 'skip_consume_at_resolve', False)
+        spell_action.spell_rider = getattr(self, 'spell_rider', None)
+        spell_action.summon_variant = getattr(self, 'summon_variant', None)
         if hasattr(self, 'using'):
             spell_action.using = self.using
         if self.spell_action:
@@ -312,8 +340,20 @@ class SpellAction(Action):
                 self.spell_action.consume(battle, as_scroll=keep_slot)
                 return self
 
+        if battle is not None:
+            from natural20.utils.targeting_ward import filter_spell_targets
+            lost, ward_items = filter_spell_targets(self, battle)
+            counter_events = counter_events + ward_items
+            if lost:
+                self.result = counter_events
+                if not getattr(self, 'skip_consume_at_resolve', False):
+                    self.spell_action.consume(battle)
+                return self
+
         prior_concentration = getattr(self.source, 'concentration', None)
         spell_result = list(self.spell_action.resolve(self.source, battle, self, map) or [])
+        from natural20.utils.class_mechanics import apply_spell_roll_bonuses
+        apply_spell_roll_bonuses(self.source, self.spell_action.properties, spell_result, battle)
         self._tag_mirror_image_misses(spell_result)
         self.result = counter_events + self._concentration_replaced_items(prior_concentration, spell_result) \
             + spell_result
@@ -475,6 +515,8 @@ class SpellAction(Action):
                 'thrown': item.get('thrown', False),
                 'spell_save': item.get('spell_save', None),
                 'dc': item.get('dc', None),
+                'message': item.get('message'),
+                'spell_target': item.get('spell_target'),
                 'event': 'miss'
             })
 

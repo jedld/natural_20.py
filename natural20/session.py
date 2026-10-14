@@ -417,6 +417,10 @@ class Session:
         self.game_time += seconds
         from natural20.utils.monster_traits import tick_session_misty_escapes
         tick_session_misty_escapes(self)
+        from natural20.utils.item_mechanics import tick_item_regeneration
+        tick_item_regeneration(self)
+        from natural20.utils.attunement import tick_attunement
+        tick_attunement(self)
 
     def load_characters(self):
         return [character for _path, character in self.load_characters_with_paths()]

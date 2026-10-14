@@ -1,0 +1,227 @@
+# SRD 5.2 Warlock overlay.
+#
+# Eldritch Invocations are picked on the sheet (`eldritch_invocations: [...]`)
+# and count as class features through `feature_choices`. Cantrip invocations
+# can be pointed at a cantrip with `invocation_spells: {agonizing_blast:
+# eldritch_blast}` (default Eldritch Blast). Mystic Arcanum spells live in the
+# sheet's `mystic_arcanum: {6: <slug>, 7: <slug>, ...}`. Subclasses go under
+# `subclasses.<name>` (keyed by the sheet's `otherworldly_patron`); the
+# Fiend Patron is SRD, other patrons belong in expansion packs.
+---
+inherit: "@templates/char_classes/warlock.yml"
+subclass_property: otherworldly_patron
+feature_choices:
+  - eldritch_invocations
+spell_list:
+  cantrip:
+    - chill_touch
+    - eldritch_blast
+    - mage_hand
+    - minor_illusion
+    - poison_spray
+    - prestidigitation
+    - true_strike
+  level_1:
+    - bane
+    - charm_person
+    - comprehend_languages
+    - detect_magic
+    - expeditious_retreat
+    - hellish_rebuke
+    - hex
+    - hideous_laughter
+    - illusory_script
+    - protection_from_evil_and_good
+    - speak_with_animals
+    - unseen_servant
+  level_2:
+    - darkness
+    - enthrall
+    - hold_person
+    - invisibility
+    - mind_spike
+    - mirror_image
+    - misty_step
+    - ray_of_enfeeblement
+    - spider_climb
+    - suggestion
+  level_3:
+    - counterspell
+    - dispel_magic
+    - fear
+    - fly
+    - gaseous_form
+    - hypnotic_pattern
+    - magic_circle
+    - major_image
+    - remove_curse
+    - tongues
+    - vampiric_touch
+  level_4:
+    - banishment
+    - blight
+    - charm_monster
+    - dimension_door
+    - hallucinatory_terrain
+  level_5:
+    - contact_other_plane
+    - dream
+    - hold_monster
+    - mislead
+    - planar_binding
+    - scrying
+    - teleportation_circle
+  level_6:
+    - circle_of_death
+    - create_undead
+    - eyebite
+    - true_seeing
+  level_7:
+    - etherealness
+    - finger_of_death
+    - forcecage
+    - plane_shift
+  level_8:
+    - befuddlement
+    - demiplane
+    - dominate_monster
+    - glibness
+    - power_word_stun
+  level_9:
+    - astral_projection
+    - foresight
+    - gate
+    - imprisonment
+    - power_word_kill
+    - true_polymorph
+    - weird
+class_features:
+  - pact_magic
+  - eldritch_invocations
+progression:
+  level_2:
+    class_features:
+      - magical_cunning
+  level_3:
+    class_features:
+      - otherworldly_patron
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_5:
+    class_features: []
+  level_9:
+    class_features:
+      - contact_patron
+  level_11:
+    class_features:
+      - mystic_arcanum
+  level_13:
+    class_features:
+      - mystic_arcanum_7
+  level_15:
+    class_features:
+      - mystic_arcanum_8
+  level_17:
+    class_features:
+      - mystic_arcanum_9
+  level_19:
+    class_features:
+      - epic_boon
+  level_20:
+    class_features:
+      - eldritch_master
+resource_pools:
+  magical_cunning:
+    feature: magical_cunning
+    max: 1
+    restore_on: long_rest
+  contact_patron:
+    feature: contact_patron
+    max: 1
+    restore_on: long_rest
+  mystic_arcanum_6:
+    feature: mystic_arcanum
+    max: 1
+    restore_on: long_rest
+  mystic_arcanum_7:
+    feature: mystic_arcanum_7
+    max: 1
+    restore_on: long_rest
+  mystic_arcanum_8:
+    feature: mystic_arcanum_8
+    max: 1
+    restore_on: long_rest
+  mystic_arcanum_9:
+    feature: mystic_arcanum_9
+    max: 1
+    restore_on: long_rest
+free_casts:
+  # Contact Patron: always prepared, once per long rest without a slot.
+  - feature: contact_patron
+    spell: contact_other_plane
+    pool: contact_patron
+    auto_succeed_save: true
+  - feature: mystic_arcanum
+    spell_property: mystic_arcanum
+    spell_key: 6
+    pool: mystic_arcanum_6
+  - feature: mystic_arcanum_7
+    spell_property: mystic_arcanum
+    spell_key: 7
+    pool: mystic_arcanum_7
+  - feature: mystic_arcanum_8
+    spell_property: mystic_arcanum
+    spell_key: 8
+    pool: mystic_arcanum_8
+  - feature: mystic_arcanum_9
+    spell_property: mystic_arcanum
+    spell_key: 9
+    pool: mystic_arcanum_9
+  # Invocations that cast a spell without a slot.
+  - feature: fiendish_vigor
+    spell: false_life
+    at_will: true
+    maximize: true
+    self_only: true
+  - feature: armor_of_shadows
+    spell: mage_armor
+    at_will: true
+    self_only: true
+  - feature: mask_of_many_faces
+    spell: disguise_self
+    at_will: true
+  - feature: misty_visions
+    spell: silent_image
+    at_will: true
+  - feature: pact_of_the_chain
+    spell: find_familiar
+    at_will: true
+feature_actions:
+  # Magical Cunning: a 1-minute rite (out of combat) that regains up to half
+  # the Pact Magic slots (round up); Eldritch Master regains all of them.
+  - feature: magical_cunning
+    id: magical_cunning
+    label: Magical Cunning
+    activation: minute
+    pool: magical_cunning
+    restore_spell_slots:
+      class: warlock
+      fraction: 0.5
+      full_with_feature: eldritch_master
+senses:
+  - feature: devils_sight
+    devils_sight: 120
+benefits:
+  - feature: eldritch_mind
+    benefit: concentration_advantage
+cantrip_riders:
+  - feature: agonizing_blast
+    spell_property: invocation_spells
+    default_spell: eldritch_blast
+    damage_bonus: ability_mod:charisma
+  - feature: repelling_blast
+    spell_property: invocation_spells
+    default_spell: eldritch_blast
+    push: 10
+    max_size: large

@@ -22,6 +22,11 @@ class HexSpell(Spell):
         self.marked_target = None
         self.hexed_ability = 'str'
 
+    def clone(self):
+        spell = super().clone()
+        spell.hexed_ability = self.hexed_ability
+        return spell
+
     @property
     def id(self):
         return self._instance_id

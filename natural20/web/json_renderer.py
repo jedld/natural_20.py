@@ -702,6 +702,9 @@ class JsonRenderer:
                                 if is_stinking_cloud_gas else None
                             )
                             object_info['sleet_storm_marker'] = bool(object_entity.properties.get('sleet_storm'))
+                            object_info['spike_growth_marker'] = bool(object_entity.properties.get('spike_growth'))
+                            object_info['silence_marker'] = bool(object_entity.properties.get('silenced'))
+                            object_info['flaming_sphere_marker'] = bool(object_entity.properties.get('flaming_sphere'))
     
                             is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
                                 object_entity.properties.get('tiny_hut_dome')

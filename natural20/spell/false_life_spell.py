@@ -45,11 +45,31 @@ class FalseLifeSpell(Spell):
         cast_level = getattr(self.action, 'at_level', self.properties.get('level', 1)) if self.action else 1
         if cast_level is None or cast_level < 1:
             cast_level = 1
-        roll = DieRoll.roll(
-            '1d4', battle=battle, entity=self.source,
-            description='dice_roll.spells.false_life',
-        )
-        return int(roll.result()) + 4 + 5 * (cast_level - 1)
+        dice = str(self.properties.get('temp_hp_dice') or '1d4')
+        if self._maximized():
+            import re
+            match = re.fullmatch(r'\s*(\d*)d(\d+)\s*([+-]\s*\d+)?\s*', dice)
+            if match:
+                count = int(match.group(1) or 1)
+                value = count * int(match.group(2)) + int((match.group(3) or '0').replace(' ', ''))
+            else:
+                value = int(DieRoll.roll(dice, battle=battle, entity=self.source).result())
+        else:
+            roll = DieRoll.roll(
+                dice, battle=battle, entity=self.source,
+                description='dice_roll.spells.false_life',
+            )
+            value = int(roll.result())
+        return value + 4 + 5 * (cast_level - 1)
+
+    def _maximized(self):
+        """Free casts with ``maximize: true`` (Fiendish Vigor) use the highest roll."""
+        pool = getattr(self.action, 'free_cast_pool', None) if self.action else None
+        if not pool:
+            return False
+        from natural20.utils.class_mechanics import free_cast_spec_for
+        spec = free_cast_spec_for(self.source, self.properties.get('id') or 'false_life', pool=pool)
+        return bool(spec and spec.get('maximize'))
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         amount = self._temp_hp(battle)

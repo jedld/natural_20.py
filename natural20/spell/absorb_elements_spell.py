@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from natural20.die_roll import DieRoll
+from natural20.spell.extensions.weapon_hit_spell import hit_weapon_kind
 from natural20.spell.spell import Spell
 
 ELEMENTAL_DAMAGE_TYPES = frozenset({'acid', 'cold', 'fire', 'lightning', 'thunder'})
@@ -31,8 +32,9 @@ class AbsorbElementsMeleeEffect:
         if hit_result.get('thrown'):
             return []
 
-        weapon = hit_result.get('weapon') or {}
-        if weapon.get('type') == 'ranged_attack':
+        # hit_result['weapon'] is a weapon key (str) for PC attacks and the
+        # npc_action dict for NPC attacks; hit_weapon_kind resolves both.
+        if hit_weapon_kind(entity, hit_result) == 'ranged':
             return []
 
         target = hit_result.get('target')

@@ -12,6 +12,10 @@
   count as outdoors), same rule as monster summons.
 * ``open_sky`` — outdoors, or a map ``ceiling_height`` (feet) of at least the
   spell's ``min_ceiling_ft`` (default 100), e.g. Call Lightning's storm cloud.
+* ``out_of_combat`` — not castable while a battle is ongoing (Rope Trick).
+
+Spells with a ``verbal`` component can't be cast by a caster standing in a
+magical silence (``natural20/utils/silence.py``).
 
 Spells cast from a scroll ignore material components.
 """
@@ -37,6 +41,9 @@ def _materials(spell_details) -> List[dict]:
 def missing_materials(entity, spell_details) -> List[str]:
     """Item ids the caster lacks for ``spell_details``' consumed materials."""
     missing = []
+    from natural20.utils.innate_spellcasting import ignores_materials
+    if ignores_materials(entity, (spell_details or {}).get('id')):
+        return missing
     for entry in _materials(spell_details):
         count = entity.item_count(entry['item']) if hasattr(entity, 'item_count') else 0
         if count < entry['qty']:
@@ -45,6 +52,9 @@ def missing_materials(entity, spell_details) -> List[str]:
 
 
 def consume_materials(entity, spell_details) -> None:
+    from natural20.utils.innate_spellcasting import ignores_materials
+    if ignores_materials(entity, (spell_details or {}).get('id')):
+        return
     for entry in _materials(spell_details):
         if hasattr(entity, 'deduct_item'):
             entity.deduct_item(entry['item'], entry['qty'])
@@ -89,11 +99,20 @@ def has_open_sky(entity, spell_details=None, battle=None, battle_map=None) -> bo
 
 
 def environment_issue(entity, spell_details, battle=None, battle_map=None) -> Optional[str]:
-    """Why the spell's ``requires`` list blocks casting here, or None."""
+    """Why the spell's ``requires`` list (or a magical silence around the
+    caster, for spells with a verbal component) blocks casting here, or None."""
     from natural20.utils.summons import is_outdoors
+    from natural20.utils.silence import has_verbal_component
+    if has_verbal_component(spell_details):
+        from natural20.utils.message_spell_path import entity_in_magical_silence
+        caster = entity.owner if hasattr(entity, 'familiar') and entity.familiar() else entity
+        if entity_in_magical_silence(caster):
+            return 'silenced'
     requirements = (spell_details or {}).get('requires') or []
     if not requirements:
         return None
+    if 'out_of_combat' in requirements and battle is not None and battle.ongoing():
+        return 'not usable in combat'
     current = _map_for(entity, battle, battle_map)
     if current is None:
         return None

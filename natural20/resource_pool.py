@@ -54,8 +54,11 @@ class ResourcePool:
         return self.current
 
     def restore_for(self, rest_kind: str) -> bool:
-        """Refill if this pool's ``restore_on`` matches ``rest_kind``."""
-        if self.restore_on == rest_kind:
+        """Refill if this pool's ``restore_on`` matches ``rest_kind``.
+
+        A long rest also refills short-rest pools.
+        """
+        if self.restore_on == rest_kind or (rest_kind == 'long_rest' and self.restore_on == 'short_rest'):
             self.restore()
             return True
         return False

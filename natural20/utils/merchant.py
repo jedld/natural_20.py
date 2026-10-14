@@ -19,10 +19,14 @@ _CURRENCY_ALIASES = {
     'ep': 0.5,
     'electrum': 0.5,
     'electronum': 0.5,
+    'electrum_piece': 0.5,
+    'pp': 10.0,
+    'platinum': 10.0,
+    'platinum_piece': 10.0,
 }
 
 _COST_PATTERN = re.compile(
-    r'^\s*(\d+(?:\.\d+)?)\s*(gp|gold|sp|silver|cp|copper|ep|electrum)?\s*$',
+    r'^\s*(\d+(?:\.\d+)?)\s*(gp|gold|sp|silver|cp|copper|ep|electrum|pp|platinum)?\s*$',
     re.IGNORECASE,
 )
 

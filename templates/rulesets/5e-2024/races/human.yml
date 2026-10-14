@@ -1,0 +1,17 @@
+# SRD 5.2 (2024) Human. Replaces templates/races/human.yml for 5e-2024
+# campaigns (or a sheet with race_edition: 5e-2024).
+#
+# Ability increases come from the background in 2024, so there is no
+# attribute_bonus here. Skillful (one extra skill) and Versatile (an extra
+# origin feat) are recorded on the character sheet.
+base_speed: 30
+size: medium
+languages:
+  - common
+language_choice: 1
+race_features:
+  - resourceful
+  - skillful
+  - versatile
+# Resourceful: Heroic Inspiration at the end of every long rest.
+inspiration_on_long_rest: true

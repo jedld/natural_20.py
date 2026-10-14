@@ -40,6 +40,10 @@ except Exception:  # pragma: no cover - optional dependency
 # ---------------------------------------------------------------------------
 
 _STAT_IDS: Dict[int, str] = {1: "str", 2: "dex", 3: "con", 4: "int", 5: "wis", 6: "cha"}
+_ABILITY_BY_ID: Dict[int, str] = {
+    1: "strength", 2: "dexterity", 3: "constitution",
+    4: "intelligence", 5: "wisdom", 6: "charisma",
+}
 
 _ALIGNMENT_MAP: Dict[int, str] = {
     1: "lawful_good",
@@ -98,6 +102,26 @@ _BACKGROUND_ALIASES: Dict[str, str] = {
 
 # Classes that treat all known leveled spells as available without preparation.
 _ALWAYS_PREPARED_CASTERS = frozenset({"sorcerer", "ranger", "bard", "warlock"})
+
+# D&D Beyond source ids for the 2024 core books (PHB, DMG, MM).
+_SOURCES_2024 = {145, 146, 147}
+# Feats whose engine behavior depends on the edition (see feat_editions).
+_EDITION_SENSITIVE_FEATS = {"great_weapon_master"}
+# 2024 class features a 2014 class YAML doesn't grant.
+_EDITION_CLASS_FEATURES: Dict[str, Tuple[str, ...]] = {
+    "paladin": ("abjure_foes", "radiant_strikes", "weapon_mastery"),
+}
+_CONDITION_NAMES = {
+    "blinded", "charmed", "deafened", "exhaustion", "frightened", "grappled",
+    "incapacitated", "invisible", "paralyzed", "petrified", "poisoned",
+    "prone", "restrained", "stunned", "unconscious",
+}
+
+
+def _is_2024_source(definition: Dict[str, Any]) -> bool:
+    return any((src or {}).get("sourceId") in _SOURCES_2024
+               for src in definition.get("sources") or [])
+
 
 _SUBCLASS_KEY_BY_CLASS: Dict[str, str] = {
     "barbarian": "primal_path",
@@ -226,6 +250,8 @@ _ITEM_ALIASES: Dict[str, str] = {
     "studded_leather": "studded_leather",
     "chain_mail_armor": "chain_mail",
     "chain_shirt_armor": "chain_shirt",
+    "plate_armor": "plate",
+    "half_plate_armor": "half_plate",
     "rations_1_day": "rations",
     "ration_1_day": "rations",
     "rope_hempen_50_feet": "rope",
@@ -246,7 +272,28 @@ _ITEM_ALIASES: Dict[str, str] = {
     "parchment_one_sheet": "parchment",
     "small_knife": "small_knife",
     "climbers_kit": "climbers_kit",
+    "oil": "oil_flask",
+    "flask_of_oil": "oil_flask",
+    "travelers_clothes": "clothes_traveler",
+    "common_clothes": "clothes_common",
+    "ball_bearings_bag_of_1_000": "ball_bearings",
+    "crossbow_light": "light_crossbow",
+    "crossbow_heavy": "heavy_crossbow",
+    "crossbow_hand": "hand_crossbow",
+    "robe": "robes",
+    "flask_or_tankard": "flask",
+    "tankard": "flask",
+    "electrum": "electrum_piece",
+    "splint_armor": "splint",
+    "scale_mail_armor": "scale_mail",
+    "breastplate_armor": "breastplate",
 }
+
+# DDB "Mithral <armor>" names map to ``mithral_<base armor id>``.
+_MITHRAL_PREFIX = "mithral_"
+
+# DDB prefixes some item names with a bracketed count, e.g. "[5] Elixir of Flight".
+_BRACKET_COUNT_RE = re.compile(r"^\s*\[\s*\d+\s*\]\s*")
 
 # Subclass slugs that differ between DDB naming and engine YAML keys.
 _SUBCLASS_ALIASES: Dict[str, str] = {
@@ -271,6 +318,31 @@ _SPELL_ALIASES: Dict[str, str] = {
 
 _ITEM_CACHE: Optional[Set[str]] = None
 _SPELL_CACHE: Optional[Set[str]] = None
+_CAMPAIGN_ITEM_CACHE: Dict[str, Set[str]] = {}
+_CAMPAIGN_SPELL_CACHE: Dict[str, Set[str]] = {}
+
+_ITEM_RESOURCES = ("weapons", "equipment", "objects", "magic_items")
+
+_PLUS_WORDS: Dict[int, str] = {1: "one", 2: "two", 3: "three"}
+
+_CURRENCY_ITEMS: Dict[str, str] = {
+    "cp": "copper_piece",
+    "sp": "silver_piece",
+    "ep": "electrum_piece",
+    "gp": "gold_piece",
+    "pp": "platinum_piece",
+}
+
+# DDB armorTypeId values for body armor (4 is shield).
+_BODY_ARMOR_TYPE_IDS = frozenset({1, 2, 3})
+
+# DDB inventory entries that are class-feature placeholders, not real gear.
+_PSEUDO_ITEM_PREFIXES = ("class feature:",)
+
+_MASTERY_NAMES = frozenset({
+    "cleave", "graze", "nick", "push", "sap", "slow", "topple", "vex",
+})
+_MASTERY_OPTION_RE = re.compile(r"^\s*(?P<weapon>.+?)\s*\((?P<mastery>[A-Za-z]+)\)\s*$")
 
 _DDB_CHARACTER_URL_RE = re.compile(
     r"(?:https?://)?(?:www\.)?dndbeyond\.com/characters/(?P<id>\d+)",
@@ -305,13 +377,33 @@ def _templates_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "templates"
 
 
-def _load_known_items() -> Set[str]:
+def _load_campaign_keys(campaign_root: str, resources: Tuple[str, ...]) -> Set[str]:
+    """Item/spell ids visible to a campaign (local, imports, expansions, templates)."""
+    from natural20.yaml_loader import load_campaign_yaml
+
+    keys: Set[str] = set()
+    for resource in resources:
+        try:
+            data = load_campaign_yaml(campaign_root, "items", resource) or {}
+        except Exception:
+            continue
+        if isinstance(data, dict):
+            keys.update(k for k in data.keys() if k != "inherit")
+    return keys
+
+
+def _load_known_items(campaign_root: Optional[str] = None) -> Set[str]:
     global _ITEM_CACHE
+    if campaign_root:
+        key = str(Path(campaign_root).resolve())
+        if key not in _CAMPAIGN_ITEM_CACHE:
+            _CAMPAIGN_ITEM_CACHE[key] = _load_campaign_keys(key, _ITEM_RESOURCES)
+        return _CAMPAIGN_ITEM_CACHE[key]
     if _ITEM_CACHE is not None:
         return _ITEM_CACHE
     items: Set[str] = set()
     base = _templates_dir() / "items"
-    for name in ("weapons.yml", "equipment.yml", "objects.yml", "magic_items.yml"):
+    for name in (f"{r}.yml" for r in _ITEM_RESOURCES):
         path = base / name
         if not path.exists():
             continue
@@ -325,8 +417,41 @@ def _load_known_items() -> Set[str]:
     return items
 
 
-def _load_known_spells() -> Set[str]:
+_ITEM_DEFINITION_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def _load_item_definitions(campaign_root: Optional[str] = None) -> Dict[str, Any]:
+    """Item YAML entries by id (campaign view when ``campaign_root`` is set)."""
+    cache_key = str(Path(campaign_root).resolve()) if campaign_root else ""
+    if cache_key in _ITEM_DEFINITION_CACHE:
+        return _ITEM_DEFINITION_CACHE[cache_key]
+    merged: Dict[str, Any] = {}
+    for resource in _ITEM_RESOURCES:
+        data: Any = {}
+        try:
+            if campaign_root:
+                from natural20.yaml_loader import load_campaign_yaml
+                data = load_campaign_yaml(cache_key, "items", resource) or {}
+            else:
+                from natural20.yaml_loader import load_yaml
+                data = load_yaml(_templates_dir() / "items" / f"{resource}.yml") or {}
+        except Exception:
+            data = {}
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key != "inherit":
+                    merged.setdefault(key, value)
+    _ITEM_DEFINITION_CACHE[cache_key] = merged
+    return merged
+
+
+def _load_known_spells(campaign_root: Optional[str] = None) -> Set[str]:
     global _SPELL_CACHE
+    if campaign_root:
+        key = str(Path(campaign_root).resolve())
+        if key not in _CAMPAIGN_SPELL_CACHE:
+            _CAMPAIGN_SPELL_CACHE[key] = _load_campaign_keys(key, ("spells",))
+        return _CAMPAIGN_SPELL_CACHE[key]
     if _SPELL_CACHE is not None:
         return _SPELL_CACHE
     path = _templates_dir() / "items" / "spells.yml"
@@ -355,14 +480,54 @@ def _strip_magic_bonus_suffix(name: str) -> str:
     return re.sub(r",?\s*\+\d+\s*$", "", str(name), flags=re.IGNORECASE).strip()
 
 
+def _strip_bracket_count(name: str) -> str:
+    """Drop a leading DDB bracketed count such as ``[5] `` from an item name."""
+    return _BRACKET_COUNT_RE.sub("", str(name or "")).strip()
+
+
 def _item_slug_from_name(name: str) -> str:
-    cleaned = _strip_magic_bonus_suffix(name)
+    cleaned = _strip_magic_bonus_suffix(_strip_bracket_count(name))
     slug = _slug(cleaned)
-    return _ITEM_ALIASES.get(slug, slug)
+    slug = _ITEM_ALIASES.get(slug, slug)
+    if slug.startswith(_MITHRAL_PREFIX):
+        base = slug[len(_MITHRAL_PREFIX):]
+        slug = _MITHRAL_PREFIX + _ITEM_ALIASES.get(base, base)
+    return slug
 
 
 def _normalize_item(slug: str) -> str:
     return _ITEM_ALIASES.get(slug, slug)
+
+
+def _resolve_item_slug(name: str, known: Set[str]) -> Optional[str]:
+    """Map a DDB item display name to a known engine item id, or ``None``.
+
+    Tries, in order: ``<base>_plus_<n>`` for ``+N`` items, the plain slug, a
+    ``<base>_<variant>`` id for ``Base (Variant)`` names, and finally the base
+    item without its variant (e.g. ``Dragon Scale Mail (Bronze)``).
+    ``Mithral <armor>`` / ``Mithral Armor (<armor>)`` map to ``mithral_<armor>``.
+    """
+    text = _strip_bracket_count(name)
+    bonus_match = re.search(r"\+(\d+)\s*$", text)
+    base_slug = _item_slug_from_name(text)
+    candidates: List[str] = []
+    if bonus_match:
+        word = _PLUS_WORDS.get(int(bonus_match.group(1)))
+        if word:
+            candidates.append(f"{base_slug}_plus_{word}")
+    candidates.append(base_slug)
+    variant = re.match(r"^(?P<base>.+?)\s*\((?P<variant>[^)]+)\)\s*$",
+                       _strip_magic_bonus_suffix(text))
+    if variant:
+        root = _item_slug_from_name(variant.group("base"))
+        if root == f"{_MITHRAL_PREFIX}armor":
+            candidates.append(_item_slug_from_name(f"Mithral {variant.group('variant')}"))
+        candidates.append(f"{root}_{_slug(variant.group('variant'))}")
+        candidates.append(root)
+    for candidate in candidates:
+        if candidate in known:
+            return candidate
+    return None
 
 
 def _normalize_background(slug: str) -> str:
@@ -384,10 +549,12 @@ class BeyondImporter:
 
     def __init__(self, *, base_url: Optional[str] = None,
                  user_agent: str = "natural20.py-importer/1.0",
-                 strict: bool = False):
+                 strict: bool = False,
+                 campaign_root: Optional[str] = None):
         self.base_url = base_url or self.DEFAULT_API
         self.user_agent = user_agent
         self.strict = strict
+        self.campaign_root = campaign_root
         self.warnings: List[str] = []
 
     # ------------------------------------------------------------------
@@ -445,9 +612,12 @@ class BeyondImporter:
         race, subrace = self._extract_race(character_data)
         classes_map, total_level, subclass_fields = self._extract_classes(
             character_data)
-        ability = self._extract_ability_scores(character_data, modifiers)
+        sheet_ability = self._extract_ability_scores(character_data, modifiers)
+        ability = self._extract_ability_scores(
+            character_data, modifiers,
+            skip_item_ids=self._engine_ability_item_ids(character_data))
         max_hp, current_hp, temp_hp = self._extract_hit_points(
-            character_data, ability.get("con", 10), total_level)
+            character_data, sheet_ability.get("con", 10), total_level)
 
         skills = self._extract_modifiers_of_type(
             modifiers, "proficiency", filter_set=_SKILL_NAMES)
@@ -461,7 +631,8 @@ class BeyondImporter:
         languages = self._extract_modifiers_of_type(modifiers, "language")
         expertise = self._extract_modifiers_of_type(
             modifiers, "expertise", filter_set=_SKILL_NAMES | _TOOL_NAMES)
-        resistances = self._extract_modifiers_of_type(modifiers, "resistance")
+        resistances = self._extract_modifiers_of_type(
+            [m for m in modifiers if m.get("_bucket") == "item"], "resistance")
         feats = sorted({_slug((f.get("definition") or {}).get("name") or "")
                         for f in character_data.get("feats", []) or []
                         if f.get("definition")})
@@ -526,9 +697,12 @@ class BeyondImporter:
         yaml_data["ability"] = ability
 
         for klass, sub in subclass_fields.items():
-            field = _SUBCLASS_KEY_BY_CLASS.get(klass)
+            field = _SUBCLASS_KEY_BY_CLASS.get(klass) or self._class_yaml(klass).get("subclass_property")
             if field and sub:
                 yaml_data[field] = sub
+        race_edition = getattr(self, "_race_edition_value", None)
+        if race_edition:
+            yaml_data["race_edition"] = race_edition
 
         if save_profs:
             yaml_data["saving_throw_proficiencies"] = save_profs
@@ -541,18 +715,35 @@ class BeyondImporter:
             yaml_data["tool_proficiencies"] = sorted(tools)
         if weapon_profs:
             yaml_data["weapon_proficiencies"] = sorted(weapon_profs)
+        languages = [l for l in languages if not _slug(l).startswith("choose_")]
         if languages:
             yaml_data["languages"] = sorted({_slug(l) for l in languages})
+        item_resistances = self._equipped_item_resistances(equipped_items)
+        resistances = [r for r in resistances if _slug(r) not in item_resistances] + [
+            m.get("subType") for m in modifiers
+            if m.get("type") == "resistance" and m.get("_bucket") != "item" and m.get("subType")
+        ]
         if resistances:
             yaml_data["resistances"] = sorted({_slug(r) for r in resistances})
+        condition_immunities = self._extract_condition_immunities(modifiers, equipped_items)
+        if condition_immunities:
+            yaml_data["condition_immunities"] = condition_immunities
         if feats:
             yaml_data["feats"] = feats
+        yaml_data.update(self._extract_feature_choices(character_data))
+        yaml_data.update(self._edition_overrides(character_data, classes_map))
         if maneuvers:
             yaml_data["maneuvers"] = maneuvers
+        masteries = self._extract_weapon_masteries(character_data)
+        if masteries:
+            yaml_data["known_weapon_masteries"] = masteries
         if "martial_adept" in feats:
             yaml_data["superiority_die"] = "1d6"
             yaml_data["superiority_dice"] = 1
 
+        spell_abilities = self._extract_spell_abilities(character_data)
+        if spell_abilities:
+            yaml_data["spell_abilities"] = spell_abilities
         if cantrips:
             yaml_data["cantrips"] = cantrips
         if prepared:
@@ -568,6 +759,8 @@ class BeyondImporter:
                 _slug(background["name"]))
 
         yaml_data["equipped"] = equipped_items
+        if getattr(self, "_tracks_attunement", False):
+            yaml_data["attuned"] = list(self.attuned_items)
         yaml_data["inventory"] = inventory
         yaml_data["token"] = [token_letter]
         yaml_data["alignment"] = _ALIGNMENT_MAP.get(
@@ -581,6 +774,162 @@ class BeyondImporter:
     # ------------------------------------------------------------------
     # Section extractors
     # ------------------------------------------------------------------
+    def _campaign_ruleset(self) -> str:
+        if not self.campaign_root:
+            return "5e-2014"
+        try:
+            game = yaml.safe_load((Path(self.campaign_root) / "game.yml").read_text()) or {}
+        except Exception:
+            return "5e-2014"
+        return str(game.get("ruleset") or "5e-2014")
+
+    def _equipped_item_resistances(self, equipped: List[str]) -> Set[str]:
+        """Damage resistances already granted by equipped item YAML (``resistances``)."""
+        found: Set[str] = set()
+        if not equipped:
+            return found
+        try:
+            from natural20.yaml_loader import load_campaign_yaml
+        except Exception:
+            return found
+        root = self.campaign_root or str(_templates_dir().parent)
+        catalogs = []
+        for resource in ("magic_items", "equipment", "weapons"):
+            try:
+                catalogs.append(load_campaign_yaml(root, "items", resource) or {})
+            except Exception:
+                continue
+        for slug in equipped:
+            for catalog in catalogs:
+                entry = catalog.get(slug)
+                if isinstance(entry, dict):
+                    found.update(_slug(r) for r in entry.get("resistances") or [])
+                    break
+        return found
+
+    def _extract_condition_immunities(self, modifiers: List[Dict[str, Any]],
+                                      equipped: Optional[List[str]] = None) -> List[str]:
+        """Unconditional condition immunities (aura/situational ones are engine
+        features). Item immunities the equipped item YAML already grants
+        (``condition_immunities``) are left to the engine."""
+        item_granted: Set[str] = set()
+        if equipped:
+            defs = _load_item_definitions(self.campaign_root)
+            for slug in equipped:
+                entry = defs.get(slug)
+                if isinstance(entry, dict):
+                    item_granted.update(_slug(c) for c in entry.get("condition_immunities") or [])
+        out: Set[str] = set()
+        for m in modifiers:
+            if m.get("type") != "immunity" or m.get("restriction"):
+                continue
+            sub = _slug(m.get("subType") or "")
+            if sub not in _CONDITION_NAMES:
+                continue
+            if m.get("_bucket") == "item" and sub in item_granted:
+                continue
+            out.add(sub)
+        return sorted(out)
+
+    def _extract_feature_choices(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Class-feature options picked on DDB (Eldritch Invocations) and the
+        spells they or Mystic Arcanum grant.
+
+        Options of a class feature whose slug is listed in the class YAML
+        ``feature_choices`` become that sheet list (``eldritch_invocations``).
+        ``Agonizing Blast (Eldritch Blast)`` also records the cantrip in
+        ``invocation_spells``. Spells granted by a picked option land in
+        ``class_spells`` so they count as that class's spells (Pact of the
+        Tome), and ``Mystic Arcanum (Level N Spell)`` spells in
+        ``mystic_arcanum: {N: slug}``.
+        """
+        out: Dict[str, Any] = {}
+        options = (data.get("options") or {}).get("class") or []
+        known_spells = _load_known_spells(self.campaign_root)
+        option_class: Dict[Any, str] = {}
+        arcanum_features: Dict[Any, Tuple[str, int]] = {}
+        for c in data.get("classes") or []:
+            klass = _slug((c.get("definition") or {}).get("name") or "")
+            choice_keys = set(self._class_yaml(klass).get("feature_choices") or [])
+            for cf in c.get("classFeatures") or []:
+                fdef = cf.get("definition") or {}
+                fname = re.sub(r"^\d+:\s*", "", fdef.get("name") or "")
+                arcanum = re.match(r"^(?P<base>.+?)\s*\(Level (?P<level>\d+) Spell\)\s*$", fname)
+                if arcanum:
+                    arcanum_features[fdef.get("id")] = (_slug(arcanum.group("base")), int(arcanum.group("level")))
+                    continue
+                key = _slug(fname)
+                if key not in choice_keys:
+                    continue
+                picks = out.setdefault(key, [])
+                for option in options:
+                    if option.get("componentId") != fdef.get("id"):
+                        continue
+                    label = (option.get("definition") or {}).get("name") or ""
+                    match = re.match(r"^(?P<name>.+?)\s*\((?P<spell>[^)]+)\)\s*$", label)
+                    pick = _slug(match.group("name") if match else label)
+                    if not pick or pick in picks:
+                        continue
+                    picks.append(pick)
+                    option_class[(option.get("definition") or {}).get("id")] = klass
+                    if match:
+                        spell = _SPELL_ALIASES.get(_slug(match.group("spell")), _slug(match.group("spell")))
+                        if spell in known_spells:
+                            out.setdefault("invocation_spells", {})[pick] = spell
+        for spell_obj in (data.get("spells") or {}).get("class") or []:
+            definition = spell_obj.get("definition") or {}
+            slug = _SPELL_ALIASES.get(_slug(definition.get("name")), _slug(definition.get("name")))
+            if slug not in known_spells:
+                continue
+            component = spell_obj.get("componentId")
+            if component in arcanum_features:
+                prop, level = arcanum_features[component]
+                out.setdefault(prop, {})[level] = slug
+            elif component in option_class:
+                spells = out.setdefault("class_spells", {}).setdefault(option_class[component], [])
+                if slug not in spells:
+                    spells.append(slug)
+        return {k: v for k, v in out.items() if v}
+
+    def _edition_overrides(self, data: Dict[str, Any], classes_map: Dict[str, int]) -> Dict[str, Any]:
+        """2024-sourced feats/classes imported into a campaign on another ruleset.
+
+        Records ``feat_editions`` for 2024 feats with edition-specific engine
+        behavior, adds the 2024 class features the campaign's class YAML won't
+        grant as ``class_features``, and the 2024 paladin Channel Divinity
+        count as ``channel_divinity_uses``.
+        """
+        if self._campaign_ruleset() == "5e-2024":
+            return {}
+        out: Dict[str, Any] = {}
+        editions = {}
+        for f in data.get("feats") or []:
+            definition = f.get("definition") or {}
+            if _is_2024_source(definition) and definition.get("name"):
+                editions[_slug(definition["name"])] = "5e-2024"
+        editions = {k: v for k, v in editions.items() if k in _EDITION_SENSITIVE_FEATS}
+        if editions:
+            out["feat_editions"] = dict(sorted(editions.items()))
+        features: List[str] = []
+        for c in data.get("classes") or []:
+            definition = c.get("definition") or {}
+            if not _is_2024_source(definition):
+                continue
+            klass = _slug(definition.get("name") or "")
+            level = int(c.get("level", 1) or 1)
+            for cf in c.get("classFeatures") or []:
+                fdef = cf.get("definition") or {}
+                if int(fdef.get("requiredLevel") or 99) > level:
+                    continue
+                slug = _slug(re.sub(r"^\d+:\s*", "", fdef.get("name") or ""))
+                if slug in _EDITION_CLASS_FEATURES.get(klass, ()) and slug not in features:
+                    features.append(slug)
+            if klass == "paladin" and level >= 3:
+                out["channel_divinity_uses"] = 3 if level >= 11 else 2
+        if features:
+            out["class_features"] = features
+        return out
+
     def _extract_race(self, data: Dict[str, Any]) -> Tuple[str, Optional[str]]:
         race_obj = data.get("race") or {}
         full = (race_obj.get("fullName") or race_obj.get("baseName") or "").strip()
@@ -591,7 +940,86 @@ class BeyondImporter:
         sub_short = race_obj.get("subRaceShortName")
         race = _slug(base)
         subrace = _slug(sub_short) if sub_short else None
-        return race or _slug(full), subrace
+        race = race or _slug(full)
+        self._race_edition_value = self._race_edition(race_obj, race)
+        if not subrace:
+            subrace = self._ancestry_from_race_options(data, race)
+        return race, subrace
+
+    def _race_edition(self, race_obj: Dict[str, Any], race: str) -> Optional[str]:
+        """``5e-2024`` for a 2024 race imported into a campaign on other rules,
+        when the engine ships that race's 2024 overlay."""
+        if not _is_2024_source(race_obj) or self._campaign_ruleset() == "5e-2024":
+            return None
+        try:
+            from natural20.yaml_loader import ruleset_overlay_root
+            root = ruleset_overlay_root("5e-2024")
+        except Exception:
+            return None
+        if root is None or not (root / "races" / f"{race}.yml").is_file():
+            return None
+        return "5e-2024"
+
+    def _known_subraces(self, race: str) -> Set[str]:
+        try:
+            edition = getattr(self, "_race_edition_value", None)
+            doc = None
+            if edition:
+                from natural20.yaml_loader import ruleset_overlay_root
+                path = ruleset_overlay_root(edition) / "races" / f"{race}.yml"
+                doc = yaml.safe_load(path.read_text()) or {}
+            else:
+                from natural20.yaml_loader import load_campaign_resource_path
+                root = self.campaign_root or str(_templates_dir().parent)
+                doc = load_campaign_resource_path(root, f"races/{race}.yml") or {}
+        except Exception:
+            return set()
+        if not isinstance(doc, dict):
+            return set()
+        return set((doc.get("subrace") or doc.get("subraces") or {}).keys())
+
+    def _ancestry_from_race_options(self, data: Dict[str, Any], race: str) -> Optional[str]:
+        """2024 lineage choices (e.g. Goliath "Hill's Tumble (Hill Giant)") live in race options."""
+        known = self._known_subraces(race)
+        if not known:
+            return None
+        options = (data.get("options") or {}).get("race") or []
+        for opt in options:
+            name = ((opt or {}).get("definition") or {}).get("name") or ""
+            match = re.search(r"\(([^()]+)\)\s*$", name)
+            if match and _slug(match.group(1)) in known:
+                return _slug(match.group(1))
+            if _slug(name) in known:
+                return _slug(name)
+        return None
+
+    def _class_yaml(self, klass: str) -> Dict[str, Any]:
+        """Campaign class YAML (templates, imports and expansion packs)."""
+        try:
+            from natural20.yaml_loader import load_campaign_resource_path
+            root = self.campaign_root or str(_templates_dir().parent)
+            doc = load_campaign_resource_path(root, f"char_classes/{klass}.yml") or {}
+        except Exception:
+            return {}
+        return doc if isinstance(doc, dict) else {}
+
+    def _extract_spell_abilities(self, data: Dict[str, Any]) -> Dict[str, str]:
+        """Casting ability of race/feat/background spells (``spell_abilities``)."""
+        known = _load_known_spells(self.campaign_root)
+        out: Dict[str, str] = {}
+        spells_section = data.get("spells") or {}
+        if not isinstance(spells_section, dict):
+            return out
+        for bucket, entries in spells_section.items():
+            if bucket == "class" or not isinstance(entries, list):
+                continue
+            for entry in entries:
+                ability = _ABILITY_BY_ID.get((entry or {}).get("spellCastingAbilityId"))
+                name = ((entry or {}).get("definition") or {}).get("name") or ""
+                slug = _SPELL_ALIASES.get(_slug(name), _slug(name))
+                if ability and slug in known and slug not in out:
+                    out[slug] = ability
+        return out
 
     def _extract_classes(self, data: Dict[str, Any]
                          ) -> Tuple[Dict[str, int], int, Dict[str, str]]:
@@ -662,8 +1090,31 @@ class BeyondImporter:
                 flavor[field] = str(value).strip()
         return flavor
 
+    def _engine_ability_item_ids(self, data: Dict[str, Any]) -> Set[Any]:
+        """DDB item definition ids whose ability changes the engine applies itself.
+
+        Their ``modifiers.item`` score bonuses are left out of the imported
+        base scores so the equipped item (``ability_bonus`` / ``ability_set``)
+        is not counted twice.
+        """
+        definitions = _load_item_definitions(self.campaign_root)
+        known = set(definitions)
+        ids: Set[Any] = set()
+        for item in data.get("inventory") or []:
+            definition = item.get("definition") or {}
+            slug = _resolve_item_slug(definition.get("name") or "", known)
+            entry = definitions.get(slug) if slug else None
+            if isinstance(entry, dict) and (entry.get("ability_bonus") or entry.get("ability_set")):
+                if definition.get("id") is not None:
+                    ids.add(definition.get("id"))
+        return ids
+
     def _extract_ability_scores(self, data: Dict[str, Any],
-                                modifiers: List[Dict[str, Any]]) -> Dict[str, int]:
+                                modifiers: List[Dict[str, Any]],
+                                skip_item_ids: Optional[Set[Any]] = None) -> Dict[str, int]:
+        if skip_item_ids:
+            modifiers = [m for m in modifiers
+                         if not (m.get("_bucket") == "item" and m.get("componentId") in skip_item_ids)]
         stats = {s["id"]: s.get("value") or 0 for s in data.get("stats") or []}
         bonus = {s["id"]: s.get("value") or 0 for s in data.get("bonusStats") or []}
         override = {s["id"]: s.get("value") for s in data.get("overrideStats") or []}
@@ -736,7 +1187,7 @@ class BeyondImporter:
                            "condition"):
                 vals = modifiers.get(bucket) or []
                 if isinstance(vals, list):
-                    out.extend(vals)
+                    out.extend(dict(v, _bucket=bucket) for v in vals if isinstance(v, dict))
         elif isinstance(modifiers, list):
             out.extend(modifiers)
         return out
@@ -773,26 +1224,78 @@ class BeyondImporter:
 
     def _extract_inventory(self, data: Dict[str, Any]
                             ) -> Tuple[List[str], List[Dict[str, Any]]]:
-        known = _load_known_items()
-        inventory: List[Dict[str, Any]] = []
+        known = _load_known_items(self.campaign_root)
+        quantities: Dict[str, int] = {}
         equipped: List[str] = []
+        self.attuned_items: List[str] = []
+        self._tracks_attunement = False
+        body_armor: List[Tuple[Tuple[int, int, int], str]] = []
         for item in data.get("inventory") or []:
             definition = item.get("definition") or {}
             name = definition.get("name") or ""
-            slug = _item_slug_from_name(name)
-            if slug not in known:
-                self._warn(f"unknown item dropped: {name!r} ({slug})")
+            if name.strip().lower().startswith(_PSEUDO_ITEM_PREFIXES):
                 continue
-            qty = int(item.get("quantity") or 1)
-            inventory.append({"type": slug, "qty": qty})
-            if item.get("equipped"):
-                equipped.append(slug)
+            slug = _resolve_item_slug(name, known)
+            if slug is None:
+                self._warn(f"unknown item dropped: {name!r} ({_item_slug_from_name(name)})")
+                continue
+            raw_qty = item.get("quantity")
+            qty = 1 if raw_qty is None else int(raw_qty)
+            if qty <= 0:
+                continue
+            quantities[slug] = quantities.get(slug, 0) + qty
+            if definition.get("canAttune") or item.get("isAttuned"):
+                self._tracks_attunement = True
+            if item.get("isAttuned") and slug not in self.attuned_items:
+                self.attuned_items.append(slug)
+            if not item.get("equipped") or slug in equipped:
+                continue
+            if definition.get("armorTypeId") in _BODY_ARMOR_TYPE_IDS:
+                rank = (
+                    1 if item.get("isAttuned") else 0,
+                    1 if definition.get("magic") else 0,
+                    int(definition.get("armorClass") or 0),
+                )
+                body_armor.append((rank, slug))
+                continue
+            equipped.append(slug)
+        if body_armor:
+            body_armor.sort(key=lambda entry: entry[0], reverse=True)
+            equipped.insert(0, body_armor[0][1])
+            for _, extra in body_armor[1:]:
+                self._warn(f"multiple body armors equipped; left {extra!r} unequipped")
+        for coin, amount in (data.get("currencies") or {}).items():
+            amount = int(amount or 0)
+            if amount <= 0:
+                continue
+            slug = _CURRENCY_ITEMS.get(coin)
+            if slug and slug in known:
+                quantities[slug] = quantities.get(slug, 0) + amount
+            else:
+                self._warn(f"currency not imported: {amount} {coin}")
+        inventory = [{"type": slug, "qty": qty} for slug, qty in quantities.items()]
         return equipped, inventory
+
+    def _extract_weapon_masteries(self, data: Dict[str, Any]) -> List[str]:
+        """Mastery properties picked on DDB as ``Weapon (Mastery)`` options."""
+        found: Set[str] = set()
+        options = data.get("options") or {}
+        if not isinstance(options, dict):
+            return []
+        for bucket in options.values():
+            for option in bucket or []:
+                if not isinstance(option, dict):
+                    continue
+                label = (option.get("definition") or {}).get("name") or ""
+                match = _MASTERY_OPTION_RE.match(label)
+                if match and match.group("mastery").lower() in _MASTERY_NAMES:
+                    found.add(match.group("mastery").lower())
+        return sorted(found)
 
     def _extract_spells(self, data: Dict[str, Any],
                          classes_map: Dict[str, int]
                          ) -> Tuple[List[str], List[str], List[str]]:
-        known = _load_known_spells()
+        known = _load_known_spells(self.campaign_root)
         cantrips: List[str] = []
         prepared: List[str] = []
         spellbook: List[str] = []
@@ -871,18 +1374,31 @@ class BeyondImporter:
             if klass in _FULL_CASTERS:
                 caster_level += lvl
             elif klass in _HALF_CASTERS:
-                caster_level += lvl // 2
+                # Single-class half casters (and 2024 multiclassing) round up;
+                # 2014 half casters get no slots at level 1.
+                if len(classes_map) == 1 or self._campaign_ruleset() == "5e-2024":
+                    if lvl >= 2 or self._campaign_ruleset() == "5e-2024":
+                        caster_level += (lvl + 1) // 2
+                else:
+                    caster_level += lvl // 2
             elif klass == "fighter" and subclasses.get("fighter") == "eldritch_knight":
                 caster_level += lvl // 3
             elif klass == "rogue" and subclasses.get("rogue") == "arcane_trickster":
                 caster_level += lvl // 3
+            else:
+                spellcasting = self._class_yaml(klass).get("spellcasting") or {}
+                if spellcasting.get("progression"):
+                    from natural20.entity_class.data_driven import caster_level_for
+                    caster_level += caster_level_for(spellcasting["progression"], lvl)
 
         if caster_level <= 0:
             return slots_out
 
         table_row = _FULL_CASTER_SLOTS[min(caster_level, 20)]
         primary = (next((k for k in classes_map if k in _FULL_CASTERS), None)
-                   or next((k for k in classes_map if k in _HALF_CASTERS), None))
+                   or next((k for k in classes_map if k in _HALF_CASTERS), None)
+                   or next((k for k in classes_map
+                            if (self._class_yaml(k).get("spellcasting") or {}).get("progression")), None))
         if primary:
             slots_out[primary] = {i + 1: n for i, n in enumerate(table_row)}
         return slots_out
@@ -956,12 +1472,19 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="Cobalt session token for private characters")
     parser.add_argument("--strict", action="store_true",
                         help="Treat warnings as a non-zero exit code")
+    parser.add_argument("--campaign",
+                        help="Campaign folder whose items/spells (plus imports "
+                             "and templates) are valid import targets")
     args = parser.parse_args(argv)
 
     if not args.character_id and not args.input:
         parser.error("provide a character_id or --input <file>")
 
-    importer = BeyondImporter(strict=args.strict)
+    if args.campaign:
+        repo_root = str(Path(__file__).resolve().parent.parent)
+        if repo_root not in sys.path:
+            sys.path.insert(0, repo_root)
+    importer = BeyondImporter(strict=args.strict, campaign_root=args.campaign)
     try:
         text = importer.import_character(
             character_id=args.character_id,

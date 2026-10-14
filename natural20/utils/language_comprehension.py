@@ -115,6 +115,16 @@ def understands_language(listener: Any, language: Optional[str], session: Any = 
 
     base_language = BEAST_DIALECT_TO_BASE_LANGUAGE.get(normalized_language)
 
+    # Comprehend Languages: the literal meaning of any spoken language.
+    has_effect = getattr(listener, 'has_effect', None)
+    if callable(has_effect) and normalized_language and normalized_language != 'beast' \
+            and base_language != 'beast':
+        try:
+            if has_effect('comprehend_languages'):
+                return True
+        except Exception:
+            pass
+
     if session_obj is not None and has_animal_communication(session_obj, entity=listener):
         if normalized_language == 'beast' or base_language == 'beast':
             return True

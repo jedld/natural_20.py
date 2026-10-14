@@ -63,12 +63,14 @@ class HoldPersonSpell(Spell):
     if not isinstance(targets, list):
       targets = [targets]
 
+    chosen = targets
     targets = [t for t in targets if getattr(t, 'humanoid', lambda: False)()]
     if not targets:
       return [{
         'type': 'spell_miss',
         'source': entity,
         'target': entity,
+        'spell_target': chosen[0] if len(chosen) == 1 else None,
         'attack_name': 'hold_person',
         'message': 'not_humanoid',
         'spell': self.properties,
@@ -186,6 +188,14 @@ class HoldPersonSpell(Spell):
 
   @staticmethod
   def _caster_spell_ability(entity, spell_action=None):
+    source_ability = getattr(entity, 'spell_source_ability', None)
+    if callable(source_ability):
+      spell = getattr(spell_action, 'spell', None) or getattr(
+        getattr(spell_action, 'spell_action', None), 'properties', None)
+      ability = source_ability(spell) if spell else None
+      if ability:
+        return ability
+
     spellcasting_class = getattr(spell_action, 'spellcasting_class', None)
     if spellcasting_class:
       try:

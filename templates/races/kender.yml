@@ -27,6 +27,32 @@ flexible_ability:
 race_features:
   - fearless
   - kender_aptitude
+  - taunt
+# Fearless: advantage on saves against frightened (engine), and once per long
+# rest a failed save against frightened becomes a success.
+# Taunt: bonus action, proficiency bonus uses per long rest.
+resource_pools:
+  fearless:
+    max: 1
+    restore_on: long_rest
+    features: [fearless]
+  taunt:
+    max: proficiency_bonus
+    restore_on: long_rest
+    features: [taunt]
+save_auto_success:
+  - feature: fearless
+    condition: frightened
+    pool: fearless
+taunt:
+  feature: taunt
+  pool: taunt
+  activation: bonus_action
+  range: 60
+  save:
+    ability: wisdom
+    dc_abilities: [int, wis, cha]
+  duration_rounds: 1
 skill_choices:
   count: 1
   options:

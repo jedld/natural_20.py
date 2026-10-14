@@ -62,6 +62,11 @@ halberd:
   weapon_mastery:
     - cleave
 lance:
+  damage: 1d10
+  properties:
+    - heavy
+    - reach
+    - two_handed
   weapon_mastery:
     - topple
 longsword:

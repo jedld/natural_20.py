@@ -1,4 +1,5 @@
 from natural20.die_roll import DieRoll
+from natural20.exceptions import GameLoopControl
 import math
 import pdb
 import re
@@ -114,8 +115,23 @@ class Entity(EntityStateEvaluator, Notable):
 
     _SHEET_HIDDEN_CONDITIONS = frozenset({'squeezed'})
 
+    _AURA_WARDED_CONDITIONS = frozenset({'charmed', 'frightened'})
+
     def immune_to_condition(self, condition):
-        return condition in self.condition_immunities
+        if condition in self.condition_immunities:
+            return True
+        if condition in self.equipped_item_list('condition_immunities'):
+            return True
+        from natural20.utils.class_mechanics import class_condition_immunities
+        if condition in class_condition_immunities(self):
+            return True
+        if self.has_effect('condition_immunity') and \
+                condition in (self.eval_effect('condition_immunity', {'stacked': True, 'value': []}) or []):
+            return True
+        if condition in self._AURA_WARDED_CONDITIONS:
+            from natural20.utils.auras import aura_condition_immunity
+            return aura_condition_immunity(self, condition)
+        return False
 
     def has_inspiration(self) -> bool:
         """True when the creature has Inspiration (2014) or Heroic Inspiration (2024)."""
@@ -863,7 +879,10 @@ class Entity(EntityStateEvaluator, Notable):
         return self.properties.get('secret_perception_dc', self.properties.get('secret_dc', None))
 
     def expertise(self, prof):
-        return prof in self.properties.get('expertise', [])
+        if prof in self.properties.get('expertise', []):
+            return True
+        # Tool Expertise: double proficiency with every tool the creature is proficient with.
+        return prof in (self.properties.get('tool_proficiencies') or []) and self.class_feature('tool_expertise')
 
     def is_two_handed_weapon(self, weapon):
         weapon_properties = weapon.get('properties', [])
@@ -874,7 +893,8 @@ class Entity(EntityStateEvaluator, Notable):
     # Returns the proficiency bonus of this entity
     # @return [Integer]
     def proficiency_bonus(self):
-        return self.properties.get('proficiency_bonus', 2)
+        from natural20.utils.item_mechanics import item_proficiency_bonus
+        return self.properties.get('proficiency_bonus', 2) + item_proficiency_bonus(self)
 
     def make_skill_mod_function(self, skill, ability):
         def skill_mod():
@@ -903,6 +923,10 @@ class Entity(EntityStateEvaluator, Notable):
                 modifiers = getattr(self, f"{skill}_mod")()
 
             modifiers = int(modifiers) + self.d20_test_modifier()
+            if self.has_effect('skill_check_bonus'):
+                # e.g. Pass without Trace: +10 to Stealth checks
+                modifiers += int(self.eval_effect('skill_check_bonus', {
+                    'stacked': True, 'value': 0, 'skill': skill, 'battle': battle}) or 0)
 
             description = opts.get('description', f"dice roll for {skill}")
 
@@ -914,6 +938,19 @@ class Entity(EntityStateEvaluator, Notable):
                 advantage_modifiers.append('helped')
 
             self.help_actions.clear()
+
+            gear_adv, gear_dis = self.equipped_skill_modifiers(skill)
+            advantage_modifiers.extend(gear_adv)
+            disavantage_modifiers.extend(gear_dis)
+            if self.attributes.get('frightened_by'):
+                from natural20.utils.fear import fear_disadvantage
+                disavantage_modifiers.extend(fear_disadvantage(self, battle))
+
+            from natural20.utils.giant_ancestry import racial_check_advantage
+            check_ability = next(
+                (ab for ab, skills in self.SKILL_AND_ABILITY_MAP.items() if skill in skills), None)
+            advantage_modifiers.extend(
+                racial_check_advantage(self, check_ability, opts.get('purpose')))
 
             if self.has_effect('ability_check_advantage_modifier'):
                 ability = None
@@ -943,6 +980,10 @@ class Entity(EntityStateEvaluator, Notable):
                                            advantage=advantage,
                                            disadvantage=disadvantage,
                                            battle=battle)
+            if opts.get('dc') is not None and battle is not None:
+                from natural20.utils.luck_points import luck_on_own_roll
+                roll = luck_on_own_roll(self, roll, opts['dc'], battle=battle,
+                                        roll_kind=f"{skill}_check")
             if (
                 self.class_feature('reliable_talent')
                 and self.proficient(skill)
@@ -973,6 +1014,44 @@ class Entity(EntityStateEvaluator, Notable):
                         self.dismiss_effect(hook_event['effect'])
             return roll
         return skill_check
+
+    ABILITY_SHORT_NAMES = {
+        'strength': 'str', 'dexterity': 'dex', 'constitution': 'con',
+        'intelligence': 'int', 'wisdom': 'wis', 'charisma': 'cha',
+    }
+
+    def ability_check(self, ability, battle=None, **opts):
+        """Plain ability check with no skill (e.g. a DC 22 Strength check)."""
+        short = self.ABILITY_SHORT_NAMES.get(ability, ability)
+        modifier = int(self.ability_mod(next(
+            (long for long, s in self.ABILITY_SHORT_NAMES.items() if s == short), short)) or 0)
+        modifier += self.d20_test_modifier()
+        advantage_modifiers, disadvantage_modifiers = [], []
+        if self.poisoned():
+            disadvantage_modifiers.append('poisoned')
+        if self.attributes.get('frightened_by'):
+            from natural20.utils.fear import fear_disadvantage
+            disadvantage_modifiers.extend(fear_disadvantage(self, battle))
+        if self.has_effect('ability_check_advantage_modifier'):
+            check_adv, check_dis = self.eval_effect(
+                'ability_check_advantage_modifier',
+                {'value': [[], []], 'skill': None, 'ability': short},
+            )
+            advantage_modifiers.extend(check_adv or [])
+            disadvantage_modifiers.extend(check_dis or [])
+        advantage = bool(advantage_modifiers)
+        disadvantage = bool(disadvantage_modifiers)
+        if advantage and disadvantage:
+            advantage = disadvantage = False
+        roll = DieRoll.roll_with_lucky(self, f"1d20+{modifier}",
+                                       description=opts.get('description', f"dice roll for {short} check"),
+                                       advantage=advantage, disadvantage=disadvantage, battle=battle)
+        if not hasattr(roll, 'metadata'):
+            roll.metadata = {}
+        roll.metadata['ability'] = short
+        roll.metadata['is_ability_check'] = True
+        roll.metadata['roll_kind'] = 'ability_check'
+        return roll
 
     def __str__(self):
         return f"{self.name}"
@@ -1065,16 +1144,26 @@ class Entity(EntityStateEvaluator, Notable):
         else:
             return 'blinded' in self.statuses
 
+    BLIND_FIGHTING_RANGE = 10
+
+    def blindsight_range(self):
+        """Blindsight in feet: YAML ``blindsight`` or 10 ft from Blind Fighting."""
+        try:
+            base = int(self.properties.get('blindsight') or 0)
+        except (TypeError, ValueError):
+            base = 0
+        if base < self.BLIND_FIGHTING_RANGE and any(
+                'blind_fighting' in (self.properties.get(key) or [])
+                for key in ('feats', 'class_features', 'fighting_styles', 'attributes')):
+            return self.BLIND_FIGHTING_RANGE
+        return base
+
     def blindsight(self, distance):
-        if not self.properties.get('blindsight'):
-            return False
-        adjusted_blindsight_distance = self.properties.get('blindsight')
-        if adjusted_blindsight_distance < distance:
-            return False
-        return True
+        reach = self.blindsight_range()
+        return bool(reach) and reach >= distance
 
     def has_blindsight(self):
-        return self.properties.get('blindsight')
+        return self.blindsight_range() or None
 
 
     def label(self):
@@ -1381,6 +1470,16 @@ class Entity(EntityStateEvaluator, Notable):
             restore_animated_remains(self, battle)
             from natural20.utils.summons import on_summoner_death
             on_summoner_death(self, battle)
+            from natural20.utils.attunement import end_all as end_all_attunements
+            end_all_attunements(self, reason='died')
+            from natural20.utils.monster_traits import death_burst_config, trigger_death_burst
+            if death_burst_config(self):
+                try:
+                    trigger_death_burst(self, battle)
+                except Exception:
+                    logger.exception('death burst failed for %s', getattr(self, 'name', self))
+            from natural20.utils.summons import vanish_on_death
+            vanish_on_death(self, battle)
             self.do_prone()
 
             if 'stable' in self.statuses:
@@ -1597,7 +1696,7 @@ class Entity(EntityStateEvaluator, Notable):
         else:
             bonus = 0
         proficiency_mod += bonus
-        return DieRoll.roll_with_lucky(self, "1d20+{proficiency_mod}",
+        return DieRoll.roll_with_lucky(self, f"1d20+{proficiency_mod}",
                             description=self.t('dice_roll.thieves_tools'),
                             battle=battle)
 
@@ -1872,6 +1971,11 @@ class Entity(EntityStateEvaluator, Notable):
         if hasattr(self, 'breath_weapon_used'):
             self.breath_weapon_used = False
 
+        from natural20.utils.class_mechanics import apply_rest_effects
+        apply_rest_effects(self, 'short_rest')
+        from natural20.utils.attunement import complete_pending
+        complete_pending(self, 'short_rest')
+
         self.restore_resources('short_rest')
         self.resolve_trigger('short_rest')
         self.event_manager.received_event({'source': self, 'event': 'short_rest'})
@@ -1934,12 +2038,18 @@ class Entity(EntityStateEvaluator, Notable):
         return not self.dead() and not self.unconscious()
 
     def poisoned(self):
+        if 'poisoned' not in self.statuses and not self.has_effect('poisoned'):
+            return False
+        if self.immune_to_condition('poisoned'):
+            return False
         if self.eval_effect('poisoned', opts={'value': self.statuses}):
             return True
         return 'poisoned' in self.statuses
 
     def invisible(self):
-        return 'invisible' in self.statuses
+        if 'invisible' not in self.statuses:
+            return False
+        return not self.has_effect('invisibility_suppressed')
     
     def opaque(self, _origin):
         return False
@@ -1987,15 +2097,16 @@ class Entity(EntityStateEvaluator, Notable):
 
         Magical weapons (``magical: true``) and spells count as magical.
         """
+        from natural20.utils.item_mechanics import magic_active
         if weapon is not None:
-            if weapon.get('magical', False):
+            if weapon.get('magical', False) and magic_active(source, weapon):
                 return True
         if source is not None:
             # Check equipped weapons for magical property
             if hasattr(source, 'equipped_weapons') and hasattr(source, 'session'):
                 for wkey in source.equipped_weapons(source.session):
                     w = source.session.load_weapon(wkey)
-                    if w and w.get('magical', False):
+                    if w and w.get('magical', False) and magic_active(source, w, wkey):
                         return True
             # Spells are inherently magical
             if hasattr(source, 'current_spell') and source.current_spell:
@@ -2006,23 +2117,71 @@ class Entity(EntityStateEvaluator, Notable):
         return damage_type in self.effective_immunities()
 
     def effective_immunities(self):
+        base = list(self.damage_immunities or [])
+        for damage_type in self.equipped_item_list('damage_immunities'):
+            if damage_type not in base:
+                base.append(damage_type)
         if self.has_effect('immunity_override'):
-            return self.eval_effect('immunity_override', { "stacked": True, "value" : self.damage_immunities})
-        return self.damage_immunities
+            return self.eval_effect('immunity_override', { "stacked": True, "value" : base})
+        return base
+
+    def equipped_skill_modifiers(self, skill):
+        """Advantage/disadvantage sources from equipped gear for ``skill``.
+
+        Items list skills in ``skill_advantage``; armor's ``stealth_disadvantage``
+        (or ``disadvantage: [stealth]``) imposes disadvantage on Stealth.
+        """
+        advantages, disadvantages = [], []
+        try:
+            equipped = self.equipped_items() or []
+        except Exception:
+            return advantages, disadvantages
+        for item in equipped:
+            if skill in (item.get('skill_advantage') or []) and item.get('magic_active', True):
+                advantages.append(f"item:{item['name']}")
+            if skill == 'stealth' and item.get('stealth_disadvantage'):
+                disadvantages.append(f"item:{item['name']}")
+        return advantages, disadvantages
+
+    def equipped_item_resistances(self):
+        """Damage types resisted by equipped gear (item YAML ``resistances``)."""
+        return self.equipped_item_list('resistances')
+
+    def equipped_item_list(self, key):
+        """Union of a list-valued item YAML key (``resistances``,
+        ``damage_immunities``, ``condition_immunities``) over equipped gear
+        whose magic is active (attuned when required)."""
+        found = []
+        try:
+            equipped = self.equipped_items() or []
+        except Exception:
+            return found
+        for item in equipped:
+            if not item.get('magic_active', True):
+                continue
+            for value in item.get(key) or []:
+                if value and value not in found:
+                    found.append(value)
+        return found
+
+    def _base_resistances(self):
+        base = list(self.resistances or [])
+        for damage_type in self.equipped_item_resistances():
+            if damage_type not in base:
+                base.append(damage_type)
+        return base
 
     def effective_resistances(self):
+        base = self._base_resistances()
         if self.has_effect('resistance_override'):
-            return self.eval_effect('resistance_override', { "stacked": True, "value" : self.resistances})
+            return self.eval_effect('resistance_override', { "stacked": True, "value" : base})
         # Barbarian - Rage (5e SRD): while raging, gain resistance to
         # bludgeoning, piercing, and slashing damage.
         if getattr(self, 'is_raging', None) and self.is_raging():
-            extra = ['bludgeoning', 'piercing', 'slashing']
-            base = list(self.resistances or [])
-            for dt in extra:
+            for dt in ['bludgeoning', 'piercing', 'slashing']:
                 if dt not in base:
                     base.append(dt)
-            return base
-        return self.resistances
+        return base
 
     def disengage(self, battle):
         entity_state = battle.entity_state_for(self)
@@ -2078,11 +2237,22 @@ class Entity(EntityStateEvaluator, Notable):
         self.grappling.append(target)
 
     def is_flying(self):
+        if self.flying and getattr(self, '_granted_flight', False) and not self.fly_speed():
+            # A temporary fly speed (elixir, spell) ran out: come back down.
+            self._granted_flight = False
+            self.land()
         return bool(self.flying)
     
     def fly(self):
-        if self.properties.get('speed_fly'):
+        if self.fly_speed():
             self.flying = True
+
+    def fly_speed(self):
+        """Flying speed: YAML ``speed_fly`` raised by ``fly_speed`` effects (elixirs, spells)."""
+        base = self.properties.get('speed_fly') or 0
+        if self.has_effect('fly_speed'):
+            base = self.eval_effect('fly_speed', {'stacked': True, 'value': base}) or base
+        return base
 
     def land(self):
         self.flying = False
@@ -2139,7 +2309,7 @@ class Entity(EntityStateEvaluator, Notable):
         return WorldCoord(wx, wy, elev + float(getattr(self, 'altitude_ft', 0.0) or 0.0))
 
     def can_fly(self):
-        return self.properties.get('speed_fly')
+        return self.fly_speed() or None
     
     def entered_melee(self, map, entity, pos_x, pos_y):
         entity_1_sq = map.entity_squares(self)
@@ -2198,6 +2368,8 @@ class Entity(EntityStateEvaluator, Notable):
 
     def set_exhaustion_level(self, level: int) -> None:
         self._exhaustion_level = max(0, min(6, int(level)))
+        if isinstance(getattr(self, "properties", None), dict):
+            self.properties["exhaustion_level"] = self._exhaustion_level
 
     def d20_test_modifier(self) -> int:
         """Campaign-ruleset modifier applied to attacks, checks, saves, initiative."""
@@ -2208,6 +2380,9 @@ class Entity(EntityStateEvaluator, Notable):
         return int(ruleset.d20_test_exhaustion_penalty(self.exhaustion_level()))
 
     def surprised(self) -> bool:
+        from natural20.utils.item_mechanics import cannot_be_surprised
+        if cannot_be_surprised(self):
+            return False
         return bool(getattr(self, "_surprised", False) or (
             isinstance(getattr(self, "properties", None), dict)
             and self.properties.get("surprised")
@@ -2227,6 +2402,8 @@ class Entity(EntityStateEvaluator, Notable):
                 bonus += self.proficiency_bonus()
             else:
                 bonus += 5
+        from natural20.utils.class_mechanics import class_initiative_bonus
+        bonus += class_initiative_bonus(self)
         bonus += self.d20_test_modifier()
         return bonus
 
@@ -2258,6 +2435,19 @@ class Entity(EntityStateEvaluator, Notable):
                                         "roll": roll,
                                         "value" : value})
         return value
+
+    @property
+    def ability_scores(self):
+        base = self.__dict__.get('_base_ability_scores')
+        properties = self.__dict__.get('properties')
+        if not isinstance(properties, dict) or not properties.get('equipped'):
+            return base
+        from natural20.utils.item_mechanics import adjusted_ability_scores
+        return adjusted_ability_scores(self, base)
+
+    @ability_scores.setter
+    def ability_scores(self, value):
+        self.__dict__['_base_ability_scores'] = value
 
     def strength(self):
         _str = self.ability_scores.get('str')
@@ -2450,6 +2640,9 @@ class Entity(EntityStateEvaluator, Notable):
             'active_perception_disadvantage': 0,
             'two_weapon': None,
             'martial_arts_pending': False,
+            'hew_pending': None,
+            'granted_attack': None,
+            'post_attack_teleport': 0,
             'fancy_footwork_targets': set(),
             'action_surge': None,
             'multiattack_started': False,
@@ -2547,14 +2740,30 @@ class Entity(EntityStateEvaluator, Notable):
                 return []
 
             for active_hook in available_hooks:
-                _temp_results = getattr(active_hook['handler'], active_hook['method'])(
-                    self,
-                    {
-                        **opts,
-                        'effect': active_hook['effect'],
-                        'source': active_hook.get('source') or opts.get('source'),
-                    },
-                )
+                try:
+                    _temp_results = getattr(active_hook['handler'], active_hook['method'])(
+                        self,
+                        {
+                            **opts,
+                            'effect': active_hook['effect'],
+                            'source': active_hook.get('source') or opts.get('source'),
+                        },
+                    )
+                except GameLoopControl:
+                    # Control-flow exceptions (AsyncReactionHandler,
+                    # BardicInspirationPrompt, ManualControl, ...) must
+                    # propagate to the coordinating layer.
+                    raise
+                except Exception:
+                    # A broken event hook (e.g. on_attack_hit) must not break
+                    # the game loop; log it and skip its contribution.
+                    logger.exception(
+                        "Event hook %s.%s failed on %s",
+                        type(active_hook['handler']).__name__,
+                        active_hook['method'],
+                        self,
+                    )
+                    _temp_results = []
                 if _temp_results:
                     results.extend(_temp_results)
         return results
@@ -2736,7 +2945,7 @@ class Entity(EntityStateEvaluator, Notable):
         if self.restrained():
             return 0
 
-        c_speed = self.properties.get('speed_fly',0) if self.is_flying() else self.properties['speed']
+        c_speed = self.fly_speed() if self.is_flying() else self.properties['speed']
 
         if self.has_effect('speed_override'):
             c_speed = self.eval_effect('speed_override', { "stacked": True, "value" : c_speed})
@@ -2906,6 +3115,8 @@ class Entity(EntityStateEvaluator, Notable):
 
     def has_effect(self, effect_type):
         for item in self.equipped_items():
+            if not item.get('magic_active', True):
+                continue
             effects = item.get('effect', [])
             if isinstance(effects, str):
                 effects = [effects]
@@ -3012,10 +3223,18 @@ class Entity(EntityStateEvaluator, Notable):
         if self.proficient_with_weapon(weapon):
             modifier += self.proficiency_bonus()
 
+        # Archery fighting style: attack rolls only, not damage.
+        if weapon.get('type') == 'ranged_attack' and self.class_feature('archery'):
+            modifier += 2
+
+        from natural20.utils.item_mechanics import effective_item_meta
+        weapon = effective_item_meta(self, weapon)
         # Magic weapon bonus to attack rolls
         magic_bonus = weapon.get('magic_bonus', 0)
         if magic_bonus:
             modifier += magic_bonus
+        from natural20.utils.class_mechanics import enhancement_bonus
+        modifier += enhancement_bonus(self, weapon)
 
         modifier += self.d20_test_modifier()
         return modifier
@@ -3054,10 +3273,7 @@ class Entity(EntityStateEvaluator, Notable):
             else:
                 modifier = self.str_mod()
         elif weapon['type'] == 'ranged_attack':
-            if self.class_feature('archery'):
-                modifier = self.dex_mod() + 2
-            else:
-                modifier = self.dex_mod()
+            modifier = self.dex_mod()
 
         return modifier
 
@@ -3147,17 +3363,26 @@ class Entity(EntityStateEvaluator, Notable):
         if opts is None:
             opts = {}
         save_roll = self._roll_save_throw(save_type, battle, opts)
+        if opts.get('dc') is not None and battle is not None:
+            from natural20.utils.luck_points import luck_on_own_roll
+            save_roll = luck_on_own_roll(self, save_roll, opts['dc'], battle=battle,
+                                         roll_kind=f"{save_type}_saving_throw")
+            from natural20.utils.class_mechanics import try_save_assist
+            save_roll = try_save_assist(self, save_roll, opts['dc'], save_type, battle=battle)
         if opts.get('dc') is not None:
+            from natural20.utils.save_auto_success import try_save_auto_success
+            save_roll = try_save_auto_success(self, save_roll, opts['dc'], save_type, opts, battle=battle)
             from natural20.utils.monster_traits import try_legendary_resistance
             save_roll = try_legendary_resistance(self, save_roll, opts['dc'], save_type, battle=battle,
                                                  concentration=opts.get('concentration'))
         return save_roll
 
     def _roll_save_throw(self, save_type, battle, opts):
-        if save_type in ('strength', 'dexterity') and 'paralyzed' in self.statuses:
+        auto_fail = next((s for s in ('paralyzed', 'stunned') if s in self.statuses), None)
+        if save_type in ('strength', 'dexterity') and auto_fail:
             return DieRoll.roll(
                 "1", battle=battle, entity=self,
-                description=f"dice_roll.{save_type}_saving_throw (paralyzed, auto-fail)",
+                description=f"dice_roll.{save_type}_saving_throw ({auto_fail}, auto-fail)",
             )
 
         modifier = self.ability_mod(save_type)
@@ -3182,6 +3407,26 @@ class Entity(EntityStateEvaluator, Notable):
                 advantages.append('gnome_cunning')
             if self.class_feature('spell_resistance'):
                 advantages.append('spell_resistance')
+            elif self.class_feature('magic_resistance') or (self.properties or {}).get('magic_resistance'):
+                advantages.append('magic_resistance')
+
+        race_save_advantage = (getattr(self, 'race_properties', None) or {}).get('save_advantage') or {}
+        if save_type in (race_save_advantage.get('abilities') or []):
+            advantages.append(race_save_advantage.get('source') or 'racial_trait')
+
+        save_tags = opts.get('save_tags') or []
+        if isinstance(save_tags, str):
+            save_tags = [save_tags]
+        if save_tags:
+            try:
+                equipped = self.equipped_items() or []
+            except Exception:
+                equipped = []
+            for item in equipped:
+                if not item.get('magic_active', True):
+                    continue
+                if set(save_tags) & set(item.get('save_advantage_against') or []):
+                    advantages.append(f"item:{item['name']}")
 
         frightened_check = False
         if opts.get('condition') == 'frightened' or opts.get('saving_throw_type') == 'frightened':
@@ -3191,6 +3436,20 @@ class Entity(EntityStateEvaluator, Notable):
             frightened_check = True
         if frightened_check and self.class_feature('fearless'):
             advantages.append('fearless')
+
+        save_conditions = [opts.get('condition'), opts.get('saving_throw_type')]
+        if isinstance(conditions, (list, tuple)):
+            save_conditions.extend(conditions)
+        if any(save_conditions):
+            from natural20.utils.auras import aura_condition_save_advantage
+            aura_name = aura_condition_save_advantage(self, save_conditions, battle)
+            if aura_name:
+                advantages.append(aura_name)
+
+        if save_type == 'constitution' and opts.get('concentration') is not None:
+            from natural20.utils.feat_mechanics import has_benefit
+            if has_benefit(self, 'concentration_advantage'):
+                advantages.append('concentration_advantage')
 
         if getattr(self, '_in_shell', False):
             if save_type in ('strength', 'constitution'):
@@ -3243,6 +3502,12 @@ class Entity(EntityStateEvaluator, Notable):
             bane_pen = DieRoll.roll("1d4", description="bane", entity=self, battle=battle)
             save_roll += DieRoll.roll("-" + str(bane_pen.result()), entity=self, battle=battle)
 
+        if save_type == 'constitution' and opts.get('concentration') is not None:
+            from natural20.utils.attack_penalties import penalty_dice, subtract_dice
+            save_roll = subtract_dice(save_roll, penalty_dice(self, 'concentration_save_penalty',
+                                                              {'battle': battle}),
+                                      roller=self, battle=battle)
+
         # Generic, additive modifier hook for new effects (Bardic Inspiration,
         # Bless variants, paladin auras, etc.). Effects register against
         # 'save_modifier' and may return either a numeric bonus or a
@@ -3285,6 +3550,12 @@ class Entity(EntityStateEvaluator, Notable):
                 save_roll += DieRoll.roll(f"{sign}{iv}",
                                           description=f"save_modifier:{entry.get('source')}",
                                           entity=self, battle=battle)
+
+        from natural20.utils.auras import aura_save_bonus
+        aura_bonus, aura_name = aura_save_bonus(self, battle)
+        if aura_bonus:
+            save_roll += DieRoll.roll(f"+{aura_bonus}", description=f"save_modifier:{aura_name}",
+                                      entity=self, battle=battle)
 
         from natural20.sidekick import consume_inspiring_help
         save_roll = consume_inspiring_help(self, save_roll, battle=battle)
@@ -3390,6 +3661,7 @@ class Entity(EntityStateEvaluator, Notable):
         return False
 
     def _to_item(self, k, item):
+        from natural20.utils.item_mechanics import is_attuned
         disadvantage = item.get('disadvantage') or []
         if isinstance(disadvantage, str):
             disadvantage = [disadvantage]
@@ -3427,7 +3699,15 @@ class Entity(EntityStateEvaluator, Notable):
             'magical': bool(item.get('magical') or (item.get('magic_bonus') or 0)),
             'magic_bonus': item.get('magic_bonus') or 0,
             'requires_attunement': bool(item.get('requires_attunement')),
+            'magic_active': is_attuned(self, k, item),
             'stealth_disadvantage': stealth_disadvantage,
+            'resistances': list(item.get('resistances') or []),
+            'damage_immunities': list(item.get('damage_immunities') or []),
+            'condition_immunities': list(item.get('condition_immunities') or []),
+            'spell_attack_bonus': item.get('spell_attack_bonus') or 0,
+            'spell_attack_ignore_cover': list(item.get('spell_attack_ignore_cover') or []),
+            'skill_advantage': list(item.get('skill_advantage') or []),
+            'save_advantage_against': list(item.get('save_advantage_against') or []),
             'thrown': item.get('thrown'),
             'ammo': item.get('ammo'),
             'hp_regained': item.get('hp_regained'),
@@ -3441,6 +3721,11 @@ class Entity(EntityStateEvaluator, Notable):
         """Return a display dict for the character-sheet item card modal."""
         from natural20.utils.item_card import build_item_card
         return build_item_card(self, item_name, container_name=container_name)
+
+    def attunement_status(self, force=False):
+        """Attunement panel model for the character sheet (see ``natural20/utils/attunement.py``)."""
+        from natural20.utils.attunement import attunement_status
+        return attunement_status(self, force=force)
     # Removes Item from inventory
     # @param ammo_type [str]
     # @param amount [int]
@@ -3546,17 +3831,48 @@ class Entity(EntityStateEvaluator, Notable):
                 keys.append(caster_class)
         return keys
 
-    def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
+    def spell_source_ability(self, spell):
+        """Casting ability for a spell granted outside a class (race, feat), from
+        the sheet's ``spell_abilities: {spell_slug: ability}`` map."""
+        spell_id = (spell or {}).get('id') if isinstance(spell, dict) else spell
+        abilities = (self.properties or {}).get('spell_abilities') or {}
+        ability = abilities.get(spell_id) if spell_id else None
+        if not ability:
+            return None
+        from natural20.entity_class.data_driven import normalize_ability
+        return normalize_ability(ability)
+
+    def spell_attack_modifier_for(self, spell):
         spell_classes = self.spell_list_classes_for(spell)
         class_types = spell_classes if spell_classes else ['wizard']
         attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
-        return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        ability = self.spell_source_ability(spell)
+        if ability:
+            attack_modifers.append(self.proficiency_bonus() + self.ability_mod(ability))
+        return max(attack_modifers) + self.item_spell_attack_bonus()
+
+    def item_spell_attack_bonus(self):
+        """Sum of item YAML ``spell_attack_bonus`` over equipped, active gear
+        (Wand of the War Mage, Rod of the Pact Keeper)."""
+        total = 0
+        try:
+            equipped = self.equipped_items() or []
+        except Exception:
+            return 0
+        for item in equipped:
+            if not item.get('magic_active', True):
+                continue
+            try:
+                total += int(item.get('spell_attack_bonus') or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
+        return DieRoll.roll(f"1d20+{self.spell_attack_modifier_for(spell)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        spell_classes = self.spell_list_classes_for(spell)
-        class_types = spell_classes if spell_classes else ['wizard']
-        attack_modifers = [self.spell_attack_modifier(class_type=class_type.lower()) for class_type in class_types]
-        return DieRoll.roll(f"1d20+{max(attack_modifers)}", description=f"Melee Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        return DieRoll.roll(f"1d20+{self.spell_attack_modifier_for(spell)}", description=f"Melee Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def multiattack(self, battle, npc_action):
         if not npc_action:
@@ -3594,6 +3910,9 @@ class Entity(EntityStateEvaluator, Notable):
         method_name = f"{class_type.lower()}_spell_attack_modifier"
         if hasattr(self, method_name):
             return getattr(self, method_name)()
+        is_data_class = getattr(self, 'is_data_driven_class', None)
+        if callable(is_data_class) and is_data_class(class_type.lower()):
+            return self.data_class_spell_attack_modifier(class_type.lower())
 
         return 0
     
@@ -3651,6 +3970,10 @@ class Entity(EntityStateEvaluator, Notable):
                             break
 
                 if not slot_available:
+                    from natural20.utils.class_mechanics import free_cast_pool_for
+                    slot_available = free_cast_pool_for(self, spell) is not None
+
+                if not slot_available:
                     disable_reason.append('no_spell_slot')
 
             spell_list[spell] = details.copy()
@@ -3659,6 +3982,8 @@ class Entity(EntityStateEvaluator, Notable):
         return spell_list
     
     def allow_targeting(self):
+        if (self.attributes or {}).get('off_plane'):
+            return False
         return self.targettable and not self.properties.get('spiritual', False)
     
     def allow_talk(self):
@@ -3742,6 +4067,18 @@ class Entity(EntityStateEvaluator, Notable):
                         total_damage = max(0, total_damage - absorbed)
                         effective_damage = max(0, effective_damage - absorbed)
                         break
+            except Exception:
+                pass
+
+        # Reactions that shrink the damage before it is applied (Stone's Endurance).
+        if effective_damage > 0 and battle is not None:
+            try:
+                from natural20.utils.giant_ancestry import stones_endurance_reduction
+                reduced = stones_endurance_reduction(battle, self, effective_damage,
+                                                     damage_type=damage_type, attacker=attacker, item=item)
+                if reduced:
+                    total_damage = max(0, total_damage - reduced)
+                    effective_damage = max(0, effective_damage - reduced)
             except Exception:
                 pass
 
@@ -3853,6 +4190,17 @@ class Entity(EntityStateEvaluator, Notable):
                     'event': 'relentless_endurance',
                 })
 
+            if (self.hp() <= 0
+                    and total_damage > 0
+                    and not form_drop
+                    and not already_down):
+                from natural20.utils.monster_traits import try_undead_fortitude
+                if try_undead_fortitude(self, total_damage, damage_type=damage_type,
+                                        critical=critical, battle=battle):
+                    overflow = 0
+                    if hit_state is not None:
+                        hit_state['overflow'] = 0
+
             death_fail_counted = bool(hit_state and hit_state.get('death_fail_counted'))
             if hit_state is not None and total_damage > 0:
                 hit_state['death_fail_counted'] = True
@@ -3946,6 +4294,10 @@ class Entity(EntityStateEvaluator, Notable):
             from natural20.utils.monster_traits import on_harmed_while_charmed
             on_harmed_while_charmed(self, item.get('source'), battle)
 
+        if total_damage > 0 and self.attributes.get('frightened_by'):
+            from natural20.utils.fear import on_damaged_while_frightened
+            on_damaged_while_frightened(self)
+
         if misty_escape:
             from natural20.utils.monster_traits import try_misty_escape
             try_misty_escape(self, battle=battle, session=session)
@@ -3998,6 +4350,8 @@ class Entity(EntityStateEvaluator, Notable):
                 result = getattr(active_effect['handler'], active_effect['method'])(self, opts)
 
         for item in self.equipped_items():
+            if not item.get('magic_active', True):
+                continue
             effects = item.get('effect', [])
             if isinstance(effects, str):
                 effects = [effects]
@@ -4124,7 +4478,21 @@ class Entity(EntityStateEvaluator, Notable):
         return {'dim': dim, 'bright': bright}
     
     def death_saving_throw(self, battle=None):
-        roll = DieRoll.roll_with_lucky(self, '1d20', description='dice_roll.death_saving_throw', battle=battle)
+        advantages, disadvantages = [], []
+        if self.has_effect('death_save_advantage_modifier'):
+            adv_mod, dis_mod = self.eval_effect('death_save_advantage_modifier', {
+                'value': [[], []], 'battle': battle,
+            }) or ([], [])
+            advantages.extend(adv_mod or [])
+            disadvantages.extend(dis_mod or [])
+        roll = DieRoll.roll_with_lucky(
+            self, '1d20', description='dice_roll.death_saving_throw', battle=battle,
+            advantage=bool(advantages) and not disadvantages,
+            disadvantage=bool(disadvantages) and not advantages,
+        )
+        if battle is not None:
+            from natural20.utils.luck_points import luck_on_own_roll
+            roll = luck_on_own_roll(self, roll, 10, battle=battle, roll_kind='death_saving_throw')
         if roll.nat_20():
             self.make_conscious()
             self.heal(1)
@@ -4168,6 +4536,9 @@ class Entity(EntityStateEvaluator, Notable):
         def add_usable(item_name, qty, inventory_entry=None, container=None, container_label=None):
             item_details = self.session.load_equipment(item_name)
             if not item_details or not item_details.get('usable', False):
+                return
+            from natural20.utils.item_mechanics import is_attuned
+            if not is_attuned(self, item_name, item_details):
                 return
             try:
                 qty = int(qty or 0)
@@ -4464,12 +4835,14 @@ class Entity(EntityStateEvaluator, Notable):
     # @return [str]
     def check_equip(self, item_name):
         weapon = self.session.load_thing(item_name)
-        if weapon and weapon.get('subtype') == 'weapon' or weapon['type'] in ['shield', 'armor'] or weapon.get('equippable', False):
+        if not weapon:
+            return 'unequippable'
+        if weapon.get('subtype') == 'weapon' or weapon.get('type') in ['shield', 'armor'] or weapon.get('equippable', False):
             hand_slots = self.used_hand_slots() + self.hand_slots_required(self._to_item(item_name, weapon))
-            armor_slots = len([item for item in self.equipped_items() if item['type'] == 'armor'])
+            armor_slots = len([item for item in self.equipped_items() if item.get('type') == 'armor'])
             if hand_slots > 2.0:
                 return 'hands_full'
-            elif armor_slots >= 1 and weapon['type'] == 'armor':
+            elif armor_slots >= 1 and weapon.get('type') == 'armor':
                 return 'armor_equipped'
             else:
                 return 'ok'
@@ -4479,7 +4852,11 @@ class Entity(EntityStateEvaluator, Notable):
     # Returns the carrying capacity of an entity in lbs
     # @return [float] carrying capacity in lbs
     def carry_capacity(self):
-        return self.ability_scores.get('str', 1) * 15.0
+        capacity = self.ability_scores.get('str', 1) * 15.0
+        # Powerful Build: carry as if one size larger (Large doubles capacity).
+        if self.class_feature('powerful_build'):
+            capacity *= 2
+        return capacity
 
     def _is_ground_tile(self):
         return type(self).__name__ == 'Ground'
@@ -4682,6 +5059,15 @@ class Entity(EntityStateEvaluator, Notable):
             hook = getattr(self, f"long_rest_for_{klass}", None)
             if callable(hook):
                 hook(None)
+            elif callable(getattr(self, 'is_data_driven_class', None)) and self.is_data_driven_class(klass):
+                self.long_rest_for_data_class(klass)
+
+        from natural20.utils.class_mechanics import apply_rest_effects
+        apply_rest_effects(self, 'long_rest')
+        from natural20.utils.attunement import complete_pending
+        complete_pending(self, 'long_rest')
+        if (getattr(self, 'race_properties', None) or {}).get('inspiration_on_long_rest'):
+            self.grant_inspiration()
 
         self.restore_resources('long_rest')
         self.resolve_trigger('long_rest')

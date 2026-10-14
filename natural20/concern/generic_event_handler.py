@@ -218,6 +218,11 @@ class GenericEventHandler:
                     'damage': DieRoll.roll(damage['damage_die'])
                 })
 
+        if self.properties.get('area_save'):
+            from natural20.utils.area_hazard import resolve_area_save
+            resolve_area_save(entity, self.properties['area_save'], battle=opts.get('battle'),
+                              battle_map=self._resolve_map(entity), session=self.session)
+
         if self.properties.get('update_state'):
             update_state_properties = self.properties['update_state']
 

@@ -115,9 +115,52 @@ def _build_spell_class_registry():
     from natural20.spell.mass_healing_word_spell import MassHealingWordSpell
     from natural20.spell.call_lightning_spell import CallLightningSpell
     from natural20.spell.sleet_storm_spell import SleetStormSpell
+    from natural20.spell.shining_smite_spell import ShiningSmiteSpell
+    from natural20.spell.beacon_of_hope_spell import BeaconOfHopeSpell
+    from natural20.spell.daylight_spell import DaylightSpell
+    from natural20.spell.remove_curse_spell import RemoveCurseSpell
+    from natural20.spell.aura_of_vitality_spell import AuraOfVitalitySpell
+    from natural20.spell.faerie_fire_spell import FaerieFireSpell
+    from natural20.spell.sanctuary_spell import SanctuarySpell
+    from natural20.spell.lesser_restoration_spell import LesserRestorationSpell
+    from natural20.spell.ray_of_sickness_spell import RayOfSicknessSpell
+    from natural20.spell.melfs_acid_arrow_spell import MelfsAcidArrowSpell
+    from natural20.spell.flaming_sphere_spell import FlamingSphereSpell
+    import natural20.actions.flaming_sphere_action  # noqa: F401  (registers the bonus-action follow-up)
+    from natural20.spell.gaseous_form_spell import GaseousFormSpell
+    from natural20.spell.ensnaring_strike_spell import EnsnaringStrikeSpell
+    from natural20.spell.hail_of_thorns_spell import HailOfThornsSpell
+    from natural20.spell.spike_growth_spell import SpikeGrowthSpell
+    from natural20.spell.silence_spell import SilenceSpell
+    from natural20.spell.magic_weapon_spell import MagicWeaponSpell
+    from natural20.spell.pass_without_trace_spell import PassWithoutTraceSpell
+    from natural20.spell.disguise_self_spell import DisguiseSelfSpell
+    from natural20.spell.rope_trick_spell import RopeTrickSpell
+    from natural20.spell.fear_spell import FearSpell
+    from natural20.spell.strike_surge_spell import StrikeSurgeSpell
+    from natural20.spell.push_creature_spell import PushCreatureSpell
+    import natural20.spell.extensions.weapon_hit_spell  # noqa: F401  (WeaponHitSpellCastAction.apply)
+    import natural20.actions.break_free_action  # noqa: F401  (escapable restraints)
+    import natural20.actions.attack_surge_action  # noqa: F401  (strike surge follow-up)
+    from natural20.spell.condition_spells import ConditionSaveSpell
+    from natural20.spell.blink_spell import BlinkSpell
+    from natural20.spell.blade_ward_spell import BladeWardSpell
+    from natural20.spell.plant_growth_spell import PlantGrowthSpell
+    from natural20.spell.detection_spells import ContactOtherPlaneSpell, SenseCreaturesSpell
+    from natural20.spell.thunder_step_spell import ThunderStepSpell
+    from natural20.spell.sending_spell import SendingSpell
+    import natural20.actions.npc_area_action  # noqa: F401  (NpcAreaAction.apply)
+    from natural20.spell.synaptic_static_spell import SynapticStaticSpell
+    from natural20.spell.seeming_spell import SeemingSpell
+    from natural20.spell.summon_spirit_spell import SummonSpiritSpell
+    from natural20.spell.utility_spells import (
+        FeatherFallSpell,
+        IdentifySpell,
+        MendingSpell,
+        PrestidigitationSpell,
+    )
     from natural20.spell.wizard_spells import (
         AganazzarsScorcherSpell,
-        BanishmentSpell,
         BigbysHandSpell,
         ChainLightningSpell,
         CloudkillSpell,
@@ -126,7 +169,6 @@ def _build_spell_class_registry():
         CounterspellSpell,
         DisintegrateSpell,
         DispelMagicSpell,
-        FeatherFallSpell,
         FlySpell,
         FireballSpell,
         GustOfWindSpell,
@@ -135,10 +177,8 @@ def _build_spell_class_registry():
         BlindnessDeafnessSpell,
         LightningBoltSpell,
         MazeSpell,
-        MelfsAcidArrowSpell,
         MinorIllusionSpell,
         OtilukesResilientSphereSpell,
-        PrestidigitationSpell,
         ProtectionFromEnergySpell,
         ScorchingRaySpell,
         SunbeamSpell,
@@ -215,7 +255,7 @@ def _build_spell_class_registry():
         'TonguesSpell': TonguesSpell,
         'AganazzarsScorcherSpell': AganazzarsScorcherSpell,
         'AnimateDeadSpell': AnimateDeadSpell,
-        'BanishmentSpell': BanishmentSpell,
+        'BanishmentSpell': ConditionSaveSpell,
         'BigbysHandSpell': BigbysHandSpell,
         'ChainLightningSpell': ChainLightningSpell,
         'CloudkillSpell': CloudkillSpell,
@@ -252,6 +292,52 @@ def _build_spell_class_registry():
         'MassHealingWordSpell': MassHealingWordSpell,
         'CallLightningSpell': CallLightningSpell,
         'SleetStormSpell': SleetStormSpell,
+        'ShiningSmiteSpell': ShiningSmiteSpell,
+        'BeaconOfHopeSpell': BeaconOfHopeSpell,
+        'DaylightSpell': DaylightSpell,
+        'RemoveCurseSpell': RemoveCurseSpell,
+        'AuraOfVitalitySpell': AuraOfVitalitySpell,
+        'FaerieFireSpell': FaerieFireSpell,
+        'SanctuarySpell': SanctuarySpell,
+        'LesserRestorationSpell': LesserRestorationSpell,
+        'RayOfSicknessSpell': RayOfSicknessSpell,
+        'FlamingSphereSpell': FlamingSphereSpell,
+        'GaseousFormSpell': GaseousFormSpell,
+        'IdentifySpell': IdentifySpell,
+        'MendingSpell': MendingSpell,
+        'EnsnaringStrikeSpell': EnsnaringStrikeSpell,
+        'HailOfThornsSpell': HailOfThornsSpell,
+        'SpikeGrowthSpell': SpikeGrowthSpell,
+        'SilenceSpell': SilenceSpell,
+        'MagicWeaponSpell': MagicWeaponSpell,
+        'PassWithoutTraceSpell': PassWithoutTraceSpell,
+        'DisguiseSelfSpell': DisguiseSelfSpell,
+        'RopeTrickSpell': RopeTrickSpell,
+        'FearSpell': FearSpell,
+        'StrikeSurgeSpell': StrikeSurgeSpell,
+        'PushCreatureSpell': PushCreatureSpell,
+        'ConditionSaveSpell': ConditionSaveSpell,
+        'HoldMonsterSpell': ConditionSaveSpell,
+        'HypnoticPatternSpell': ConditionSaveSpell,
+        'DominateBeastSpell': ConditionSaveSpell,
+        'DominatePersonSpell': ConditionSaveSpell,
+        'DominateMonsterSpell': ConditionSaveSpell,
+        'PhantasmalForceSpell': ConditionSaveSpell,
+        'CalmEmotionsSpell': ConditionSaveSpell,
+        'BlinkSpell': BlinkSpell,
+        'BladeWardSpell': BladeWardSpell,
+        'PlantGrowthSpell': PlantGrowthSpell,
+        'SenseCreaturesSpell': SenseCreaturesSpell,
+        'DetectEvilAndGoodSpell': SenseCreaturesSpell,
+        'DetectPoisonAndDiseaseSpell': SenseCreaturesSpell,
+        'ContactOtherPlaneSpell': ContactOtherPlaneSpell,
+        'ThunderStepSpell': ThunderStepSpell,
+        'DimensionDoorSpell': MistyStepSpell,
+        'SendingSpell': SendingSpell,
+        'SynapticStaticSpell': SynapticStaticSpell,
+        'SeemingSpell': SeemingSpell,
+        'SummonSpiritSpell': SummonSpiritSpell,
+        'SummonFiendSpell': SummonSpiritSpell,
     }
     return spell_classes
 

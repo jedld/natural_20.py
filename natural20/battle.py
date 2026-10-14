@@ -285,7 +285,7 @@ def action_animator(action, battle=None):
             spell_name = None
 
         extra_message = {}
-        if spell_name == 'misty_step':
+        if spell_name in ('misty_step', 'dimension_door'):
             origin = getattr(action, 'misty_step_from', None)
             if origin is not None:
                 extra_message['from'] = list(origin)
@@ -492,6 +492,8 @@ class Battle():
             'target_effect': {},
             'two_weapon': None,
             'martial_arts_pending': False,
+            'hew_pending': None,
+            'granted_attack': None,
             'fancy_footwork_targets': set(),
             'positions_entered': {},
             'controller': controller,
@@ -777,6 +779,10 @@ class Battle():
         if entity.dead():
             # Died on this turn's death save: there is no turn to start.
             return
+        from natural20.utils.taunt import expire_taunts_by
+        expire_taunts_by(entity, self)
+        from natural20.utils.until_next_turn import expire_until_next_turn
+        expire_until_next_turn(entity, self)
         self.trigger_event('start_of_turn', self, { "target" : entity })
         state = self.entity_state_for(entity)
         if state is not None:
@@ -797,6 +803,9 @@ class Battle():
 
         from natural20.utils.monster_traits import apply_regeneration
         apply_regeneration(entity, self)
+
+        from natural20.actions.npc_area_action import roll_recharges
+        roll_recharges(entity, self)
 
         from natural20.utils.grappling import prune_invalid_grapples
         prune_invalid_grapples(entity, self)
@@ -968,6 +977,8 @@ class Battle():
         if getattr(self, '_end_of_turn_fired', None) != (self.round, self.current_turn_index):
             self.trigger_event('end_of_turn', self, { "target" : self.current_turn()})
         self._end_of_turn_fired = None
+        from natural20.utils.escape_plan import process_departures
+        process_departures(self)
         if self.started and self.battle_ends():
             self.session.event_manager.received_event({"source" : self, "event" : 'end_of_combat'})
             self.started = False
@@ -1185,6 +1196,8 @@ class Battle():
 
         action.committed = True
         # check_action_serialization(action)
+        from natural20.utils.fear import snapshot_turn_resources, enforce_action_limit
+        fear_snapshot = snapshot_turn_resources(self, getattr(action, 'source', None))
         other_results = []
         index = 0
         # Use cached subclass list to avoid repeated runtime introspection.
@@ -1233,6 +1246,7 @@ class Battle():
                         ),
                     })
             index += 1
+        enforce_action_limit(self, getattr(action, 'source', None), fear_snapshot)
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
             if self.animation_log_enabled:

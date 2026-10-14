@@ -357,31 +357,6 @@ class ScorchingRaySpell(AttackSpell):
         return events
 
 
-class MelfsAcidArrowSpell(ScorchingRaySpell):
-    def build_map(self, orig_action):
-        def set_target(target):
-            action = orig_action.clone()
-            action.target = target
-            return action
-        return {'param': [{'type': 'select_target', 'num': 1,
-                           'range': self.properties.get('range', 90),
-                           'target_types': ['enemies']}],
-                'next': set_target}
-
-    def resolve(self, entity, battle, spell_action, battle_map):
-        target = spell_action.target
-        hit, attack_roll, advantage_mod, cover_ac, adv_info, hook_events = evaluate_spell_attack(
-            self.session, entity, target, self.properties, battle=battle, opts={'action': spell_action})
-        damage_roll = DieRoll.roll('4d4', crit=bool(hit and attack_roll.nat_20()), battle=battle, entity=entity,
-                                   description='dice_roll.spells.melfs_acid_arrow')
-        damage = damage_roll if hit else damage_roll.half()
-        return hook_events + [{'source': entity, 'target': target, 'attack_name': 'melfs_acid_arrow',
-                               'damage_type': 'acid', 'attack_roll': attack_roll, 'damage_roll': damage_roll,
-                               'advantage_mod': advantage_mod, 'adv_info': adv_info, 'damage': damage,
-                               'cover_ac': cover_ac, 'type': 'spell_damage' if damage.result() > 0 else 'spell_miss',
-                               'spell': self.properties}]
-
-
 class ChainLightningSpell(Spell):
     def build_map(self, orig_action):
         def set_target(target):
@@ -638,10 +613,6 @@ class DispelMagicSpell(CounterspellSpell):
                 end_spell_on(target, outcome['effect'], outcome.get('caster'))
 
 
-class BanishmentSpell(CounterspellSpell):
-    pass
-
-
 class MazeSpell(CounterspellSpell):
     pass
 
@@ -667,15 +638,17 @@ class BlindnessDeafnessSpell(UtilityWizardSpell):
 
 
 class ComprehendLanguagesSpell(UtilityWizardSpell):
-    pass
+    """Self-only; the ``comprehend_languages`` effect is read by
+    ``language_comprehension.understands_language``."""
 
+    def build_map(self, orig_action):
+        action = orig_action.clone()
+        action.target = self.source
+        return action
 
-class PrestidigitationSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['point']
-
-
-class FeatherFallSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['allies', 'self']
+    def resolve(self, entity, battle, spell_action, battle_map):
+        return [{'type': 'wizard_spell_effect', 'source': entity, 'target': entity,
+                 'effect': self, 'spell': self.properties}]
 
 
 class FlySpell(UtilityWizardSpell):

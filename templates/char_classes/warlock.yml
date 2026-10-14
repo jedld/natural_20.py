@@ -21,6 +21,7 @@ spell_list:
     - chill_touch
     - firebolt
     - poison_spray
+    - prestidigitation
     - shocking_grasp
   level_1:
     - armor_of_agathys
@@ -39,6 +40,8 @@ spell_list:
     - counterspell
     - dispel_magic
     - fly
+    - gaseous_form
+    - remove_curse
   level_4:
     - blight
 class_features:

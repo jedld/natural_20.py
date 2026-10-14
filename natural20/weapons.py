@@ -84,15 +84,21 @@ def compute_max_weapon_range(session, action, range=None):
     return range
 
 def damage_modifier(entity, weapon, second_hand=False):
+    from natural20.utils.item_mechanics import effective_item_meta
+    weapon = effective_item_meta(entity, weapon)
     damage_mod = entity.attack_ability_mod(weapon)
 
     if second_hand and not entity.class_feature('two_weapon_fighting'):
-        damage_mod = min(damage_mod, 0)
+        from natural20.utils.feat_mechanics import extra_attack_adds_ability
+        if not extra_attack_adds_ability(entity, weapon):
+            damage_mod = min(damage_mod, 0)
 
     # Magic weapon bonus to damage rolls
     magic_bonus = weapon.get('magic_bonus', 0)
     if magic_bonus:
         damage_mod += magic_bonus
+    from natural20.utils.class_mechanics import enhancement_bonus
+    damage_mod += enhancement_bonus(entity, weapon)
 
     # compute damage roll using versatile weapon property
     if 'versatile' in weapon.get('properties', []) and entity.used_hand_slots() <= 1.0:
@@ -197,6 +203,13 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
     except Exception:
         pass
 
+    if (getattr(source, 'attributes', None) or {}).get('frightened_by'):
+        from natural20.utils.fear import fear_disadvantage
+        disadvantage.extend(fear_disadvantage(source, battle))
+    if (getattr(source, 'attributes', None) or {}).get('taunted_by'):
+        from natural20.utils.taunt import taunt_disadvantage
+        disadvantage.extend(taunt_disadvantage(source, target, battle))
+
     if source.prone():
         disadvantage.append('prone')
     if source.squeezed():
@@ -207,6 +220,8 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
         advantage.append('restrained')
     if getattr(target, 'paralyzed', lambda: False)():
         advantage.append('target_paralyzed')
+    elif 'stunned' in (getattr(target, 'statuses', None) or []):
+        advantage.append('target_stunned')
 
     if target.poisoned():
         disadvantage.append('target_poisoned')
@@ -243,9 +258,19 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
             advantage.append('being_helped')
 
         if weapon and (thrown or weapon['type'] == 'ranged_attack'):
-            if battle.enemy_in_melee_range(source, source_pos=source_pos):
+            from natural20.utils.feat_mechanics import (
+                no_adjacent_enemy_disadvantage, no_long_range_disadvantage,
+            )
+            if (battle.enemy_in_melee_range(source, source_pos=source_pos)
+                    and not no_adjacent_enemy_disadvantage(source, weapon, thrown=thrown)):
                 disadvantage.append('ranged_with_enemy_in_melee')
-            if weapon['range'] and battle.map_for(source).distance(source, target, entity_1_pos=source_pos) > weapon['range']:
+            normal_range = weapon.get('range')
+            if thrown and isinstance(weapon.get('thrown'), dict):
+                normal_range = weapon['thrown'].get('range') or normal_range
+            source_map = battle.map_for(source)
+            if (isinstance(normal_range, (int, float)) and normal_range and source_map is not None
+                    and source_map.distance(source, target, entity_1_pos=source_pos) * source_map.feet_per_grid > normal_range
+                    and not no_long_range_disadvantage(source, weapon, thrown=thrown)):
                 disadvantage.append('target_long_range')
 
         if source.class_feature('pack_tactics') and battle.ally_within_enemy_melee_range(source, target, source_pos=source_pos):

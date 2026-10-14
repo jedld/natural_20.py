@@ -2,6 +2,7 @@ from typing import Optional
 import random
 import i18n
 import copy
+import math
 import pdb
 import re
 from collections import deque
@@ -143,6 +144,18 @@ class DieRolls(Rollable):
     def expected(self):
         return sum(roll.expected() if isinstance(roll, DieRoll) else roll for roll in self.rolls)
 
+    def prob(self, x):
+        """Probability the total is at least x; extra dice count at their average."""
+        primary = next((r for r in self.rolls if isinstance(r, (DieRoll, DieRolls))
+                        and getattr(r, 'die_sides', None) == 20), None)
+        if primary is None:
+            primary = next((r for r in self.rolls if isinstance(r, (DieRoll, DieRolls))), None)
+        if primary is None:
+            return 1.0 if self.expected() >= x else 0.0
+        rest = sum(r.expected() if isinstance(r, (DieRoll, DieRolls)) else r
+                   for r in self.rolls if r is not primary)
+        return primary.prob(math.ceil(x - rest))
+
     def nat_20(self):
         return any(roll.nat_20() for roll in self.rolls)
 
@@ -156,6 +169,11 @@ class DieRolls(Rollable):
                 if value is not None:
                     return value
         return None
+
+    def maximized(self):
+        """Copy where every die shows its highest face (Beacon of Hope)."""
+        return DieRolls([roll.maximized() if isinstance(roll, (DieRoll, DieRolls)) else roll
+                         for roll in self.rolls])
 
     def reroll(self, lucky=False):
         new_rolls = copy.deepcopy(self.rolls)
@@ -523,6 +541,22 @@ class DieRoll(Rollable):
         _roll.halved = True
         return _roll
 
+    def maximized(self):
+        """Copy where every die shows its highest face; flat rolls are unchanged."""
+        _roll = self.clone()
+        if self.die_sides:
+            _roll.rolls = [self.die_sides for _ in self.rolls]
+            _roll.advantage = False
+            _roll.disadvantage = False
+            _roll.prev_roll = None
+        _roll.metadata.pop('last_result', None)
+        _roll.metadata.pop('guidance_base', None)
+        _roll.metadata['maximized'] = True
+        return _roll
+
+    def max_result(self):
+        return self.maximized().result()
+
     def expected(self):
         if self.die_sides == 0:
             return sum(self.rolls) + self.modifier
@@ -759,8 +793,10 @@ class DieRoll(Rollable):
         roller = Roller(roll_str, crit=crit, disadvantage=disadvantage, advantage=advantage,
                         description=description, entity=entity, battle=battle)
         result = roller.roll()
-        if result.rolled_a_1() and entity.class_feature('lucky'):
-            result = result.reroll(lucky=True)
+        if result.rolled_a_1():
+            from natural20.utils.luck_points import has_reroll_ones_trait
+            if has_reroll_ones_trait(entity):
+                result = result.reroll(lucky=True)
         DIE_ROLL['last_roll'] = result
         DIE_ROLLS.append(result)
         return result

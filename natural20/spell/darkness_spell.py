@@ -19,9 +19,20 @@ class DarknessEffect:
     def __str__(self):
         return 'darkness'
 
+    def relink_maps(self, maps):
+        """Save/load hook: restore the map handle dropped by serialization."""
+        for battle_map in maps:
+            if self.darkness in getattr(battle_map, 'entities', {}):
+                self.battle_map = battle_map
+                return
+
     def dismiss(self, entity, effect, opts=None):
-        if self.darkness in self.battle_map.entities:
-            self.battle_map.remove(self.darkness)
+        battle_map = getattr(self, 'battle_map', None)
+        if battle_map is None:
+            session = getattr(self.source, 'session', None)
+            battle_map = session.map_for(self.darkness) if session is not None else None
+        if battle_map is not None and self.darkness in battle_map.entities:
+            battle_map.remove(self.darkness)
 
 
 class DarknessSpell(Spell):
@@ -97,7 +108,8 @@ class DarknessSpell(Spell):
         source.remove_effect('darkness')
 
         radius_feet = item['spell'].get('radius', 15)
-        darkness = Darkness(session, source, radius_feet=radius_feet)
+        darkness = Darkness(session, source, radius_feet=radius_feet,
+                            spell_level=item.get('level') or item['spell'].get('level', 2))
         battle_map.place(position, darkness)
 
         effect = DarknessEffect(source, darkness, battle_map)

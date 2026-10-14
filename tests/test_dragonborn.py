@@ -280,13 +280,13 @@ class TestBreathWeaponBuildMap(unittest.TestCase, _MakeSession):
 
 
 class TestBreathWeaponDCCalculation(unittest.TestCase, _MakeSession):
-    """BreathWeaponAction DC should use 8 + proficiency + ability modifier."""
+    """BreathWeaponAction DC is 8 + proficiency + Constitution modifier."""
 
     def setUp(self):
         self.session = self.make_session()
 
     def test_dc_calculation_level_1(self):
-        """Level 1 Dragonborn: proficiency=2, DEX mod=+1 → DC = 8+2+1 = 11."""
+        """Level 1 Dragonborn: proficiency=2, CON mod=+2 → DC = 8+2+2 = 12 (even for a DEX save)."""
         pc = PlayerCharacter.load(self.session, 'characters/dragonborn_fighter.yml')
         action = BreathWeaponAction(
             session=self.session,
@@ -299,7 +299,8 @@ class TestBreathWeaponDCCalculation(unittest.TestCase, _MakeSession):
             level=1,
         )
         dc = action._get_save_dc()
-        self.assertEqual(dc, 11)
+        self.assertEqual(dc, 8 + 2 + pc.ability_mod('constitution'))
+        self.assertEqual(dc, 12)
 
 
 if __name__ == '__main__':

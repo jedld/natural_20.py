@@ -184,8 +184,14 @@ def test_paladin_half_caster_slots():
         "baseHitPoints": 10,
     }
     out = importer.convert_to_yaml(payload)
-    # Paladin 5 -> caster level 2 -> 3 first-level slots
-    assert out["spell_slots"] == {"paladin": {1: 3}}
+    # Single-class Paladin 5 -> caster level 3 (rounded up) -> 4/2
+    assert out["spell_slots"] == {"paladin": {1: 4, 2: 2}}
+
+
+def test_single_class_ranger_slots_round_up():
+    imp = BeyondImporter()
+    assert imp._compute_spell_slots({"ranger": 11}, {}) == {"ranger": {1: 4, 2: 3, 3: 3}}
+    assert imp._compute_spell_slots({"ranger": 1}, {}) == {}
 
 
 def test_token_alignment_entity_uid_defaults(importer, payload):
@@ -367,3 +373,274 @@ def test_cli_writes_yaml(tmp_path):
     assert "race: elf" in text
     assert "subrace: high_elf" in text
     assert "wizard: 2" in text
+
+
+def _inv(name, *, equipped=False, qty=1, armor_type=None, magic=False,
+         attuned=False, ac=None):
+    definition = {"name": name, "magic": magic}
+    if armor_type is not None:
+        definition["armorTypeId"] = armor_type
+    if ac is not None:
+        definition["armorClass"] = ac
+    return {"definition": definition, "equipped": equipped, "quantity": qty,
+            "isAttuned": attuned}
+
+
+def test_inventory_resolves_magic_variants_and_merges_stacks(importer):
+    payload = {
+        "inventory": [
+            _inv("Shield, +1", equipped=True, armor_type=4),
+            _inv("Dragon Scale Mail (Bronze)", equipped=True, armor_type=2,
+                 magic=True, attuned=True, ac=14),
+            _inv("Plate Armor", equipped=True, armor_type=3, ac=18),
+            _inv("Class Feature: Sacred Weapon"),
+            _inv("Rations", qty=18),
+            _inv("Rations", qty=5),
+            _inv("Oil", qty=7),
+        ],
+        "currencies": {"cp": 10, "sp": 0, "gp": 1288, "ep": 0, "pp": 0},
+    }
+    equipped, inventory = importer._extract_inventory(payload)
+    stacks = {entry["type"]: entry["qty"] for entry in inventory}
+
+    assert equipped == ["dragon_scale_mail_bronze", "shield_plus_one"]
+    assert stacks["plate"] == 1
+    assert stacks["rations"] == 23
+    assert stacks["oil_flask"] == 7
+    assert stacks["gold_piece"] == 1288
+    assert stacks["copper_piece"] == 10
+    assert not any("sacred_weapon" in w for w in importer.warnings)
+
+
+def test_item_aliases_for_ddb_crossbow_and_gear_names():
+    import beyond_importer as bi
+
+    known = bi._load_known_items()
+    assert bi._resolve_item_slug("Crossbow, Light", known) == "light_crossbow"
+    assert bi._resolve_item_slug("Crossbow, Heavy", known) == "heavy_crossbow"
+    assert bi._resolve_item_slug("Robe", known) == "robes"
+    for name, slug in [
+        ("Flask", "flask"), ("Shovel", "shovel"), ("Amber", "amber"),
+        ("Pearl", "pearl"), ("Alchemist's Fire", "alchemists_fire"),
+        ("Alchemist's Supplies", "alchemists_supplies"),
+        ("Tinker's Tools", "tinkers_tools"), ("Smith's Tools", "smiths_tools"),
+        ("Calligrapher's Supplies", "calligraphers_supplies"),
+    ]:
+        assert bi._resolve_item_slug(name, known) == slug
+
+
+def test_mithral_armor_names_map_to_mithral_variants():
+    import beyond_importer as bi
+
+    known = bi._load_known_items()
+    assert bi._resolve_item_slug("Mithral Breastplate", known) == "mithral_breastplate"
+    assert bi._resolve_item_slug("Mithral Plate Armor", known) == "mithral_plate"
+    assert bi._resolve_item_slug("Mithral Half Plate Armor", known) == "mithral_half_plate"
+    assert bi._resolve_item_slug("Mithral Armor (Chain Mail)", known) == "mithral_chain_mail"
+    assert bi._resolve_item_slug("Mithral Splint Armor", known) == "mithral_splint"
+
+
+def test_mithral_template_drops_stealth_disadvantage():
+    from natural20.event_manager import EventManager
+    from natural20.session import Session
+
+    session = Session(root_path="tests/fixtures", event_manager=EventManager())
+    plate = session.load_equipment("mithral_plate")
+    assert plate["ac"] == 18 and plate["subtype"] == "heavy"
+    assert plate["stealth_disadvantage"] is False
+    assert plate["magical"] is True
+    shirt = session.load_equipment("mithral_chain_shirt")
+    assert shirt["ac"] == 13 and shirt["subtype"] == "medium"
+
+
+def test_bracketed_count_prefix_is_stripped_from_item_slug(importer):
+    assert _item_slug_from_name("[5] Elixir of Flight") == "elixir_of_flight"
+    assert _item_slug_from_name("[12]Potion of Healing") == "healing_potion"
+    payload = {"inventory": [_inv("[5] Elixir of Flight", qty=0),
+                             _inv("[2] Potion of Healing", qty=2)]}
+    _, inventory = importer._extract_inventory(payload)
+    stacks = {entry["type"]: entry["qty"] for entry in inventory}
+    assert stacks == {"healing_potion": 2}
+
+
+def test_platinum_and_electrum_currency_imported(importer):
+    payload = {"inventory": [],
+               "currencies": {"cp": 0, "sp": 1, "gp": 0, "ep": 3, "pp": 124}}
+    _, inventory = importer._extract_inventory(payload)
+    stacks = {entry["type"]: entry["qty"] for entry in inventory}
+    assert stacks == {"silver_piece": 1, "electrum_piece": 3, "platinum_piece": 124}
+    assert not any("currency not imported" in w for w in importer.warnings)
+
+
+def test_equipped_mithral_armor_and_crossbow_stay_equipped(importer):
+    payload = {"inventory": [
+        _inv("Mithral Breastplate", equipped=True, armor_type=2, magic=True, ac=14),
+        _inv("Studded Leather", armor_type=1, ac=12),
+        _inv("Shield", equipped=True, armor_type=4),
+        _inv("Crossbow, Light", equipped=True),
+    ]}
+    equipped, _ = importer._extract_inventory(payload)
+    assert equipped[0] == "mithral_breastplate"
+    assert "light_crossbow" in equipped
+    assert "shield" in equipped
+
+
+def test_weapon_masteries_from_feat_options(importer):
+    payload = {"options": {"feat": [
+        {"definition": {"name": "Warhammer (Push)"}},
+        {"definition": {"name": "Lance (Topple)"}},
+        {"definition": {"name": "Hill's Tumble (Hill Giant)"}},
+    ]}}
+    assert importer._extract_weapon_masteries(payload) == ["push", "topple"]
+
+
+def test_campaign_root_makes_campaign_items_known(tmp_path):
+    import beyond_importer as bi
+
+    items_dir = tmp_path / "items"
+    items_dir.mkdir()
+    (items_dir / "magic_items.yml").write_text(
+        "relic_lance:\n  name: Relic Lance\n  type: melee_attack\n  subtype: weapon\n"
+    )
+    (tmp_path / "game.yml").write_text("name: t\n")
+    known = bi._load_known_items(str(tmp_path))
+    assert "relic_lance" in known
+    assert "longsword" in known
+    assert bi._resolve_item_slug("Relic Lance (Lance)", known) == "relic_lance"
+
+
+def test_2024_ancestry_read_from_race_options(importer):
+    data = {"race": {"fullName": "Goliath", "baseName": "Goliath"},
+            "options": {"race": [{"definition": {"name": "Increase two scores (+2 / +1)"}},
+                                 {"definition": {"name": "Hill's Tumble (Hill Giant)"}}]}}
+    assert importer._extract_race(data) == ("goliath", "hill_giant")
+
+
+def test_condition_immunities_skip_restricted(importer):
+    mods = [
+        {"type": "immunity", "subType": "frightened"},
+        {"type": "immunity", "subType": "charmed", "restriction": "while within 10 ft"},
+        {"type": "immunity", "subType": "poison"},
+    ]
+    assert importer._extract_condition_immunities(mods) == ["frightened"]
+
+
+def test_edition_overrides_for_2024_paladin_in_2014_campaign(tmp_path):
+    (tmp_path / "game.yml").write_text("name: t\nruleset: 5e-2014\n")
+    imp = BeyondImporter(campaign_root=str(tmp_path))
+    src_2024 = [{"sourceId": 145}]
+    data = {
+        "feats": [{"definition": {"name": "Great Weapon Master", "sources": src_2024}},
+                  {"definition": {"name": "Alert", "sources": src_2024}}],
+        "classes": [{"level": 11, "definition": {"name": "Paladin", "sources": src_2024},
+                     "classFeatures": [
+                         {"definition": {"name": "Abjure Foes", "requiredLevel": 9}},
+                         {"definition": {"name": "Radiant Strikes", "requiredLevel": 11}},
+                         {"definition": {"name": "Aura of Courage", "requiredLevel": 10}},
+                         {"definition": {"name": "Restoring Touch", "requiredLevel": 14}},
+                     ]}],
+    }
+    out = imp._edition_overrides(data, {"paladin": 11})
+    assert out["feat_editions"] == {"great_weapon_master": "5e-2024"}
+    assert {"abjure_foes", "radiant_strikes"} <= set(out["class_features"])
+    assert out["channel_divinity_uses"] == 3
+
+
+def test_edition_overrides_noop_on_2024_campaign(tmp_path):
+    (tmp_path / "game.yml").write_text("name: t\nruleset: 5e-2024\n")
+    imp = BeyondImporter(campaign_root=str(tmp_path))
+    data = {"classes": [{"level": 11, "definition": {"name": "Paladin", "sources": [{"sourceId": 145}]}}]}
+    assert imp._edition_overrides(data, {"paladin": 11}) == {}
+
+
+def _artificer_campaign(tmp_path, ruleset="5e-2014"):
+    (tmp_path / "game.yml").write_text(f"name: t\nruleset: {ruleset}\n")
+    (tmp_path / "index.json").write_text(json.dumps({
+        "tile_size": 70, "title": "t", "logins": [], "default_controllers": [],
+        "expansion_packs": {"tashas_cauldron": "tashas_cauldron"},
+    }))
+    return BeyondImporter(campaign_root=str(tmp_path))
+
+
+def test_2024_gnome_gets_race_edition_and_lineage(tmp_path):
+    imp = _artificer_campaign(tmp_path)
+    data = {"race": {"fullName": "Gnome", "baseName": "Gnome", "sources": [{"sourceId": 145}]},
+            "options": {"race": [{"definition": {"name": "Rock Gnome"}}]}}
+    assert imp._extract_race(data) == ("gnome", "rock_gnome")
+    assert imp._race_edition(data["race"], "gnome") == "5e-2024"
+
+
+def test_2024_gnome_has_no_race_edition_in_2024_campaign(tmp_path):
+    imp = _artificer_campaign(tmp_path, ruleset="5e-2024")
+    assert imp._race_edition({"sources": [{"sourceId": 145}]}, "gnome") is None
+
+
+def test_spell_abilities_from_race_and_feat_spells(tmp_path):
+    imp = _artificer_campaign(tmp_path)
+    data = {"spells": {
+        "class": [{"definition": {"name": "Fire Bolt"}, "spellCastingAbilityId": 4}],
+        "race": [{"definition": {"name": "Prestidigitation"}, "spellCastingAbilityId": 4}],
+        "feat": [{"definition": {"name": "Shield"}, "spellCastingAbilityId": 4}],
+    }}
+    out = imp._extract_spell_abilities(data)
+    assert out == {"prestidigitation": "intelligence", "shield": "intelligence"}
+
+
+def test_data_driven_artificer_slots_round_half_up(tmp_path):
+    imp = _artificer_campaign(tmp_path)
+    assert imp._class_yaml("artificer").get("subclass_property") == "artificer_specialist"
+    assert imp._compute_spell_slots({"artificer": 11}, {}) == {"artificer": {1: 4, 2: 3, 3: 3}}
+
+
+def test_dancing_sword_ioun_stone_and_gear_names_resolve():
+    import beyond_importer as bi
+
+    known = bi._load_known_items()
+    for name, slug in [
+        ("Dancing Scimitar", "dancing_scimitar"), ("Dancing Longsword", "dancing_longsword"),
+        ("Dancing Rapier", "dancing_rapier"), ("Ioun Stone of Insight", "ioun_stone_of_insight"),
+        ("Ioun Stone of Mastery", "ioun_stone_of_mastery"), ("Dragonchess Set", "dragonchess_set"),
+        ("Three-Dragon Ante Set", "three_dragon_ante_set"), ("Playing Card Set", "playing_card_set"),
+        ("Dice Set", "dice_set"), ("Sprig of Mistletoe", "sprig_of_mistletoe"),
+        ("Yew Wand", "yew_wand"), ("Wooden Staff", "wooden_staff"), ("Totem", "totem"),
+    ]:
+        assert bi._resolve_item_slug(name, known) == slug
+
+
+def test_attuned_items_are_recorded(importer):
+    payload = {"inventory": [
+        {"definition": {"name": "Ioun Stone of Insight", "canAttune": True, "id": 9228794},
+         "equipped": True, "isAttuned": True, "quantity": 1},
+        {"definition": {"name": "Dancing Scimitar", "canAttune": True, "id": 4867},
+         "equipped": True, "isAttuned": False, "quantity": 1},
+    ]}
+    equipped, _ = importer._extract_inventory(payload)
+    assert equipped == ["ioun_stone_of_insight", "dancing_scimitar"]
+    assert importer.attuned_items == ["ioun_stone_of_insight"]
+
+
+def test_engine_applied_item_ability_bonus_is_not_double_counted(importer):
+    data = {
+        "stats": [{"id": i, "value": v} for i, v in enumerate([13, 15, 12, 8, 15, 8], start=1)],
+        "bonusStats": [], "overrideStats": [],
+        "inventory": [
+            {"definition": {"name": "Ioun Stone of Insight", "canAttune": True, "id": 9228794},
+             "equipped": True, "isAttuned": True, "quantity": 1},
+            {"definition": {"name": "Mysterious Charm", "id": 77},
+             "equipped": True, "quantity": 1},
+        ],
+        "modifiers": {
+            "item": [
+                {"type": "bonus", "subType": "wisdom-score", "value": 2, "componentId": 9228794},
+                {"type": "bonus", "subType": "charisma-score", "value": 1, "componentId": 77},
+            ],
+            "feat": [{"type": "bonus", "subType": "wisdom-score", "value": 2, "componentId": 1}],
+        },
+    }
+    modifiers = importer._iter_modifiers(data)
+    sheet = importer._extract_ability_scores(data, modifiers)
+    base = importer._extract_ability_scores(
+        data, modifiers, skip_item_ids=importer._engine_ability_item_ids(data))
+    assert sheet["wis"] == 19
+    assert base["wis"] == 17
+    assert base["cha"] == 9

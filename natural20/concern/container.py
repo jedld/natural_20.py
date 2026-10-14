@@ -61,6 +61,8 @@ class Container:
                         continue
                     if self._place_creature_on_ground(dst, removed_item, battle, src):
                         print(f"placed creature {item} onto the ground")
+                    elif self._place_object_on_ground(dst, item, removed_item, src):
+                        print(f"placed object {item} onto the ground")
                     else:
                         dst.add_item(item, qty, source_item=removed_item)
                     print(f"triggering {item} -> {dst.label()} {qty} times")
@@ -148,6 +150,45 @@ class Container:
                 src.add_item(removed_item.get('type'), removed_item.get('qty', 1), source_item=removed_item)
             return True
         return True
+
+    def _ground_map_and_origin(self, dst, src):
+        session = getattr(dst, 'session', None) or getattr(src, 'session', None)
+        map_obj = getattr(dst, 'map', None)
+        if map_obj is None and session is not None:
+            map_obj = session.map_for(dst) or session.map_for(src)
+        origin = None
+        if map_obj is not None:
+            for anchor in (dst, src):
+                try:
+                    origin = map_obj.position_of(anchor)
+                except Exception:
+                    origin = None
+                if origin is not None:
+                    break
+        return session, map_obj, origin
+
+    def _place_object_on_ground(self, dst, item_name, removed_item, src):
+        """Set down items with ``placeable_object`` (e.g. a chest) as a map object."""
+        from natural20.utils.portable_object import placeable_object_type, place_object_from_item
+
+        if type(dst).__name__ != 'Ground':
+            return False
+        session = getattr(dst, 'session', None) or getattr(src, 'session', None)
+        if not placeable_object_type(session, item_name):
+            return False
+        qty = int((removed_item or {}).get('qty', 1) or 1)
+        session, map_obj, origin = self._ground_map_and_origin(dst, src)
+        placed_any = False
+        for index in range(qty):
+            entry = removed_item if index == 0 else {'type': item_name, 'qty': 1}
+            obj, reason = place_object_from_item(session, item_name, entry, map_obj, origin, source=src)
+            if obj is None:
+                self._transfer_reject(src, dst, reason or 'Could not set that down')
+                if hasattr(src, 'add_item'):
+                    src.add_item(item_name, qty - index, source_item=entry)
+                return True
+            placed_any = True
+        return placed_any
 
     def _transfer_reject(self, src, dst, reason):
         session = getattr(src, 'session', None) or getattr(dst, 'session', None)

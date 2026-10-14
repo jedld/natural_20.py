@@ -662,6 +662,12 @@ class LlmMcpController(GenericController):
 		``pass (end turn)`` ends the turn by returning ``None``; any failure
 		falls back to the generic heuristic action logic.
 		"""
+		from natural20.utils.escape_plan import escape_action, escape_pending
+		if escape_pending(entity):
+			return None
+		escape = escape_action(battle, entity)
+		if escape is not None:
+			return escape
 		self._ensure_provider(entity)
 		release = self.grapple_release_action(entity, battle)
 		if release is not None:
@@ -1552,6 +1558,15 @@ class LlmMcpController(GenericController):
 			return None
 		if getattr(entity, 'dead', lambda: False)() or getattr(entity, 'unconscious', lambda: False)():
 			return None
+		# Incapacitated creatures (banished, stunned, paralyzed, ...) can't take
+		# actions either; return None so the turn ends.
+		if getattr(entity, 'incapacitated', lambda: False)():
+			return None
+
+		from natural20.utils.escape_plan import escape_action
+		escape = escape_action(battle, entity)
+		if escape is not None:
+			return escape
 
 		available_actions = [action for action in (available_actions or []) if action is not None and not getattr(action, 'disabled', False) and not is_unbuilt_spell(action)]
 		if not available_actions:
