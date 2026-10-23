@@ -192,7 +192,13 @@ class Ground(Object, Lootable):
 
     def available_interactions(self, entity, battle=None, admin=False):
         interactions = {}
-        if self.map.position_of(entity) == self.map.position_of(self):
+        try:
+            # The object (or viewer) may not be placed on this map — e.g. the
+            # action bar renders for inventory items or unplaced previews.
+            same_square = self.map.position_of(entity) == self.map.position_of(self)
+        except (KeyError, ValueError):
+            same_square = False
+        if same_square:
             if (hasattr(entity, 'inventory') and len(entity.inventory) > 0) or (hasattr(self, 'inventory') and len(self.inventory) > 0):
                 interactions['pickup_drop'] = {}
         return interactions

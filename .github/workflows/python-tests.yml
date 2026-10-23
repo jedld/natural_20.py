@@ -38,7 +38,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run engine tests
-        run: pytest tests -q --ignore=tests/webapp --dist=worksteal -n 1
+        run: pytest tests -q --ignore=tests/webapp --dist=worksteal -n auto
         env:
           PYTEST_TIMEOUT: 60
           TEMPLATE_DIR: ${{ github.workspace }}/templates
