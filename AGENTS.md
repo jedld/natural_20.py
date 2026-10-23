@@ -96,6 +96,7 @@ Developer workflows and commands (verified in repo README):
 - Tests:
   - Python: `pytest` (supports `-n auto` for parallel runs)
   - JS unit tests for `webapp/static/engine.js`: `npm install` then `npx jest` (Node 18+ recommended). See README section "JavaScript tests".
+  - GitHub Actions CI (deploy keys for private submodules, engine job sizing/timeouts, webapp env determinism): see `docs/GITHUB_CI.md`.
 - Web asset optimization: `npm run build:assets` (minify JS/CSS → `*.min.js` / `*.min.css` + `manifest.assets.json`); `npm run optimize:images` (tiered raster passes: general 1024px, UI icons 256px, large assets 512px, campaign `user_levels/` 2048px); `npm run optimize:assets` (both). Templates use `asset_url('engine.js')`; production serves minified bundles when `FLASK_ENV=production` or `N20_USE_MINIFIED_ASSETS=1`.
 
 ### Campaign image-gen prompts (do not put campaign flavor in `natural20/`)
