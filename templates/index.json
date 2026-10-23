@@ -63,8 +63,8 @@
       "name": "ddb-999001",
       "file": "characters/ddb-999001.png",
       "description": "ddb-999001",
-      "sheet": "characters/DDB_Import_f3829deb.yml",
-      "display_name": "DDB Import f3829deb",
+      "sheet": "characters/DDB_Import_a1fb1522.yml",
+      "display_name": "DDB Import a1fb1522",
       "overrides": {
         "entity_uid": "ddb-999001"
       }
@@ -1687,6 +1687,46 @@
       "sheet": "characters/Cleric_L5_2919e66d.yml",
       "overrides": {
         "entity_uid": "cleric_l5_2919e66d"
+      }
+    },
+    {
+      "name": "wizard_l5_242cf96c",
+      "display_name": "Wizard L5 242cf96c",
+      "file": "characters/wizard_l5_242cf96c.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_242cf96c.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_242cf96c"
+      }
+    },
+    {
+      "name": "cleric_l5_8d3249e8",
+      "display_name": "Cleric L5 8d3249e8",
+      "file": "characters/cleric_l5_8d3249e8.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_8d3249e8.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_8d3249e8"
+      }
+    },
+    {
+      "name": "wizard_l5_5b177800",
+      "display_name": "Wizard L5 5b177800",
+      "file": "characters/wizard_l5_5b177800.png",
+      "description": "A newly forged human wizard.",
+      "sheet": "characters/Wizard_L5_5b177800.yml",
+      "overrides": {
+        "entity_uid": "wizard_l5_5b177800"
+      }
+    },
+    {
+      "name": "cleric_l5_8c31a294",
+      "display_name": "Cleric L5 8c31a294",
+      "file": "characters/cleric_l5_8c31a294.png",
+      "description": "A newly forged human cleric.",
+      "sheet": "characters/Cleric_L5_8c31a294.yml",
+      "overrides": {
+        "entity_uid": "cleric_l5_8c31a294"
       }
     }
   ],
