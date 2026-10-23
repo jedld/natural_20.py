@@ -29,7 +29,8 @@ class ThunderStepSpell(DamageScalingMixin, SaveForHalfMixin, MistyStepSpell):
         targets = []
         for x, y in battle_map.squares_in_radius((int(origin[0]), int(origin[1])), radius, require_los=False):
             for creature in battle_map.entities_at(x, y):
-                if creature is not entity and creature not in targets and hasattr(creature, 'take_damage'):
+                if (creature is not entity and creature not in targets
+                        and not creature.object() and hasattr(creature, 'take_damage')):
                     targets.append(creature)
         base_level = int(self.properties.get('level', 3))
         at_level = getattr(spell_action, 'at_level', None) or base_level

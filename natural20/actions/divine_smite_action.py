@@ -95,7 +95,7 @@ class DivineSmiteAction(Action):
             'damage_type': self.spell_details.get('damage_type', 'radiant'),
             'damage_roll': damage_roll,
             'damage': damage_roll,
-            'attack_roll': self.attack_result.get('attack_roll') if self.attack_result else None,
+            'critical': is_crit,
             'spell': self.spell_details,
             'cast_level': self.slot_level,
             'trigger': 'divine_smite'

@@ -64,13 +64,20 @@ def attack_ward_items(action, battle, target):
     if item is None:
         return False, []
     if blocked:
+        try:
+            attack_name = action.get_weapon_info({})[1]
+        except Exception:
+            attack_name = getattr(action, 'using', None)
         item.update({
             'consume_attack': True,
             'battle': battle,
             'weapon': action.using,
+            'attack_name': attack_name,
             'npc_action': action.npc_action,
             'thrown': False,
             'ammo': None,
+            'multiattack_clear': bool(action.npc_action and action.npc_action.get('multiattack_clear_on_miss')),
+            'multiattack_hits': False,
             'as_reaction': bool(action.as_reaction),
             'as_bonus_action': bool(getattr(action, 'as_bonus_action', False)),
             'as_legendary_action': bool(getattr(action, 'legendary_action', False)),

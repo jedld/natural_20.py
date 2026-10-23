@@ -65,6 +65,12 @@ from natural20.player_character import PlayerCharacter
 from natural20.generic_controller import GenericController
 from natural20.llm_controller import LlmMcpController
 from natural20.actions.move_action import MoveAction
+from natural20.actions.attack_action import AttackAction
+from natural20.actions.spell_action import SpellAction
+from natural20.actions.dodge_action import DodgeAction
+from natural20.actions.dash import DashAction
+from natural20.actions.disengage_action import DisengageAction
+from natural20.actions.end_turn_action import EndTurnAction
 from webapp.llm_handler import JevProvider, LlamaCppProvider
 
 # LLM comparison arm: any OpenAI-compatible server. LlamaCppProvider
@@ -93,8 +99,8 @@ class RandomController(Controller):
 class CountingJevProvider(JevProvider):
     """JevProvider that counts API calls, failures, and latency."""
 
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, request_logger=None):
+        super().__init__(config, request_logger=request_logger)
         self.decide_calls = 0
         self.bool_calls = 0
         self.failures = 0
@@ -160,6 +166,20 @@ def logger_fail(msg):
     logging.getLogger('jev_battle_sim').warning(msg)
 
 
+def make_jev_request_logger(path, metadata):
+    """Append one JSON line per JEV request/response, tagged with sim metadata."""
+    os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+
+    def _log(record):
+        out = dict(record)
+        if metadata:
+            out['sim'] = metadata
+        with open(path, 'a', encoding='utf-8') as handle:
+            handle.write(json.dumps(out, default=str) + '\n')
+
+    return _log
+
+
 # --- randomized roster pools -------------------------------------------------
 # PC fixtures with sane stats (the 67-HP level-1/2 rogue fixtures are
 # copy-paste artifacts and are excluded).
@@ -209,6 +229,294 @@ def hp_line(entity):
     return f"{entity.hp()}/{entity.max_hp()}"
 
 
+def _roll_value(roll):
+    if roll is None:
+        return 0
+    try:
+        value = roll.result()
+    except Exception:
+        return 0
+    try:
+        return int(value)
+    except Exception:
+        return 0
+
+
+def _entity_name(entity):
+    return getattr(entity, 'name', None) or str(entity)
+
+
+def _action_category(action):
+    try:
+        if isinstance(action, EndTurnAction):
+            return 'pass'
+        if isinstance(action, DodgeAction):
+            return 'dodge'
+        if isinstance(action, DashAction):
+            return 'dash'
+        if isinstance(action, DisengageAction):
+            return 'disengage'
+        if isinstance(action, AttackAction):
+            return 'attack'
+        if isinstance(action, SpellAction):
+            return 'spell'
+        if isinstance(action, MoveAction):
+            return 'move'
+    except Exception:
+        pass
+    at = str(getattr(action, 'action_type', '') or '')
+    if at in ('move', 'reposition', 'step_of_the_wind', 'misty_step',
+              'post_attack_teleport', 'clouds_jaunt', 'large_form',
+              'wild_shape', 'revert_wild_shape'):
+        return 'move'
+    if at in ('dash', 'dash_bonus'):
+        return 'dash'
+    if at in ('disengage', 'disengage_bonus'):
+        return 'disengage'
+    if at in ('dodge', 'patient_defense', 'shell_defense'):
+        return 'dodge'
+    if at == 'hide':
+        return 'hide'
+    if at in ('stand', 'prone'):
+        return 'stance'
+    if at in ('help',):
+        return 'help'
+    if at in ('interact', 'pickup', 'loot', 'pickpocket', 'break_free',
+              'escape_grapple', 'drop_grapple', 'ground_interact'):
+        return 'interact'
+    if at in ('use_item',):
+        return 'item'
+    if at in ('speak', 'taunt', 'callout', 'message'):
+        return 'comm'
+    if at in ('second_wind', 'lay_on_hands', 'first_aid',
+              'bardic_inspiration', 'aura_of_vitality_heal',
+              'aura_of_vitality_pulse'):
+        return 'support'
+    if at in ('grapple', 'push', 'shove', 'disarm'):
+        return 'control'
+    if at in ('end_turn', 'pass', 'acted'):
+        return 'pass'
+    if at in ('attack', 'two_weapon_attack', 'granted_attack', 'hew',
+              'wild_shape_attack', 'npc_area_ability'):
+        return 'attack'
+    if at in ('spell', 'cast', 'weapon_hit_spell'):
+        return 'spell'
+    if at in ('action_surge', 'attack_surge', 'class_feature_action',
+              'rage', 'feline_agility', 'shell_defense_enter',
+              'shell_defense_exit', 'ready', 'summon_creatures',
+              'dismiss_summons', 'flaming_sphere', 'call_lightning_bolt',
+              'witch_bolt_sustain', 'sacred_weapon', 'find_familiar',
+              'resummon_familiar'):
+        return 'feature'
+    return 'other'
+
+
+class CoordinationTracker:
+    def __init__(self, battle, m, teams):
+        self.battle = battle
+        self.m = m
+        self.side_of = {id(e): side for side, ents in teams.items() for e in ents}
+        self.members = {side: list(ents) for side, ents in teams.items()}
+        self.stats = {side: self._blank_stats() for side in teams}
+        self.round_targets = {side: {} for side in teams}
+        self.turns = 0
+
+    def _blank_stats(self):
+        return {
+            'actions': {},
+            'actions_total': 0,
+            'attacks': 0,
+            'attack_hits': 0,
+            'attack_misses': 0,
+            'spells': 0,
+            'spell_hits': 0,
+            'spell_misses': 0,
+            'damage_dealt': 0,
+            'damage_taken': 0,
+            'damage_by_target': {},
+            'attackers_by_target': {},
+            'healing_done': 0,
+            'ally_healing': 0,
+            'self_healing': 0,
+            'support_actions': 0,
+            'help_actions': 0,
+            'turns': 0,
+            'cluster_samples': [],
+            'enemy_distance_samples': [],
+            'final_alive': 0,
+            'final_hp': 0,
+            'final_max_hp': 0,
+        }
+
+    def _side(self, entity):
+        return self.side_of.get(id(entity))
+
+    def _alive_members(self, side):
+        return [e for e in self.members[side]
+                if not e.dead() and e.conscious() and self.m.position_of(e) is not None]
+
+    def record_action(self, actor, action):
+        side = self._side(actor)
+        if side is None:
+            return
+        stats = self.stats[side]
+        cat = _action_category(action)
+        stats['actions'][cat] = stats['actions'].get(cat, 0) + 1
+        stats['actions_total'] += 1
+        if cat == 'attack':
+            stats['attacks'] += 1
+        elif cat == 'spell':
+            stats['spells'] += 1
+        elif cat in ('help', 'support'):
+            stats['support_actions'] += 1
+        if cat == 'help':
+            stats['help_actions'] += 1
+        for item in (getattr(action, 'result', None) or []):
+            if not isinstance(item, dict):
+                continue
+            itype = item.get('type')
+            target = item.get('target')
+            tside = self._side(target)
+            if itype in ('damage', 'spell_damage'):
+                amount = _roll_value(item.get('damage') or item.get('damage_roll'))
+                if cat == 'attack':
+                    stats['attack_hits'] += 1
+                elif cat == 'spell':
+                    stats['spell_hits'] += 1
+                if amount <= 0:
+                    continue
+                stats['damage_dealt'] += amount
+                if tside and tside != side:
+                    tname = _entity_name(target)
+                    stats['damage_by_target'][tname] = (
+                        stats['damage_by_target'].get(tname, 0) + amount)
+                    stats['attackers_by_target'].setdefault(tname, set()).add(_entity_name(actor))
+                    rnd = int(getattr(self.battle, 'round', 0) or 0)
+                    self.round_targets[side].setdefault(rnd, {}).setdefault(tname, 0)
+                    self.round_targets[side][rnd][tname] += amount
+                if tside:
+                    self.stats[tside]['damage_taken'] += amount
+            elif itype in ('miss', 'spell_miss', 'blind_miss'):
+                if cat == 'attack':
+                    stats['attack_misses'] += 1
+                elif cat == 'spell':
+                    stats['spell_misses'] += 1
+            elif itype in ('spell_heal', 'second_wind', 'lay_on_hands',
+                           'first_aid', 'heal'):
+                amount = _roll_value(item.get('heal_roll') or item.get('hp_gain_roll')
+                                     or item.get('value') or item.get('damage'))
+                if amount <= 0:
+                    continue
+                stats['healing_done'] += amount
+                if tside == side:
+                    stats['ally_healing'] += amount
+                    if target is actor:
+                        stats['self_healing'] += amount
+            elif itype == 'use_item' and item.get('hp_gain_roll') is not None:
+                amount = _roll_value(item.get('hp_gain_roll'))
+                if amount <= 0:
+                    continue
+                stats['healing_done'] += amount
+                if tside == side:
+                    stats['ally_healing'] += amount
+                    if target is actor:
+                        stats['self_healing'] += amount
+            elif itype in ('help', 'bardic_inspiration', 'first_aid'):
+                stats['support_actions'] += 1
+
+    def record_turn_end(self, actor):
+        side = self._side(actor)
+        if side is None:
+            return
+        stats = self.stats[side]
+        stats['turns'] += 1
+        self.turns += 1
+        members = self._alive_members(side)
+        if len(members) >= 2:
+            total = 0
+            pairs = 0
+            for i in range(len(members)):
+                for j in range(i + 1, len(members)):
+                    try:
+                        total += int(self.m.distance(members[i], members[j]))
+                        pairs += 1
+                    except Exception:
+                        pass
+            if pairs:
+                stats['cluster_samples'].append(total / pairs)
+        if members:
+            enemy_side = 'b' if side == 'a' else 'a'
+            enemies = self._alive_members(enemy_side)
+            if enemies:
+                dists = []
+                for member in members:
+                    nearest = []
+                    for enemy in enemies:
+                        try:
+                            nearest.append(int(self.m.distance(member, enemy)))
+                        except Exception:
+                            pass
+                    if nearest:
+                        dists.append(min(nearest))
+                if dists:
+                    stats['enemy_distance_samples'].append(sum(dists) / len(dists))
+
+    def finish(self):
+        for side, members in self.members.items():
+            stats = self.stats[side]
+            stats['final_alive'] = sum(1 for e in members if not e.dead())
+            stats['final_hp'] = sum(max(0, e.hp()) for e in members if not e.dead())
+            stats['final_max_hp'] = sum(e.max_hp() for e in members if not e.dead())
+            targets = stats['damage_by_target']
+            total_damage = sum(targets.values())
+            top_target, top_damage = None, 0
+            for name, dmg in targets.items():
+                if dmg > top_damage:
+                    top_target, top_damage = name, dmg
+            shares = []
+            crossfire_rounds = 0
+            damage_rounds = 0
+            previous_top = None
+            target_switches = 0
+            for rnd in sorted(self.round_targets.get(side, {})):
+                round_map = self.round_targets[side][rnd]
+                round_total = sum(round_map.values())
+                if round_total <= 0:
+                    continue
+                damage_rounds += 1
+                best_name, best_damage = None, 0
+                for name, dmg in round_map.items():
+                    if dmg > best_damage:
+                        best_name, best_damage = name, dmg
+                shares.append(best_damage / round_total)
+                attackers = stats['attackers_by_target'].get(best_name, set())
+                if len(attackers) >= 2 and best_damage / round_total >= 0.5:
+                    crossfire_rounds += 1
+                if previous_top is not None and best_name != previous_top:
+                    target_switches += 1
+                previous_top = best_name
+            stats['focus_top_target'] = top_target
+            stats['focus_top_damage'] = top_damage
+            stats['focus_top_share'] = round(top_damage / total_damage, 3) if total_damage else 0
+            stats['focus_rounds'] = damage_rounds
+            stats['focus_avg_round_share'] = round(sum(shares) / len(shares), 3) if shares else 0
+            stats['focus_crossfire_rounds'] = crossfire_rounds
+            stats['focus_target_switches'] = target_switches
+            stats['focus_unique_targets'] = len(targets)
+            stats['cluster_avg'] = round(sum(stats['cluster_samples']) / len(stats['cluster_samples']), 2) if stats['cluster_samples'] else 0
+            stats['enemy_distance_avg'] = round(sum(stats['enemy_distance_samples']) / len(stats['enemy_distance_samples']), 2) if stats['enemy_distance_samples'] else 0
+            rounds = max(1, int(getattr(self.battle, 'round', 0) or 0))
+            stats['damage_per_round'] = round(stats['damage_dealt'] / rounds, 2)
+            stats['damage_per_action'] = round(stats['damage_dealt'] / stats['actions_total'], 2) if stats['actions_total'] else 0
+            stats['attack_accuracy'] = round(stats['attack_hits'] / max(1, stats['attack_hits'] + stats['attack_misses']), 3)
+            stats['spell_accuracy'] = round(stats['spell_hits'] / max(1, stats['spell_hits'] + stats['spell_misses']), 3)
+            for key in ('attackers_by_target',):
+                stats[key] = {k: sorted(v) for k, v in stats[key].items()}
+            for key in ('cluster_samples', 'enemy_distance_samples'):
+                stats.pop(key, None)
+        return self.stats
+
+
 def describe_action(log, actor, action):
     atype = action.action_type
     target = getattr(action, 'target', None)
@@ -232,7 +540,7 @@ def describe_action(log, actor, action):
     log(f"    {actor.name}: {atype} {tname}{pos}{extra}".rstrip())
 
 
-def take_actions(battle, entity, log):
+def take_actions(battle, entity, log, tracker=None):
     """Run the entity's turn: repeat move_for -> action -> commit until it
     has no (more) actions, mirroring the webapp ``ai_loop`` (bounded)."""
     cycles = 0
@@ -250,6 +558,11 @@ def take_actions(battle, entity, log):
         battle.action(action)
         battle.commit(action)
         describe_action(log, entity, action)
+        if tracker is not None:
+            try:
+                tracker.record_action(entity, action)
+            except Exception:
+                pass
         if entity.unconscious() or entity.dead():
             break
 
@@ -370,7 +683,7 @@ def llm_action_menu(battle, ctrl, entity):
     return specials + moves
 
 
-def take_actions_llm(battle, ctrl, entity, log):
+def take_actions_llm(battle, ctrl, entity, log, tracker=None):
     """
     LLM comparison arm: drive the chat model's decision path directly via
     ``controller.select_action(...)`` each cycle (the same flat-index
@@ -399,11 +712,16 @@ def take_actions_llm(battle, ctrl, entity, log):
         battle.action(action)
         battle.commit(action)
         describe_action(log, entity, action)
+        if tracker is not None:
+            try:
+                tracker.record_action(entity, action)
+            except Exception:
+                pass
         if entity.unconscious() or entity.dead():
             break
 
 
-def run_battle(battle, log, max_rounds, llm_entities=()):
+def run_battle(battle, log, max_rounds, llm_entities=(), tracker=None):
     while True:
         battle.start_turn()
         current = battle.current_turn()
@@ -416,11 +734,16 @@ def run_battle(battle, log, max_rounds, llm_entities=()):
         if current.conscious() and not current.incapacitated():
             current.reset_turn(battle)
             if current in llm_entities and ctrl is not None:
-                take_actions_llm(battle, ctrl, current, log)
+                take_actions_llm(battle, ctrl, current, log, tracker=tracker)
             else:
-                take_actions(battle, current, log)
+                take_actions(battle, current, log, tracker=tracker)
         elif current.incapacitated() and not current.dead():
             log(f"    - {current.name} is incapacitated, turn skipped")
+        if tracker is not None:
+            try:
+                tracker.record_turn_end(current)
+            except Exception:
+                pass
         current.resolve_trigger('end_of_turn')
         result = battle.next_turn(max_rounds=max_rounds)
         if result == 'tpk':
@@ -485,7 +808,8 @@ def make_controller(session, arm, providers):
 
 
 def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
-              goblin_hp=40, llm_url=LLM_BASE_URL, llm_model=LLM_MODEL):
+              goblin_hp=40, llm_url=LLM_BASE_URL, llm_model=LLM_MODEL,
+              jev_log_path=None):
     """Build one fresh battle for a scenario.
 
     Returns (session, map, battle, team_a, team_b, providers, roster_info)
@@ -501,7 +825,14 @@ def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
     roster_rng = random.Random(f"roster-{scenario}-{seed}")
     providers = {}
     if side_a_ai == 'jev' or side_b_ai == 'jev':
-        provider = CountingJevProvider({})
+        request_logger = None
+        if jev_log_path:
+            request_logger = make_jev_request_logger(
+                jev_log_path,
+                {'scenario': scenario, 'seed': seed,
+                 'side_a_ai': side_a_ai, 'side_b_ai': side_b_ai},
+            )
+        provider = CountingJevProvider({}, request_logger=request_logger)
         if not provider.initialize({}) or not provider.is_available:
             raise RuntimeError("JEV provider failed to initialize (TYPESAFE_API_KEY?)")
         providers['jev'] = provider
@@ -542,10 +873,17 @@ def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
 
 def play_game(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
               max_rounds=10, verbose=True, goblin_hp=40, log_dir=None,
-              llm_url=LLM_BASE_URL, llm_model=LLM_MODEL):
+              llm_url=LLM_BASE_URL, llm_model=LLM_MODEL, jev_log_dir=None):
+    jev_log_path = None
+    if jev_log_dir and ('jev' in (side_a_ai, side_b_ai)):
+        jev_log_path = os.path.join(
+            jev_log_dir,
+            f"{scenario}_{seed}_{side_a_ai}_vs_{side_b_ai}.jev.jsonl",
+        )
     session, m, battle, team_a, team_b, providers, roster_info = build_run(
         scenario, side_a_ai, side_b_ai, seed, map_name=map_name,
-        goblin_hp=goblin_hp, llm_url=llm_url, llm_model=llm_model)
+        goblin_hp=goblin_hp, llm_url=llm_url, llm_model=llm_model,
+        jev_log_path=jev_log_path)
     combatants = team_a + team_b
     spawn_pos = {id(c): m.entity_or_object_pos(c) for c in combatants}
     log_lines = []
@@ -569,9 +907,12 @@ def play_game(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
 
     t0 = time.time()
     llm_entities = tuple(e for e in combatants
-                         if e in _arm_entities(providers, side_a_ai, side_b_ai, team_a, team_b, 'llm'))
-    outcome = run_battle(battle, log, max_rounds=max_rounds, llm_entities=llm_entities)
+                          if e in _arm_entities(providers, side_a_ai, side_b_ai, team_a, team_b, 'llm'))
+    tracker = CoordinationTracker(battle, m, {'a': team_a, 'b': team_b})
+    outcome = run_battle(battle, log, max_rounds=max_rounds,
+                         llm_entities=llm_entities, tracker=tracker)
     elapsed = time.time() - t0
+    coordination = tracker.finish()
 
     a_alive = any(not c.dead() and not c.unconscious() for c in team_a)
     b_alive = any(not c.dead() and not c.unconscious() for c in team_b)
@@ -638,6 +979,7 @@ def play_game(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
         'winner': winner,
         'wall_time_s': round(elapsed, 1),
         'entities': [ent_info(c) for c in combatants],
+        'coordination': coordination,
     }
 
 
@@ -728,6 +1070,8 @@ def main():
     parser.add_argument('--seed', type=int, default=20260921)
     parser.add_argument('--out', default=None, help='write JSON results to this path')
     parser.add_argument('--log-dir', default=None, help='write one battle log per game here')
+    parser.add_argument('--jev-log-dir', default=None,
+                        help='write one JEV request/response JSONL file per game here')
     parser.add_argument('--quiet', action='store_true', help='no per-turn log')
     args = parser.parse_args()
 
@@ -758,7 +1102,8 @@ def main():
                                        verbose=not args.quiet,
                                        goblin_hp=args.goblin_hp,
                                        log_dir=args.log_dir,
-                                       llm_url=args.llm_url, llm_model=args.llm_model)
+                                       llm_url=args.llm_url, llm_model=args.llm_model,
+                                       jev_log_dir=args.jev_log_dir)
                     all_results.append(result)
                     print(f"  [{done}/{total}] seed={seed} {scenario} "
                           f"a={side_a} b={side_b} winner={result['winner']} "
@@ -796,6 +1141,9 @@ def main():
                       f"{', '.join(tail)}")
 
     if args.out:
+        out_parent = os.path.dirname(args.out)
+        if out_parent:
+            os.makedirs(out_parent, exist_ok=True)
         with open(args.out, 'w') as f:
             json.dump({'args': vars(args), 'games': all_results}, f, indent=2)
         print(f"results written to {args.out}")

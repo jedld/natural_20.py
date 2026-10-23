@@ -798,6 +798,21 @@ potion_of_healing_greater:
     A character who drinks this potion regains 4d4 + 4 hit points. Drinking or administering the potion takes an action.
   type: potion
   usable: true
+potion_of_gaseous_form:
+  consumable: true
+  effect: gaseous
+  duration_seconds: 3600
+  item_class: PotionEffectItem
+  name: Potion of Gaseous Form
+  flavor_text: A vial of swirling grey mist that hisses softly at the seal.
+  description: >-
+    When you drink this potion, you become gaseous for 1 hour (narrative: the
+    gaseous_form spell effect, concentration; you can pass through normal
+    openings too small for your normal form, and you can move up or down as if
+    flying). If you are a creature that cannot breathe, you do not need to
+    breathe while gaseous. The effect ends early if you attack or cast a spell.
+  type: potion
+  usable: true
 potion_of_invisibility:
   consumable: true
   effect: invisible

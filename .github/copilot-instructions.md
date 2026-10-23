@@ -85,6 +85,7 @@ Small gotchas discovered in the repo:
   - If you add new targeting modes for spells, ensure both sides are wired:
     - Web UI: add a handler in `webapp/static/engine.js` (e.g., for `select_cube`) and post `mode` along with `target`.
     - Server: update `/target` (preview squares) and the generic `/action` builder to recognize the new selector type and `mode` (e.g., treat `'cube'` like `'cone'` for coordinate targets).
+- Multi-target spells can carry their `action.target` as a **tuple** (the auto-targeting builder, `natural20/utils/action_builder.py`, wraps `combinations(...)` results in tuples) as well as a list (web UI) or a single entity. Any code that walks `effect.action.target` (e.g. `Entity.dismiss_effect`) must branch on `isinstance(target, (list, tuple, set))`, not just `list` — a failed concentration check on a multi-target spell (e.g. Beacon of Hope) otherwise crashes with `AttributeError: 'tuple' object has no attribute 'remove_effect'`.
 
 If you change LLM behavior, unit tests to update or add:
 

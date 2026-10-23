@@ -104,6 +104,7 @@ def damage_event(item, battle):
         'thrown': item.get('thrown', False),
         'spell_save': item.get('spell_save', None),
         'dc': item.get('dc', None),
+        'trigger': item.get('trigger'),
         'resistant': target.resistant_to(item['damage_type'], source=item.get('source'), weapon=item.get('weapon')),
         'vulnerable': target.vulnerable_to(item['damage_type']),
         'value': dmg

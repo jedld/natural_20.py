@@ -358,6 +358,23 @@ difficult_terrain:
   opaque: false
   token:
     - '~'
+rubble_passage:
+  name: Rubble Passage
+  description: >-
+    Collapsed rubble. Creatures larger than the configured size cannot pass
+    at all; smaller creatures must squeeze through, paying the normal
+    squeezing movement cost.
+  color: olive
+  item_class: SqueezeTerrain
+  max_pass_size: medium
+  passable: false
+  placeable: false
+  opaque: false
+  movement_cost: 2
+  spawner_category: terrain
+  hide_map_token: true
+  token:
+    - '#'
 wooden_door:
   description: An ominous wooden door. Standard for your typical fantasy dungeon.
   color: magenta

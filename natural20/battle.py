@@ -227,6 +227,32 @@ def _damage_events_from_action(action, battle=None):
     return events
 
 
+def _npc_special_effect(action):
+    """Client VFX key declared on an NPC's YAML ``actions`` entry.
+
+    NPC attacks (``AttackAction.npc_action``) and breath weapons
+    (``NpcAreaAction`` area_save configs) may carry a ``special_effect`` key
+    naming a pre-baked renderer in the webapp's ``SpellEffects`` registry
+    (``webapp/static/spell_effects.js``). Returns ``None`` when unset or when
+    the action has no NPC action config (player actions).
+    """
+    try:
+        npc_action = getattr(action, 'npc_action', None)
+        if not isinstance(npc_action, dict):
+            config = getattr(action, '_config', None)
+            if callable(config):
+                config = config()
+            npc_action = config
+        if not isinstance(npc_action, dict):
+            return None
+        effect = npc_action.get('special_effect')
+        if effect:
+            return str(effect).strip()
+    except Exception:
+        return None
+    return None
+
+
 def action_animator(action, battle=None):
     def target_id(action):
         if hasattr(action, 'target') and action.target:
@@ -260,6 +286,9 @@ def action_animator(action, battle=None):
         damage_events = _damage_events_from_action(action, battle)
         if damage_events:
             message['damage_events'] = damage_events
+        special_effect = _npc_special_effect(action)
+        if special_effect:
+            message['special_effect'] = special_effect
         return {'type': 'attack', 'message': message}
     elif action and action.action_type == 'move':
         return {
@@ -335,6 +364,9 @@ def action_animator(action, battle=None):
         damage_events = _damage_events_from_action(action, battle)
         if damage_events:
             message['damage_events'] = damage_events
+        special_effect = _npc_special_effect(action)
+        if special_effect:
+            message['special_effect'] = special_effect
         return {'type': 'spell', 'message': message}
 
 class Battle():
@@ -987,19 +1019,24 @@ class Battle():
 
         return self._advance_turn_index(max_rounds)
 
-    def skip_dead_turns(self):
+    def skip_dead_turns(self, max_rounds=None):
         """Advance past dead combatants without start/end-of-turn processing.
 
         Dead creatures have no turn, so they neither open a legendary action
         window nor tick end-of-turn effects. Unconscious creatures still take
         their turn (death saving throws). Returns the new current combatant.
+
+        ``max_rounds`` is forwarded to ``_advance_turn_index`` so the round cap
+        is honored even when a run of dead combatants wraps the turn index
+        (without it, battles with clustered dead combatants could run past
+        ``max_rounds`` forever because only ``next_turn`` checked the cap).
         """
         for _ in range(len(self.combat_order)):
             current = self.current_turn()
             if current is None or not current.dead():
                 return current
             self._end_of_turn_fired = None
-            self._advance_turn_index()
+            self._advance_turn_index(max_rounds)
         return self.current_turn()
 
     def _advance_turn_index(self, max_rounds=None):
@@ -1019,13 +1056,28 @@ class Battle():
 
     def while_active(self, max_rounds=None, callback=lambda x: x):
         while True:
-            self.skip_dead_turns()
+            self.skip_dead_turns(max_rounds)
+            if max_rounds is not None and self.round > max_rounds:
+                # The round cap can be reached while skipping dead combatants
+                # (skip_dead_turns wraps the index without going through
+                # next_turn), so check it here as well.
+                return True
             self.start_turn()
             if self.controller_for(self.current_turn()):
                 self.controller_for(self.current_turn()).begin_turn(self.current_turn())
             current = self.current_turn()
             if current.conscious() and not current.incapacitated():
                 current.reset_turn(self)
+                if current.dead():
+                    # Start-of-turn effects killed the creature: it never reaches
+                    # the action phase and takes no end-of-turn processing.
+                    self._end_of_turn_fired = (self.round, self.current_turn_index)
+                    result = self.next_turn(max_rounds)
+                    if result == 'tpk':
+                        return 'tpk'
+                    if result:
+                        return result
+                    continue
                 if callback(current):
                     continue
             elif current.incapacitated() and not current.dead():

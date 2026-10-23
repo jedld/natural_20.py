@@ -35,3 +35,4 @@ n20-webapp/webapp/.env
 third_party/CosyVoice
 .local_packages/
 .roo/
+logs/

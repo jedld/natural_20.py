@@ -2444,6 +2444,12 @@ class LlmMcpController(GenericController):
 
 		instructions = self._combat_instructions_for(entity, my_group)
 
+		try:
+			from natural20.utils.hazard_context import hostile_hazard_lines
+			hazard_lines = hostile_hazard_lines(battle, entity, current_map, limit=4)
+		except Exception:
+			hazard_lines = []
+
 		parts = [
 			f"Map (visible):\n{map_text}\n",
 			f"Round: {battle.current_round()}" + (f" | {init_line}" if init_line else "") + "\n",
@@ -2486,6 +2492,9 @@ class LlmMcpController(GenericController):
 		combat_log_summary = self._get_visible_combat_log_summary(entity, n=8)
 		if combat_log_summary:
 			parts.append("Visible combat log:\n" + "\n".join(f"- {line}" for line in combat_log_summary) + "\n")
+
+		if hazard_lines:
+			parts.append("Hostile hazards:\n" + "".join(f"- {line}\n" for line in hazard_lines))
 
 		# Add goals and memory notes from session-persistent context
 		goals_summary = self.get_goals_summary(entity)
@@ -2548,6 +2557,8 @@ class LlmMcpController(GenericController):
 			combat_log_compact = self._get_visible_combat_log_summary(entity, n=4)
 			if combat_log_compact:
 				parts_c.append("Visible combat log:\n" + "\n".join(f"- {line}" for line in combat_log_compact) + "\n")
+			if hazard_lines:
+				parts_c.append(f"Hostile hazards: {'; '.join(hazard_lines)}\n")
 			# Include goals even in compact mode (they're brief)
 			if goals_summary and goals_summary != "(no goals set)":
 				parts_c.append(f"Goals: {goals_summary}\n")
