@@ -206,7 +206,11 @@ def test_discover_item_refs_default_excludes_objects_and_packs():
     keys = {ref.key for ref in refs}
     assert "objects" not in sources
     assert "equipment_packs" not in sources
-    assert "chest" not in keys
+    # ``chest`` also exists in objects.yml (map container), but it is a
+    # legitimate gear container in equipment.yml now, so use objects-only
+    # keys as the canary that the objects catalog is not scanned by default.
+    assert "barrel" not in keys
+    assert "stone_wall" not in keys
     assert "dagger" in keys or "longsword" in keys
 
 
