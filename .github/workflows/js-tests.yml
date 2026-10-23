@@ -13,8 +13,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout private submodules
+        uses: ./.github/actions/submodule-checkout
         with:
-          submodules: recursive
+          webapp-key: ${{ secrets.N20_WEBAPP_SSH_KEY }}
+          campaigns-key: ${{ secrets.N20_CAMPAIGNS_SSH_KEY }}
 
       - name: Use Node.js
         uses: actions/setup-node@v4

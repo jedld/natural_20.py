@@ -13,8 +13,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout private submodules
+        uses: ./.github/actions/submodule-checkout
         with:
-          submodules: recursive
+          webapp-key: ${{ secrets.N20_WEBAPP_SSH_KEY }}
+          campaigns-key: ${{ secrets.N20_CAMPAIGNS_SSH_KEY }}
 
       - name: Git LFS (campaign audio)
         run: |
@@ -45,8 +49,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout private submodules
+        uses: ./.github/actions/submodule-checkout
         with:
-          submodules: recursive
+          webapp-key: ${{ secrets.N20_WEBAPP_SSH_KEY }}
+          campaigns-key: ${{ secrets.N20_CAMPAIGNS_SSH_KEY }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
