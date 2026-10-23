@@ -232,6 +232,23 @@ class EventManager:
             self.output_logger.log(msg + ".")
 
         def attack_roll(event):
+            if event.get('attack_roll') is None:
+                verb = 'smites' if event.get('trigger') == 'divine_smite' else 'hits'
+                msg = f"{self.show_name(event)} {verb} {self.show_target_name(event)}{' with opportunity' if event.get('as_reaction') else ''} with {self.attack_label(event.get('attack_name'))}{'(thrown)' if event.get('thrown') else ''}"
+                if event.get('as_legendary_action'):
+                    msg = "[legendary action] " + msg
+                if event.get('critical'):
+                    msg += " (critical hit)"
+                if event.get('spell_save') is not None and event.get('dc') is not None:
+                    save = event['spell_save']
+                    result = save.result()
+                    if result < event['dc']:
+                        msg += f" ({save} = {result} < DC: {event['dc']}, the target failed the save)."
+                    else:
+                        msg += f" ({save} = {result} >= DC: {event['dc']}, the target saved)."
+                self.output_logger.log(f"{msg}.")
+                return
+
             msg = f"{self.show_name(event)} attacked {self.show_target_name(event)}{to_advantage_str(event)}{' with opportunity' if event['as_reaction'] else ''} with {self.attack_label(event['attack_name'])}{'(thrown)' if event['thrown'] else ''} and hits"
             if event['as_legendary_action']:
                 msg = "[legendary action] " + msg

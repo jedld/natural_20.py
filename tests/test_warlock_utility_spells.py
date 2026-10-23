@@ -147,6 +147,19 @@ def test_thunder_step_teleports_and_booms(tmp_path):
     assert adjacent.hp() < hp
 
 
+def test_thunder_step_ignores_objects(tmp_path):
+    from natural20.item_library.object import Object
+    arena = _arena(tmp_path, packs=['xanathars_guide'], spells=PACK)
+    chest = Object(arena.session, arena.map, {'name': 'Chest', 'max_hp': 10, 'token': 'C'})
+    arena.session.register_entity(chest)
+    arena.map.add(chest, 4, 2, 'b')
+    chest_hp = chest.hp()
+    with forced_save(arena.ally, 1):
+        arena.cast('thunder_step', 3, [2, 10])
+    assert arena.map.position_of(arena.caster) == [2, 10]
+    assert chest.hp() == chest_hp
+
+
 def test_synaptic_static_muddles_on_failed_save(tmp_path):
     arena = _arena(tmp_path, packs=['xanathars_guide'], spells=PACK)
     with forced_save(arena.goblin, 1), forced_save(arena.goblin2, 30):

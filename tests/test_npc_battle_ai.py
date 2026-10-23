@@ -622,6 +622,72 @@ class TestStateRendering:
         # Crysania: str10 dex15 con14 int18 wis12 cha8 -> +0/+2/+2/+4/+1/-1
         assert 'mods: str+0 dex+2 con+2 int+4 wis+1 cha-1' in st
 
+    def test_state_renders_entity_centered_pov_map(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc = build_battle()
+        ally = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle.add(ally, 'a', position=[0, 5], token='A')
+        ally.reset_turn(battle)
+        st = state_text(JevActionPlanner, battle, fighter)
+        assert 'map (your current POV, centered on *, up to 30 ft; [-4, -1] to [8, 11]):' in st
+        assert 'Interpretation: * you; letters visible allies; digits visible enemies;' in st
+        assert 'map legend: * you' in st
+        assert ' (ally)' in st
+        assert ' (enemy)' in st
+        grid = st.split('Interpretation:')[1].split('\n', 1)[1].split('map legend:')[0]
+        grid_lines = grid.splitlines()
+        assert '*' in grid
+        # Out-of-bounds squares are drawn as wall, not as unknown `?` border.
+        assert set(grid_lines[0]) == {'#'}
+        assert set(grid_lines[-1]) == {'#'}
+
+    def test_pov_map_does_not_reveal_hidden_occupant(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        session, battle, m, fighter, npc = build_battle()
+        if 'invisible' not in fighter.statuses:
+            fighter.statuses.append('invisible')
+        st = state_text(JevActionPlanner, battle, npc)
+        assert ' (enemy)' not in st
+        grid = st.split('Interpretation:')[1].split('\n', 1)[1].split('map legend:')[0]
+        row = [line for line in grid.splitlines() if '*' in line][0]
+        idx = row.index('*')
+        # The invisible fighter's square is lit but must not leak as blocked,
+        # difficult terrain, or an enemy token.
+        assert row[idx + 1] == '.'
+
+    def test_pov_map_renders_doors_and_cover(self):
+        from natural20.utils.jev_decision import JevActionPlanner
+        random.seed(7000)
+        session = Session_for_test(EventManager())
+        m = Map(session, 'battle_sim_objects')
+        battle = Battle(session, m)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        goblin = session.npc('goblin')
+        battle.add(fighter, 'a', position=[1, 3], token='G')
+        battle.add(goblin, 'b', position=[3, 3], token='g')
+        battle.start()
+        battle.set_current_turn(fighter)
+        fighter.reset_turn(battle)
+        goblin.reset_turn(battle)
+
+        st = state_text(JevActionPlanner, battle, fighter)
+        assert '- closed door' in st
+        assert '+ open door' in st
+        assert 'o cover' in st
+        grid = st.split('Interpretation:')[1].split('\n', 1)[1].split('map legend:')[0]
+        grid_lines = grid.splitlines()
+        # The fixture's front door is closed at [1, 4]; the barrel gives half
+        # cover at [2, 2]. With the fighter at [1, 3], the rendered window has
+        # top-left [-5, -3].
+        assert grid_lines[7][6] == '-'
+        assert grid_lines[5][7] == 'o'
+
+        door = m.objects_at(1, 4, reveal_concealed=True)[0]
+        door.open()
+        st = state_text(JevActionPlanner, battle, fighter)
+        grid = st.split('Interpretation:')[1].split('\n', 1)[1].split('map legend:')[0]
+        assert grid.splitlines()[7][6] == '+'
+
     def test_state_renders_usable_inventory(self):
         from natural20.utils.jev_decision import JevActionPlanner
         session, battle, m, goblin, mage = build_mage_battle()

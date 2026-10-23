@@ -18,6 +18,7 @@ from natural20.item_library.trap_door import TrapDoor
 from natural20.item_library.proximity_trigger import ProximityTrigger
 from natural20.item_library.room_service_buzzer import RoomServiceBuzzer
 from natural20.item_library.multi_switch import MultiSwitch
+from natural20.item_library.squeeze_terrain import SqueezeTerrain
 from natural20.item_library.rotating_mechanism import RotatingMechanism
 from natural20.player_character import PlayerCharacter
 from natural20.serializable_object import SerializableObject
@@ -644,7 +645,11 @@ class Map(SerializableObject):
                 extras = layer_placement_property_overrides(self.properties, token, pos_x, pos_y)
                 if extras:
                     object_meta.update(extras)
-            object_info = self.session.load_object(object_meta['type'])
+            if object_meta.get('type') in ('npc', 'spawn_point'):
+                self._add_token_to_map(token, (pos_x, pos_y), npc_meta=object_meta)
+                return False
+            from natural20.utils.portable_object import resolve_map_object
+            object_info, object_meta = resolve_map_object(self.session, object_meta)
             self.place_object(object_info, pos_x, pos_y, deepcopy(object_meta))
         return False
 
@@ -1815,10 +1820,15 @@ class Map(SerializableObject):
         if has_line_of_sight and max_illumination < 0.5:
             if self._devils_sight_covers(entity, sighting_distance):
                 return True
-            # Magical darkness can't be seen through, even with darkvision.
+            # Magical darkness can't be seen through, even with darkvision or blindsight.
             if self.magical_darkness_at(pos2_x, pos2_y):
                 return False
-            return allow_dark_vision and (force_dark_vision or entity.darkvision(sighting_distance * self.feet_per_grid))
+            if allow_dark_vision and (force_dark_vision or entity.darkvision(sighting_distance * self.feet_per_grid)):
+                return True
+            blindsight = getattr(entity, "blindsight", None)
+            if callable(blindsight) and blindsight(sighting_distance * self.feet_per_grid):
+                return True
+            return False
 
         return has_line_of_sight
 
@@ -2017,11 +2027,6 @@ class Map(SerializableObject):
                 sighting_distance = math.floor(math.sqrt((pos1_x - pos2_x)**2 + (pos1_y - pos2_y)**2))
                 has_line_of_sight = True
 
-        if sighting_distance and entity.has_blindsight():
-            if entity.blindsight(sighting_distance * self.feet_per_grid):
-                return True
-            return False
-
         if not has_line_of_sight:
             return False
         
@@ -2053,11 +2058,20 @@ class Map(SerializableObject):
                 and entity.darkvision(sighting_distance * self.feet_per_grid)):
             max_illumination += 0.5
 
+        line_of_sight_present = has_line_of_sight
         if max_illumination == 0.0:
             has_line_of_sight = False
 
         if (
-            has_line_of_sight
+            line_of_sight_present
+            and not in_magical_darkness
+            and entity.has_blindsight()
+            and entity.blindsight((sighting_distance or 0) * self.feet_per_grid)
+        ):
+            return True
+
+        if (
+            line_of_sight_present
             and callable(getattr(entity2, 'invisible', None))
             and entity2.invisible()
         ):

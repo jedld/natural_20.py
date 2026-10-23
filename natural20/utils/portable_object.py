@@ -53,6 +53,38 @@ def _message(session, source, target, message):
     })
 
 
+def resolve_map_object(session, object_meta: dict):
+    """Resolve a map legend entry to ``(object_info, object_meta)`` for ``Map.place_object``.
+
+    Object-catalog types load directly. An item type (e.g. a container item
+    placed on the map via legend ``type: <item>``) becomes a portable object:
+    the item's ``placeable_object`` (or ``chest`` for containers) is placed,
+    tagged ``portable_item: <item>`` so it can be picked back up, seeded with
+    the item's YAML inventory.
+    """
+    object_type = object_meta.get('type')
+    try:
+        return session.load_object(object_type), object_meta
+    except AssertionError:
+        pass
+    item = (session.load_magic_item(object_type) or session.load_weapon(object_type)
+            or session.load_equipment(object_type))
+    if not item:
+        raise ValueError(f"unknown object or item type {object_type!r}")
+    object_kind = item.get('placeable_object')
+    if not object_kind and item.get('type') == 'container':
+        object_kind = 'chest'
+    if not object_kind:
+        raise ValueError(
+            f"item {object_type!r} cannot be placed on a map; add placeable_object to its YAML"
+        )
+    meta = dict(object_meta)
+    meta.setdefault('portable_item', object_type)
+    if 'inventory' not in meta and item.get('inventory'):
+        meta['inventory'] = [dict(row) for row in item['inventory'] if isinstance(row, dict)]
+    return session.load_object(object_kind), meta
+
+
 def place_object_from_item(session, item_name, entry: Any, map_obj, origin, source=None):
     """Put the object for *item_name* on *map_obj* at *origin*. Returns ``(obj, reason)``."""
     object_type = placeable_object_type(session, item_name)

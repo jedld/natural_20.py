@@ -683,6 +683,11 @@ legend:
     overrides: {}               # Optional NPC stat/behavior overrides
 ```
 
+The token may sit in any grid layer (`base`, `base_1`, `base_2`), in the
+`meta` layer, or in `map.entities`; all placements spawn the NPC via the same
+path. `type: spawn_point` legend tokens work the same way. Legend `events` are
+merged into the NPC overrides for `EventLoader`.
+
 #### Object Legend Entry
 
 ```yaml
@@ -695,6 +700,26 @@ legend:
       - type: healing_potion
         qty: 2
 ```
+
+#### Item Legend Entry (portable object on the map)
+
+`type:` may also name an **item key** instead of an object-catalog key. The item
+is placed as a portable map object: the object type comes from the item's
+`placeable_object:` (containers default to `chest`), the object is tagged
+`portable_item: <item key>` so it offers **Pick Up**, and it starts with the
+item's YAML `inventory:` as its contents. Picking it up returns the item with
+its contents.
+
+```yaml
+legend:
+  B:
+    name: Lorry's Backpack
+    type: lorry_backpack        # Item key (items/magic_items.yml), not an object
+    entity_uid: lorry_backpack  # Stable UID across loads (optional)
+    hide_map_token: true
+```
+
+See "Placeable gear (`placeable_object`)" below.
 
 #### Teleporter Legend Entry
 
@@ -1283,6 +1308,51 @@ actions:
   (expected damage to foes minus allies caught in the area); JEV and LLM controllers
   see it as a normal option.
 
+##### Pre-baked VFX for NPC attacks and area abilities (`special_effect`)
+
+Any NPC `actions` entry (attack or `area_save`) may carry a `special_effect`
+key naming a pre-baked client-side effect renderer:
+
+```yaml
+actions:
+  - name: energy_ray
+    label: Energy Ray
+    type: ranged_attack
+    # ...
+    special_effect: energy_ray
+
+  - name: noxious_breath
+    label: Noxious Breath
+    type: area_save
+    # ...
+    special_effect: noxious_breath
+```
+
+`Battle.action_animator` (natural20/battle.py) reads the key from the raw YAML
+config (`AttackAction.npc_action` / `NpcAreaAction._config()`) and attaches it
+to the SocketIO animation payload as `message['special_effect']`. The VTT
+(`webapp/static/engine.js`) plays that registered renderer instead of the
+generic `attack` / spell effect when one exists
+(`SpellEffects.has(...)`); an unknown key falls back to the normal
+rendering, so a missing renderer is never an error.
+
+The built-in renderers live at the end of
+`webapp/static/spell_effects.js` (the "Pre-baked NPC special effects" block):
+
+- `energy_ray` — pale force beam from caster to target (charge, streak,
+  impact flash); misses stop short with the standard "MISS!" treatment.
+- `noxious_breath` — 15-ft poison cone from the caster toward the aimed
+  square (toxic plume, particles, lingering mist at the far edge).
+
+To give another NPC or boss its own pre-baked effect, register a new renderer
+there (`register('my_effect', function(payload) { ... })` — the payload is the
+same message object: `source`, `source_pos`, `target`, `target_pos`,
+`target_positions`, `label`, `ranged`, `miss`, `damage_events`) and point the
+NPC YAML `special_effect` at it. Effects resolve positions from the commit-time
+grid (`source_pos` / `target_pos`), which is chronology-safe for multiattack
+batches. Example campaign wiring:
+`user_levels/dragonlance/npcs/aurak_draconian.yml` (Drayan inherits it).
+
 #### Innate spellcasting (`innate_spellcasting`)
 
 Stat-block spellcasting with daily uses instead of spell slots
@@ -1811,7 +1881,10 @@ auras:                               # YAML auras (class auras are built in)
   0 HP on your turn, a bonus-action "Hew" attack with the same weapon is
   offered. Under 2024 rules, heavy weapon hits also add the proficiency bonus
   to damage. The 2014 −5/+10 option is not modelled.
-- **Blind Fighting** gives 10 ft blindsight.
+- **Blind Fighting** gives 10 ft blindsight. Blindsight supplements normal
+  sight: a creature with normal line of sight and illumination can still see
+  beyond its blindsight range, while blindsight also perceives unlit squares
+  within range (magical darkness blocks blindsight).
 
 **Feat attack options.** A feat YAML under `feats/<id>.yml` (or an entity's
 own properties) may define `attack_options`, which the engine offers as
@@ -2071,6 +2144,10 @@ Calm Emotions. The block supports repeat saves, `off_plane: banished`,
 `ally_condition_immunities: [charmed, frightened]`. With the last one, allies
 in the area skip the save and get a `condition_immunity` effect instead
 (Calm Emotions). The spell ends once no target and no warded ally is left.
+For single-target forms, `creature_types` and `exclude_creature_types` are
+translated into `require_races` / `exclude_races` on the `select_target`
+parameter, so an excluded creature type is not offered as a target (Hold
+Monster never targets undead).
 
 **Off-plane creatures** (`natural20/utils/off_plane.py`: Banishment, Blink)
 keep their square but can't be targeted and aren't caught by area effects.
@@ -2888,7 +2965,10 @@ item uses this (`placeable_object: chest`, 25 lb, holds 300 lb / 12 cu ft):
 
 Helpers live in `natural20/utils/portable_object.py`. The drop hook is
 `Container._place_object_on_ground`. Stacking two containers of the same item in
-one inventory pools their contents.
+one inventory pools their contents. Map legends can place items directly on a
+map (see "Item Legend Entry (portable object on the map)"): the resolver
+`portable_object.resolve_map_object` loads the object type via
+`placeable_object` (containers default to `chest`) and tags it `portable_item`.
 
 ---
 

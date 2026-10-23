@@ -64,6 +64,7 @@ class TestInteractAction(unittest.TestCase):
         self.assertListEqual(self.door.investigate_details(self.entity), [])
 
         self.assertEqual(self.door.closed(), True)
+        self.entity.investigation_check = lambda battle=None: FakeRoll('d20(20) + 3', 23)
         self.battle.action(action)
         self.battle.commit(action)
         self.assertEqual(self.door.closed(), False)

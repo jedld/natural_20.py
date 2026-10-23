@@ -370,6 +370,11 @@ class ConditionSaveSpell(Spell):
         types = self.spec.get('creature_types') or []
         if types == ['humanoid']:
             param['require_humanoid'] = True
+        elif types:
+            param['require_races'] = [str(t) for t in types]
+        excluded_types = self.spec.get('exclude_creature_types') or []
+        if excluded_types:
+            param['exclude_races'] = [str(t) for t in excluded_types]
         return {'param': [param], 'next': set_target}
 
     # -- targeting -------------------------------------------------------------

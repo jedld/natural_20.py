@@ -14,6 +14,30 @@ class TestMap(unittest.TestCase):
         self.assertEqual(len(battle_map.entities), 0)
         self.assertEqual(battle_map.size, [4, 4])
 
+    def test_grid_legend_tokens_spawn_npc_and_item_object(self):
+        session = Session(root_path='tests/fixtures')
+        battle_map = Map(session, None, name='npc_grid', properties={
+            'name': 'Npc Grid',
+            'map': {
+                'size': [4, 4],
+                'base': ['....', '..GB', '....', '....'],
+            },
+            'legend': {
+                'G': {'name': 'Gob', 'type': 'npc', 'sub_type': 'goblin', 'group': 'b'},
+                'B': {'name': 'Pack', 'type': 'backpack', 'entity_uid': 'pack1'},
+            },
+        })
+
+        entities = list(battle_map.entities)
+        self.assertEqual(len(entities), 1)
+        self.assertEqual(battle_map.position_of(entities[0]), [2, 1])
+
+        backpack = next(
+            obj for obj in battle_map.objects_at(3, 1) if obj.properties.get('portable_item')
+        )
+        self.assertEqual(backpack.properties.get('portable_item'), 'backpack')
+        self.assertEqual(backpack.entity_uid, 'pack1')
+
     def test_place_object_reports_map_entity_and_bounds(self):
         session = Session(root_path='tests/fixtures')
         try:

@@ -48,6 +48,7 @@ decision failure can never crash the battle loop.
 
 import logging
 import math
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,8 @@ MAX_JEV_HEARD = 8      # in-battle speech lines
 MAX_JEV_CONVERSATION = 4  # pre-battle conversation memory lines
 # State text budget (N20_JEV_STATE_MAX_CHARS); history is trimmed first.
 DEFAULT_JEV_STATE_MAX_CHARS = 6000
+# Default radius for the entity-centered ASCII POV map (N20_JEV_MAP_RADIUS_FT).
+DEFAULT_JEV_MAP_RADIUS_FT = 30
 # Kept for API compatibility; the flattened planner makes at most 1 call/turn.
 DEFAULT_MAX_DECISIONS = 8
 
@@ -449,6 +452,162 @@ def _in_battle(map_, x, y) -> bool:
         return False
 
 
+def _jev_map_radius_ft() -> int:
+    try:
+        return max(5, int(os.environ.get('N20_JEV_MAP_RADIUS_FT') or DEFAULT_JEV_MAP_RADIUS_FT))
+    except ValueError:
+        return DEFAULT_JEV_MAP_RADIUS_FT
+
+
+def _jev_map_visible_objects(map_, x, y):
+    try:
+        try:
+            return list(map_.objects_at(x, y, reveal_concealed=False) or [])
+        except TypeError:
+            return list(map_.objects_at(x, y) or [])
+    except Exception:
+        return []
+
+
+def _jev_map_object_visible(map_, entity, obj) -> bool:
+    """POV-safe visibility for a non-concealed map object.
+
+    `Map.can_see` handles opaque/secret-door adjacency for interactable
+    objects; `can_see_square` is the fallback for ordinary cover objects.
+    """
+    try:
+        if map_.can_see(entity, obj):
+            return True
+    except Exception:
+        pass
+    try:
+        pos = map_.position_of(obj)
+        if pos and map_.can_see_square(entity, (int(pos[0]), int(pos[1])), inclusive=True):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _jev_map_hazard_at(map_, entity, x, y) -> bool:
+    """True when a visible map object should be drawn as a hazard tile."""
+    try:
+        from natural20.utils.action_builder import _tile_has_avoidable_hazard
+        if _tile_has_avoidable_hazard(map_, entity, x, y):
+            return True
+    except Exception:
+        pass
+    for obj in _jev_map_visible_objects(map_, x, y):
+        try:
+            concealed = getattr(obj, 'concealed', None)
+            if callable(concealed) and concealed():
+                continue
+            props = getattr(obj, 'properties', None) or {}
+            if props.get('hazard') or props.get('trap') or props.get('area_hazard'):
+                return True
+            if getattr(obj, 'activated', False) and not getattr(obj, 'disarmed', False) \
+                    and getattr(obj, 'damages', None):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _jev_map_blocked(map_, entity, x, y) -> bool:
+    """Static/map-object blocked check that does not reveal hidden occupants."""
+    try:
+        if map_.base_map[x][y] == '#':
+            return True
+    except Exception:
+        pass
+    for obj in _jev_map_visible_objects(map_, x, y):
+        try:
+            checker = getattr(obj, 'passable_for', None)
+            if callable(checker):
+                if not checker(entity, None):
+                    return True
+            elif not obj.passable(None):
+                return True
+        except Exception:
+            continue
+    return False
+
+
+def _jev_map_difficult(map_, entity, x, y, battle=None) -> bool:
+    """Visible object/zone difficult-terrain check that does not reveal occupants."""
+    try:
+        for zone in (getattr(battle, 'active_zones', None) or []):
+            slows = getattr(zone, 'slows', None)
+            if callable(slows) and not zone.expired() and slows(entity, (x, y)):
+                return True
+    except Exception:
+        pass
+    objs = _jev_map_visible_objects(map_, x, y)
+    if not objs:
+        return False
+    try:
+        costs = [obj.movement_cost() for obj in objs]
+        max_cost = max(costs) if costs else 1
+        if max_cost <= 1:
+            return False
+        if entity is not None and getattr(entity, 'swim_speed', lambda: 0)() > 0:
+            for obj in objs:
+                if obj.swimmable() and obj.swim_movement_cost() <= 1:
+                    return False
+        return True
+    except Exception:
+        return False
+
+
+def _jev_map_door_symbol(map_, entity, x, y):
+    """`-` for a visible closed door, `+` for a visible open door."""
+    for obj in _jev_map_visible_objects(map_, x, y):
+        try:
+            concealed = getattr(obj, 'concealed', None)
+            if callable(concealed) and concealed():
+                continue
+            kind_of_door = getattr(obj, 'kind_of_door', None)
+            if not callable(kind_of_door) or not kind_of_door():
+                continue
+            if not _jev_map_object_visible(map_, entity, obj):
+                continue
+            dead = getattr(obj, 'dead', None)
+            if callable(dead) and dead():
+                return '#'
+            if obj.closed():
+                return '-'
+            if obj.opened():
+                return '+'
+            return '-'
+        except Exception:
+            continue
+    return None
+
+
+def _jev_map_cover_at(map_, entity, x, y, origin=None) -> bool:
+    """True when a visible object on this square can serve as cover."""
+    for obj in _jev_map_visible_objects(map_, x, y):
+        try:
+            concealed = getattr(obj, 'concealed', None)
+            if callable(concealed) and concealed():
+                continue
+            if not _jev_map_object_visible(map_, entity, obj):
+                continue
+            if obj.half_cover() or obj.three_quarter_cover() or obj.total_cover():
+                return True
+            across = getattr(obj, 'cover_across', None)
+            if callable(across):
+                try:
+                    level = across(origin, (x, y), entity) or 'none'
+                except TypeError:
+                    level = across(origin, (x, y)) or 'none'
+                if level in ('half', 'three_quarter', 'total'):
+                    return True
+        except Exception:
+            continue
+    return False
+
+
 def _cover_rank(cover) -> int:
     return {'none': 0, 'half': 1, 'three_quarter': 2, 'total': 3}.get(cover, 0)
 
@@ -695,6 +854,139 @@ class JevActionPlanner:
             return names.get(id(e), _name(e))
         return _name(e)
 
+    def _render_pov_map(self, battle, entity, m=None) -> Optional[List[str]]:
+        """Entity-centered ASCII map limited to the entity's current POV."""
+        try:
+            if battle is None:
+                return None
+            if m is None:
+                m = battle.map_for(entity)
+            if m is None:
+                return None
+            pos = m.position_of(entity)
+            if not pos:
+                return None
+            cx, cy = int(pos[0]), int(pos[1])
+            feet = int(getattr(m, 'feet_per_grid', 5) or 5)
+            radius_ft = _jev_map_radius_ft()
+            radius = max(0, int(radius_ft // feet))
+
+            def _pos(e):
+                try:
+                    p = m.position_of(e)
+                    return (int(p[0]), int(p[1])) if p else None
+                except Exception:
+                    return None
+
+            def _in_radius(e):
+                p = _pos(e)
+                if p is None:
+                    return False
+                return max(abs(p[0] - cx), abs(p[1] - cy)) <= radius
+
+            def _visible(e):
+                try:
+                    return bool(battle.can_see(entity, e))
+                except Exception:
+                    return False
+
+            allies: List[Any] = []
+            try:
+                for e in battle.allies_of(entity):
+                    if e is entity:
+                        continue
+                    if _in_radius(e) and _visible(e):
+                        allies.append(e)
+            except Exception:
+                pass
+
+            enemies: List[Any] = []
+            try:
+                for e in battle.opponents_of(entity):
+                    if _in_radius(e) and _visible(e):
+                        enemies.append(e)
+            except Exception:
+                pass
+
+            def _sort_key(e):
+                p = _pos(e) or (cx, cy)
+                return (max(abs(p[0] - cx), abs(p[1] - cy)),
+                        _name(e).lower(), str(getattr(e, 'entity_uid', '')))
+
+            allies.sort(key=_sort_key)
+            enemies.sort(key=_sort_key)
+            ally_symbols = [(e, chr(ord('A') + i)) for i, e in enumerate(allies[:26])]
+            enemy_symbols = [(e, str(i)) for i, e in enumerate(enemies[:10])]
+            tokens: Dict[Tuple[int, int], str] = {}
+            for e, sym in enemy_symbols:
+                p = _pos(e)
+                if p:
+                    tokens[p] = sym
+            for e, sym in ally_symbols:
+                p = _pos(e)
+                if p:
+                    tokens.setdefault(p, sym)
+
+            out: List[str] = []
+            top_left = [cx - radius, cy - radius]
+            bottom_right = [cx + radius, cy + radius]
+            out.append(
+                f"map (your current POV, centered on *, up to {radius_ft} ft; "
+                f"{top_left} to {bottom_right}):"
+            )
+            out.append(
+                "Interpretation: * you; letters visible allies; digits visible enemies; "
+                "? dark/unseen; . empty; # blocked/wall; - closed door; + open door; "
+                "o cover; ~ difficult terrain; ! hazard."
+            )
+            for y in range(cy - radius, cy + radius + 1):
+                row: List[str] = []
+                for x in range(cx - radius, cx + radius + 1):
+                    if (x, y) == (cx, cy):
+                        row.append('*')
+                        continue
+                    if not _in_battle(m, x, y):
+                        row.append('#')
+                        continue
+                    sym = tokens.get((x, y))
+                    if sym:
+                        row.append(sym)
+                        continue
+                    door_sym = _jev_map_door_symbol(m, entity, x, y)
+                    if door_sym:
+                        row.append(door_sym)
+                        continue
+                    try:
+                        visible = bool(m.can_see_square(entity, (x, y), inclusive=True))
+                    except Exception:
+                        visible = False
+                    if visible:
+                        if _jev_map_hazard_at(m, entity, x, y):
+                            row.append('!')
+                        elif _jev_map_cover_at(m, entity, x, y, origin=(cx, cy)):
+                            row.append('o')
+                        elif _jev_map_blocked(m, entity, x, y):
+                            row.append('#')
+                        elif _jev_map_difficult(m, entity, x, y, battle):
+                            row.append('~')
+                        else:
+                            row.append('.')
+                    elif _jev_map_cover_at(m, entity, x, y, origin=(cx, cy)):
+                        row.append('o')
+                    else:
+                        row.append('?')
+                out.append(''.join(row))
+            legend = ['* you']
+            legend.extend(f"{sym} {self._display_name(e)} (ally)"
+                          for e, sym in ally_symbols)
+            legend.extend(f"{sym} {self._display_name(e)} (enemy)"
+                          for e, sym in enemy_symbols)
+            out.append("map legend: " + "; ".join(legend))
+            return out
+        except Exception as e:
+            logger.debug("[JevPlan] POV map render failed: %s", e)
+            return None
+
     def _render_state(self, battle, entity) -> str:
         """Compact, unstructured state text handed to every JEV question."""
         m = battle.map_for(entity)
@@ -748,6 +1040,10 @@ class JevActionPlanner:
 
             lines.extend(_self_context_lines(battle, entity))
 
+            map_lines = self._render_pov_map(battle, entity, m)
+            if map_lines:
+                lines.extend(map_lines)
+
             enemies = [e for e in battle.opponents_of(entity) if battle.can_see(entity, e) and not e.dead()]
             elines = []
             for e in enemies:
@@ -771,6 +1067,14 @@ class JevActionPlanner:
                              "or use area spells): " + "; ".join(unseen))
 
             lines.append("allies: " + ("; ".join(_ally_lines(battle, entity, m, self._display_name)) or "none"))
+
+            try:
+                from natural20.utils.hazard_context import hostile_hazard_lines
+                hazards = hostile_hazard_lines(battle, entity, m, limit=4)
+                if hazards:
+                    lines.append("hostile hazards: " + "; ".join(hazards))
+            except Exception:
+                pass
 
             # spell slots, if any
             try:

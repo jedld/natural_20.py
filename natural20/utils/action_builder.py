@@ -134,6 +134,17 @@ def acquire_targets(param, entity, battle, map=None):
             if getattr(target, 'humanoid', lambda: False)()
         }
 
+    def _races(target):
+        race = (getattr(target, 'properties', None) or {}).get('race') or []
+        return [race] if isinstance(race, str) else race
+
+    required_races = set(param.get("require_races") or [])
+    if required_races:
+        possible_targets = {
+            target for target in possible_targets
+            if required_races.intersection(_races(target))
+        }
+
     excluded_statuses = set(param.get("exclude_statuses") or [])
     if excluded_statuses:
         possible_targets = {
@@ -143,9 +154,6 @@ def acquire_targets(param, entity, battle, map=None):
 
     excluded_races = set(param.get("exclude_races") or [])
     if excluded_races:
-        def _races(target):
-            race = (getattr(target, 'properties', None) or {}).get('race') or []
-            return [race] if isinstance(race, str) else race
         possible_targets = {
             target for target in possible_targets
             if not excluded_races.intersection(_races(target))

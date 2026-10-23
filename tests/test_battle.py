@@ -188,6 +188,76 @@ class TestBattle(unittest.TestCase):
         payload_hit = action_animator(action)
         self.assertFalse(payload_hit['message']['miss'])
 
+    def test_attack_animation_payload_includes_npc_special_effect(self):
+        from natural20.battle import action_animator
+        from types import SimpleNamespace
+
+        # NPC attack with a YAML ``special_effect`` key names its pre-baked
+        # client renderer on the animation payload.
+        target = SimpleNamespace(entity_uid='goblin')
+        action = SimpleNamespace(
+            action_type='attack',
+            source=SimpleNamespace(entity_uid='drayan'),
+            target=target,
+            result=[{'type': 'damage', 'damage': 5}],
+            ranged_attack=lambda: True,
+            label=lambda: 'attack with Energy Ray',
+            npc_action={'name': 'energy_ray', 'label': 'Energy Ray',
+                        'special_effect': 'energy_ray'},
+        )
+        payload = action_animator(action)
+        self.assertEqual(payload['type'], 'attack')
+        self.assertEqual(payload['message'].get('special_effect'), 'energy_ray')
+
+        # Player actions (no NPC YAML config) carry no special_effect key.
+        player_action = SimpleNamespace(
+            action_type='attack',
+            source=SimpleNamespace(entity_uid='fighter'),
+            target=target,
+            result=[{'type': 'damage', 'damage': 5}],
+            ranged_attack=lambda: False,
+            label=lambda: 'attack with longsword',
+        )
+        self.assertNotIn('special_effect', action_animator(player_action)['message'])
+
+        # A config without the key must not raise or set it.
+        action.npc_action = {'name': 'rend', 'label': 'Rend'}
+        self.assertNotIn('special_effect', action_animator(action)['message'])
+
+    def test_area_ability_animation_payload_includes_npc_special_effect(self):
+        from natural20.battle import action_animator, _npc_special_effect
+        from types import SimpleNamespace
+
+        # Breath-weapon style area_save: a cone action carries the YAML
+        # config via ``_config`` and a two-element direction point target.
+        area_config = {
+            'name': 'noxious_breath',
+            'label': 'Noxious Breath',
+            'type': 'area_save',
+            'shape': 'cone',
+            'range': 15,
+            'special_effect': 'noxious_breath',
+        }
+        action = SimpleNamespace(
+            action_type='npc_area_ability',
+            source=SimpleNamespace(entity_uid='drayan'),
+            target=[4, 6],
+            result=[{'type': 'area_save'}],
+            label=lambda: 'uses Noxious Breath',
+            _config=lambda: area_config,
+        )
+        payload = action_animator(action)
+        self.assertEqual(payload['type'], 'spell')
+        self.assertEqual(payload['message']['spell'], 'npc_area_ability')
+        self.assertEqual(payload['message'].get('special_effect'), 'noxious_breath')
+        self.assertEqual(payload['message'].get('target_pos'), [4, 6])
+        self.assertEqual(_npc_special_effect(action), 'noxious_breath')
+
+        # Cone config without the key leaves the payload unchanged.
+        del area_config['special_effect']
+        self.assertIsNone(_npc_special_effect(action))
+        self.assertNotIn('special_effect', action_animator(action)['message'])
+
     def test_move_then_attack_animation_log_has_single_attack_entry(self):
         session = self.make_session()
         battle_map = Map(session, 'battle_sim_objects')

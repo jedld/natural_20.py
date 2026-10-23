@@ -230,9 +230,18 @@ mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
 round 3; turn order: Velka > (you) > Noke > Gort
 own resources: reaction ready, second wind 1 left
 own state: concentrating on Bless
+map (your current POV, centered on *, up to 30 ft; [-2, -2] to [2, 2]):
+Interpretation: * you; letters visible allies; digits visible enemies; ? dark/unseen; . empty; # blocked/wall; - closed door; + open door; o cover; ~ difficult terrain; ! hazard.
+#####
+#-o.~
+#*+0#
+#.~..
+#####
+map legend: * you; A Noke (ally); 0 Velka (enemy)
 visible enemies: Velka hp 45/45 ac 14 5 ft melee [concentrating on Haste, resists fire]; Gort hp 0/7 ac 13 15 ft (unconscious) [unconscious, dying (death saves 0 ok / 1 failed)]
 unseen enemies (not visible; attack their square at disadvantage, or use area spells): Mira heard at [4, 2] 15 ft
 allies: Noke hp 22/22 ac 14 10 ft; Sava hp 0/9 ac 12 40 ft (out of sight) [unconscious, dying (death saves 1 ok / 0 failed)]; fallen: Tibb
+hostile hazards: Flaming Sphere at (21, 15) (25 ft, 5 ft threat, 2d6 fire, DC17 dexterity save, damage when ending a turn nearby)
 spell slots: L3 2/2, L4 1/1
 items: Potion of Healing, Healing Potion x2
 effects: Haste 60s
@@ -266,6 +275,18 @@ line is always kept.
   limited-use features (Action Surge, Second Wind, Legendary Resistance).
 - **own state** — concentration (spell name), Mirror Image duplicates,
   temp HP and damage defenses.
+- **map** — an entity-centered ASCII POV map, default radius `30 ft`
+  (`N20_JEV_MAP_RADIUS_FT`). The header includes the rendered window's
+  top-left and bottom-right map coordinates, e.g.
+  `[-2, -2] to [2, 2]`. It uses `Map.can_see_square(..., inclusive=True)` for
+  square visibility and `Map.can_see(...)` for object visibility, so `?` means
+  an in-bounds dark/unseen tile, `.` is empty, `#` is blocked or
+  outside-the-map wall, `-` is a visible closed door, `+` is a visible open
+  door, `o` is a visible cover object, `~` is difficult terrain, and `!` is a
+  visible hazard. The actor is `*`; visible allies are `A`-`Z`; visible
+  enemies are `0`-`9`. If an ally and enemy share a square, the enemy symbol
+  wins. The `map legend:` line names each visible symbol, and the map is placed
+  before the trimmable history so it survives the state-budget trim.
 - **unseen enemies** — creatures from `unseen_targets.sensed_creatures`:
   `heard at [x, y]` (invisible but not hidden) or `last known at [x, y]
   (N rounds ago, may have moved)`. Without this line, an invisible caster read
@@ -302,7 +323,11 @@ line is always kept.
    the line referenced an undefined variable (`ent` instead of `entity`), the
    `NameError` was silently swallowed, and allies always rendered as
    `none`.
- - **AC** — the entity's own Armor Class on the `Entity:` header, and each
+ - **hostile hazards** — visible enemy-owned zones from `Battle.active_zones`
+    via `natural20.utils.hazard_context.hostile_hazard_lines`, including
+    distance, extent, damage/save, and occupants. This is what lets JEV avoid
+    `Flaming Sphere` and similar hazards instead of walking through them.
+  - **AC** — the entity's own Armor Class on the `Entity:` header, and each
    enemy's/ally's AC on their entries, so the model can weigh hit-chance,
    not just HP. AC comes from `entity.armor_class()`, which already folds in
    active `ac_bonus` effects (Haste +2, Shield +5, ...) and class features —
@@ -522,6 +547,100 @@ DM/NPC vars) and returns `battle_provider_ready`.
   to `GenericController` heuristics for that turn.
 - Jev is never used for DM narration or NPC `/talk`; those keep their own
   generative providers.
+
+## JEV request logging (fine-tuning dataset)
+
+`JevProvider` accepts an optional `request_logger` callable. Every
+`decide_action` / `decide_bool` round-trip emits one JSON-serializable record,
+suitable for appending as JSONL and using as a supervised decision dataset for
+a similar model. The record never includes API keys.
+
+```python
+provider = JevProvider(config, request_logger=lambda record: handle(record))
+```
+
+`scripts/simulate_priest_quarters.py` exposes this for headless runs:
+
+```bash
+python scripts/simulate_priest_quarters.py --ai jev --seed 20 \
+    --out logs/priest_quarters_combat_jev.log \
+    --jev-log logs/jev_requests.jsonl
+```
+
+Each JSONL line has this shape:
+
+```json
+{
+  "v": 1,
+  "timestamp": 1792057883.65,
+  "model": "jev-latest",
+  "task": "action",
+  "request": {
+    "instructions": "Choose the single best action index for the entity given the state.",
+    "state": "Entity: ...",
+    "options": ["attack ...", "pass (end turn)"]
+  },
+  "response": {
+    "raw": {"choice": "0", "confidence": 0.64, "probabilities": {"0": 0.64}},
+    "parsed": {"index": 0, "choice": "0", "confidence": 0.64, "probabilities": {"0": 0.64}}
+  },
+  "latency_ms": 253.1
+}
+```
+
+For `task: "bool"`, `request` contains only `instructions` and `state`, and
+`response` contains the raw/parsed `noul` plus `confidence`. Failed calls
+record `error` instead of `response`.
+
+Unit coverage for the record shape lives in
+`n20-webapp/tests/webapp/test_battle_llm_provider.py`.
+
+### Exporting a clean training dataset
+
+`scripts/export_jev_training_data.py` validates and reshapes the raw JSONL
+logs into a compact supervised dataset:
+
+```bash
+python scripts/export_jev_training_data.py \
+    --out logs/jev_training/action_decisions.jsonl \
+    --report logs/jev_training/action_decisions.report.json
+# exact-duplicate export (state + options + chosen_index):
+python scripts/export_jev_training_data.py --dedupe \
+    --out logs/jev_training/action_decisions_dedup.jsonl \
+    --report logs/jev_training/action_decisions_dedup.report.json
+```
+
+By default it reads every JEV request log under:
+
+- `logs/compare/jev_requests_*.jsonl`
+- `logs/jev_requests_*.jsonl`
+- `logs/jev_sim/**/*.jsonl`
+- `logs/jev_training/raw/**/*.jsonl`
+
+Only successful `task == "action"` records are exported. Each output record
+contains `state`, `options`, `chosen_index`, `chosen_option`, `confidence`,
+the raw `probabilities` map, and `probability_vector` (the probability map
+aligned to `options` and renormalized to sum to 1.0). It also includes parsed
+metadata: `entity`, `round`, `hp`, `max_hp`, `ac`, `position`, `latency_ms`,
+`model`, `source_file`, and, when present, the simulator's `sim` metadata
+(scenario, seed, and arm assignment).
+
+`scripts/jev_battle_sim.py` can write one raw JEV request log per game:
+
+```bash
+python scripts/jev_battle_sim.py \
+    --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
+    --side-a-ai generic --side-b-ai jev --repeat 10 \
+    --seed 20270000 --max-rounds 10 \
+    --out logs/jev_sim/jev_vs_generic_10repeat_seed20270000.json \
+    --log-dir logs/jev_sim/logs_10repeat \
+    --jev-log-dir logs/jev_sim/jev_10repeat --quiet
+```
+
+As of 2026-10-16 the exported dataset contained 6,060 valid action records
+(5,828 after exact de-duplication) from 81 raw files: the `priest_quarters`
+seeds 20-24, two earlier hazard-context logs, and 75 variety-sim games
+(`side_a=generic`, `side_b=jev`).
 
 ## Headless battle simulation (win-rate analysis)
 
@@ -879,6 +998,216 @@ Caveats for all of the above: single arena shape, level-1/2 fixture roster,
 per-scenario n≤10 (sign tests are underpowered outside pc_vs_npc), and the
 stat distribution (e.g., 6-HP level-1 wizards who die before their first
 turn) masks controller quality in some games.
+
+### Additional 75-game training-data batch (2026-10-16)
+
+To expand the decision dataset for distillation, two direct paired batches
+were run: a 5-repeat batch (`logs/jev_sim/jev_vs_generic_5repeat.json`) and a
+10-repeat batch seeded at `20270000`
+(`logs/jev_sim/jev_vs_generic_10repeat_seed20270000.json`). Side A was
+`GenericController`, side B was JEV, goblin HP 40, max 10 rounds:
+
+```bash
+python scripts/jev_battle_sim.py \
+    --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
+    --side-a-ai generic --side-b-ai jev --repeat 10 \
+    --seed 20270000 --max-rounds 10 \
+    --out logs/jev_sim/jev_vs_generic_10repeat_seed20270000.json \
+    --log-dir logs/jev_sim/logs_10repeat \
+    --jev-log-dir logs/jev_sim/jev_10repeat --quiet
+```
+
+| scenario | JEV wins | generic wins | draws | avg rounds | JEV calls |
+|---|---|---|---|---|---|
+| pc_vs_npc | 15/15 | 0/15 | 0 | 1.6 | 287 |
+| duel | 3/15 | 12/15 | 0 | 3.3 | 136 |
+| npc_vs_npc | 7/15 | 5/15 | 3 | 6.9 | 656 |
+| pc_vs_pc | 3/15 | 8/15 | 4 | 6.9 | 494 |
+| team_pvp | 5/15 | 7/15 | 3 | 7.5 | 780 |
+| **overall** | **33/75** | **32/75** | **10/75** | — | **2,353** |
+
+Read: `pc_vs_npc` remains numbers-dominated (JEV controls the 4-NPC squad).
+Excluding that scenario, generic leads 32–18 with 10 draws, so the combined
+75-game batch still shows no reliable JEV win-rate edge on even fixtures.
+The batch added 1,455 raw JEV action records from the 10-repeat run and
+brought the exported dataset to 6,060 valid action records (5,828 after exact
+de-duplication).
+
+### Dataset and playstyle analysis (2026-10-16)
+
+The deduped dataset (`logs/jev_training/action_decisions_dedup.jsonl`) has
+5,828 examples from 81 files and 53 entity names. Mean menu size is 9.0
+options (median 5, p95 29, max 60); mean state length is 1,866 chars (p95
+3,084). Sources: 3,475 campaign/hazard-context records, 898 from the 5-repeat
+variety batch, and 1,455 from the 10-repeat variety batch. Soft-label quality
+is high: the chosen index matches the probability vector's argmax 99.4% of the
+time, mean top probability is 0.52, mean entropy is 1.92 bits, and only 9
+repeated state+option menus contain conflicting choices.
+
+Chosen action mix (deduped): move 28.3%, attack 15.7%, dash 13.3%,
+communicate 10.0%, dodge 7.7%, pass 5.7%, spell 5.4%, stay 4.5%, disengage
+3.5%, look 3.5%, hide 1.4%. Offered action mix: spell 26.9%, move 25.8%, pass
+9.5%, attack 6.6%, dodge 6.3%, hide 5.1%, dash 3.7%. JEV over-chooses
+dash/communicate/attack relative to their menu share and under-chooses
+hide/help/shove.
+
+Direct 75-game playstyle, per entity and excluding the numbers-dominated
+`pc_vs_npc` scenario:
+
+| metric | generic (side A) | JEV (side B) |
+|---|---:|---:|
+| attacks/ent | 3.04 | 3.14 |
+| hit rate | 0.57 | 0.56 |
+| damage/ent | 26.02 | 25.76 |
+| move steps/ent | 16.67 | 5.35 |
+| spells/ent | 1.74 | 1.16 |
+| disengage/ent | 0.43 | 1.10 |
+| dodge/ent | 0.00 | 0.22 |
+| dash/ent | 0.04 | 0.19 |
+| help/ent | 0.57 | 0.01 |
+| interact/ent | 1.05 | 0.01 |
+| focus-fire | 0.67 | 0.73 |
+
+The two arms have similar damage output, but generic is aggressive,
+support-heavy, and interact-heavy, while JEV is maneuver- and
+control-heavy (disengage/dodge/dash) with tighter focus fire. That play-shape
+difference is still not converting into a win-rate edge on even fixtures.
+
+Training caveats: split by `source_file` or battle seed rather than random
+lines to avoid leaking repeated battle states; handle the skewed action
+distribution (help/grapple are rare); treat `pc_vs_npc` as numbers-dominated;
+and regard 5.8k examples as enough for a small baseline but still small for a
+robust from-scratch production model.
+
+### Multi-agent coordination batch (2026-10-16)
+
+`scripts/jev_battle_sim.py` now emits per-side `coordination` metrics for
+every game. The metrics are computed from committed action results and map
+positions: action-category counts, attack/spell hits and misses, damage by
+target, healing, ally spacing (mean pairwise straight-line grid distance at
+turn end), nearest-enemy distance, focus-fire statistics, and final
+survival. `focus_top_share` is the share of a side's total damage dealt to
+its most-damaged target; `focus_crossfire_rounds` counts rounds in which at
+least two distinct attackers put at least 50% of that side's round damage on
+the same target.
+
+A 30-game multi-agent batch compared side A `GenericController` against side
+B JEV on the three multi-combatant scenarios (10 games each, seed `20280000`,
+goblin HP 40, max 10 rounds):
+
+```bash
+python scripts/jev_battle_sim.py \
+    --scenario npc_vs_npc,pc_vs_pc,team_pvp \
+    --side-a-ai generic --side-b-ai jev --repeat 10 \
+    --seed 20280000 --max-rounds 10 \
+    --out logs/jev_sim/jev_vs_generic_multiagent_seed20280000.json \
+    --log-dir logs/jev_sim/logs_multiagent \
+    --jev-log-dir logs/jev_sim/jev_multiagent --quiet
+```
+
+| scenario | JEV wins | generic wins | draws | avg rounds | JEV calls |
+|---|---:|---:|---:|---:|---:|
+| npc_vs_npc | 5/10 | 5/10 | 0 | 4.0 | 277 |
+| pc_vs_pc | 6/10 | 4/10 | 0 | 4.3 | 234 |
+| team_pvp | 4/10 | 4/10 | 2 | 6.5 | 422 |
+| **overall** | **15/30** | **13/30** | **2/30** | — | **933** |
+
+Overall coordination metrics, averaged per side per game:
+
+| metric | generic | JEV | read |
+|---|---:|---:|---|
+| actions/game | 45.70 | 23.37 | JEV takes roughly half as many actions |
+| damage/game | 46.87 | 48.93 | similar total output |
+| damage/round | 10.84 | 12.03 | JEV is more temporally efficient |
+| damage/action | 1.09 | 2.62 | JEV wastes far fewer actions |
+| attack accuracy | 0.45 | 0.60 | JEV hits much more often |
+| spells/game | 4.13 | 2.63 | generic uses more spells |
+| healing/game | 2.50 | 1.03 | generic supports more |
+| support actions/game | 2.20 | 0.13 | generic uses Help/support far more |
+| focus top-target share | 0.62 | 0.63 | similar damage concentration |
+| avg round top-target share | 0.94 | 0.95 | both sides usually focus one target per round |
+| target switches/game | 1.57 | 1.17 | JEV switches focus slightly less |
+| crossfire rounds/game | 2.50 | 2.33 | no clear JEV crossfire advantage |
+| avg ally spacing | 2.70 | 4.74 | generic clusters tighter |
+| avg nearest-enemy distance | 2.00 | 3.24 | generic stays closer to the fight |
+| final alive/side | 1.87 | 1.63 | generic survives better on average |
+| final HP/side | 21.50 | 18.20 | generic ends healthier |
+
+Read: JEV's multi-agent edge is action efficiency, not visible team
+coordination. It attacks more accurately, deals more damage per round and
+per action, and uses far fewer move/interact/help actions. Its focus-fire
+share is about the same as Generic's, and it does not produce more
+crossfire rounds. Generic parties cluster tighter, stay closer to enemies,
+use more healing/support, and end with more survivors/HP, especially in
+`team_pvp`. The 30-game sample therefore does not show that JEV meaningfully
+coordinates parties better than `GenericController`; it mainly acts like a
+more decisive individual combatant with less support behavior.
+
+### 25-game re-evaluation batch (2026-10-17)
+
+After the POV-map door/cover work, a fresh 25-game paired batch was run on
+the same standard arena (five scenarios × 5 repeats, goblin HP 40, max 10
+rounds):
+
+```bash
+python scripts/jev_battle_sim.py \
+    --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
+    --side-a-ai generic --side-b-ai jev --repeat 5 \
+    --seed 20261017 --max-rounds 10 \
+    --out logs/jev_sim/jev_vs_generic_20261017_seed20261017.json \
+    --log-dir logs/jev_sim/logs_20261017 \
+    --jev-log-dir logs/jev_sim/jev_20261017 --quiet
+```
+
+| scenario | JEV wins | generic wins | draws | exact binomial p | JEV calls |
+|---|---:|---:|---:|---:|---:|
+| pc_vs_npc | 4/5 | 0/5 | 1 | 0.125 | 147 |
+| duel | 1/5 | 4/5 | 0 | 0.375 | 32 |
+| npc_vs_npc | 4/5 | 1/5 | 0 | 0.375 | 146 |
+| pc_vs_pc | 4/5 | 1/5 | 0 | 0.375 | 135 |
+| team_pvp | 2/5 | 2/5 | 1 | 1.000 | 230 |
+| **overall** | **15/25** | **8/25** | **2** | **0.210** | **690** |
+
+JEV reliability was clean: 0 provider failures across 690 calls, average
+latency 0.257 s/decision. Excluding draws, JEV won 15/23 (65%; Wilson 95% CI
+45–81%), versus 33/65 (51%) in the prior 75-game baseline. The even-fixture
+subset (`duel`, `npc_vs_npc`, `pc_vs_pc`, `team_pvp`) was 11–8 in JEV's favor
+with one draw, compared with 18–32 JEV-to-generic in the prior 75-game
+baseline. The sample is still too small to call the win-rate improvement
+statistically reliable.
+
+| metric (per side per game) | generic | JEV | read |
+|---|---:|---:|---|
+| actions/game | 29.12 | 20.72 | JEV acts more economically |
+| damage/game | 26.80 | 42.12 | JEV deals 57% more damage |
+| damage/round | 7.12 | 10.48 | JEV is more temporally efficient |
+| damage/action | 1.11 | 2.34 | JEV wastes far fewer actions |
+| attack accuracy | 0.530 | 0.593 | JEV hits more often |
+| spells/game | 1.36 | 1.64 | similar spell usage |
+| healing/game | 1.96 | 0.92 | generic supports more |
+| support actions/game | 0.88 | 0.04 | generic uses Help/support far more |
+| final alive/side | 1.36 | 1.68 | JEV survives better in this batch |
+| final HP/side | 19.40 | 22.64 | JEV ends healthier in this batch |
+| focus top-target share | 0.698 | 0.692 | similar concentration |
+| crossfire rounds/game | 1.36 | 2.08 | JEV produces more coordinated pressure |
+| target switches/game | 1.00 | 1.04 | similar focus stability |
+| avg ally spacing | 1.55 | 3.20 | generic clusters tighter |
+| avg nearest-enemy distance | 1.50 | 2.54 | generic stays closer |
+| attacks/entity | 3.26 | 2.71 | generic attacks more often |
+| move steps/entity | 8.90 | 3.31 | generic repositions more |
+| disengage/entity | 0.36 | 0.42 | similar defensive maneuvering |
+| dodge/entity | 0.00 | 0.15 | JEV uses reactive repositioning |
+| help/entity | 0.10 | 0.00 | generic is support-oriented |
+| interact/entity | 0.62 | 0.02 | generic talks/flavors more |
+| damage/entity | 13.40 | 16.20 | JEV output per combatant is higher |
+
+Read: in this batch JEV improved the usual strengths over generic — action
+efficiency, damage output, accuracy, crossfire, and final survival — while
+generic retained its cluster-tight, support-heavy, interact-heavy style. The
+main open weakness remains `duel` (1–4), where JEV trails the hand-tuned
+heuristic. Overall, the 2026-10-17 batch suggests a real upward shift in
+JEV's win share versus the prior 75-game baseline, but n=25 is underpowered:
+the overall sign test is not significant (p=0.210).
 
 ### Routing JEV traffic through the passthrough collector
 

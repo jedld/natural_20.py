@@ -483,11 +483,11 @@ def _floor_docks(
 @lru_cache(maxsize=256)
 def wall_tile(tile_size: int, mask: int, palette: str) -> Image.Image:
     """Solid filled wall with theme brick texture. mask unused for fill (kept for API)."""
-    generated = _maybe_gen_tile("wall", tile_size, palette, hash((tile_size, mask, palette)) & 0xFFFFFFFF)
+    generated = _maybe_gen_tile("wall", tile_size, palette, _seed_for(tile_size, mask, palette))
     if generated is not None:
         return generated
     theme = get_theme(palette)
-    rng = random.Random(hash((tile_size, mask, palette)) & 0xFFFFFFFF)
+    rng = random.Random(_seed_for(tile_size, mask, palette))
     walls = theme["wall"]
     edges = theme["wall_edge"]
     image = Image.new("RGBA", (tile_size, tile_size), _pick(rng, walls))

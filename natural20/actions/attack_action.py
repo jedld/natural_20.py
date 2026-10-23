@@ -649,9 +649,11 @@ class AttackAction(Action):
 
             state = battle.entity_state_for(item['source'])
             if state:
+                attack_name = item.get('attack_name')
                 narrowed = False
                 if (
-                    state.get('multiattack_combos')
+                    attack_name is not None
+                    and state.get('multiattack_combos')
                     and isinstance(item.get('npc_action'), dict)
                     and item['npc_action'].get('multiattack_group')
                     and not item.get('as_reaction')
@@ -659,21 +661,22 @@ class AttackAction(Action):
                     and not item.get('as_legendary_action')
                 ):
                     from natural20.utils.multiattack import narrow_multiattack_groups
-                    narrow_multiattack_groups(state, item['attack_name'])
+                    narrow_multiattack_groups(state, attack_name)
                     narrowed = True
                     if not any(state.get('multiattack', {}).values()):
                         item['source'].clear_multiattack(battle)
-                for attacks in state.get('multiattack', {}).values():
-                    if narrowed and not item['multiattack_clear']:
-                        continue
-                    if item['attack_name'] in attacks:
-                        attacks.remove(item['attack_name'])
-                        if not attacks or item['multiattack_clear']:
-                            item['source'].clear_multiattack(battle)
+                if attack_name is not None:
+                    for attacks in state.get('multiattack', {}).values():
+                        if narrowed and not item.get('multiattack_clear'):
+                            continue
+                        if attack_name in attacks:
+                            attacks.remove(attack_name)
+                            if not attacks or item.get('multiattack_clear'):
+                                item['source'].clear_multiattack(battle)
 
-                for attacks in state.get('multiattack_hits', {}).values():
-                    if item['attack_name'] not in attacks:
-                        attacks[item['attack_name']] = item['attack_name']
+                    for attacks in state.get('multiattack_hits', {}).values():
+                        if attack_name not in attacks:
+                            attacks[attack_name] = attack_name
 
             battle.dismiss_help_for(item['target'])
 
@@ -1232,6 +1235,8 @@ class AttackAction(Action):
                     self.hit_result['maneuver'] = maneuver
                     self.hit_result['superiority_die_roll'] = superiority_roll
 
+            self.result.append(self.hit_result)
+
             stored_reaction = self.has_async_reaction_for_source(self.source, 'on_attack_hit')
             results = self.source.resolve_trigger('on_attack_hit', {
                 'result': self.hit_result,
@@ -1244,7 +1249,6 @@ class AttackAction(Action):
                 else:
                     self.result.append(results)
 
-            self.result.append(self.hit_result)
             self.result.extend(self._on_hit_riders(battle, target, weapon, attack_name, crit))
 
             try:

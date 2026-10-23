@@ -334,6 +334,19 @@ combatants (unconscious ones only roll their death save), then `_finish_turn`
 already does it, and `next_turn` skips its own `end_of_turn` event when
 `end_turn` fired one for the same slot.
 
+Headless loops (tests, `scripts/simulate_priest_quarters.py`) drive
+`Battle.while_active(max_rounds, callback)` instead: it runs
+`skip_dead_turns` → `start_turn` → `begin_turn` → `reset_turn` (conscious
+only) → `callback(entity)` (the per-turn action loop; return falsy to
+proceed) → `end_of_turn` trigger → legendary window → `next_turn`. The
+`max_rounds` cap is enforced on both advance paths (`skip_dead_turns`
+forwards it to `_advance_turn_index`, and `while_active` re-checks
+`battle.round > max_rounds` after each skip) — a dead-combatant cluster that
+wraps the initiative index used to bypass the cap, running stalemate battles
+forever. Note `battle.round` starts at 0 (first lap) and only increments on
+initiative wrap; `top_of_the_round` fires on wrap with the incremented value,
+so the human round number is `battle.round + 1`.
+
 State changed outside `commit_and_update` (legendary actions and end-of-turn
 effects in `end_turn()`, regeneration and death saves in `start_turn()`) must
 bump the `/update` render epoch, or clients get cached tiles with tokens in

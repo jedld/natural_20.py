@@ -98,6 +98,17 @@ class BeaconOfHopeTest(unittest.TestCase):
         self.assertFalse(self.ally.has_effect('max_healing'))
         self.assertFalse(self.cleric.has_effect('max_healing'))
 
+    def test_dismiss_with_tuple_target_from_auto_targeting(self):
+        # The auto-targeting builder (natural20/utils/action_builder.py)
+        # passes multi-target combinations as tuples, so a failed
+        # concentration check (take_damage -> dismiss_effect) must clear
+        # every target for tuple targets exactly like list targets.
+        self.cast((self.cleric, self.ally))
+        self.assertTrue(self.ally.has_effect('max_healing'))
+        self.cleric.dismiss_effect(self.cleric.concentration)
+        self.assertFalse(self.ally.has_effect('max_healing'))
+        self.assertFalse(self.cleric.has_effect('max_healing'))
+
     def test_save_load_round_trip(self):
         self.cast([self.cleric, self.ally])
         dump = Serialization().serialize(self.session, self.battle, {'empty_map': self.map})

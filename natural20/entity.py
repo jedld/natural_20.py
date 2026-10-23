@@ -2539,9 +2539,12 @@ class Entity(EntityStateEvaluator, Notable):
         dismiss_count = 0
         if hasattr(effect, 'action') and effect.action and \
             hasattr(effect.action, 'target') and effect.action.target:
-            if isinstance(effect.action.target,list):
+            # Multi-target spells carry a sequence (list from the web UI,
+            # tuple from the auto-targeting builder) of target entities.
+            if isinstance(effect.action.target, (list, tuple, set)):
                 for target in effect.action.target:
-                    dismiss_count += target.remove_effect(effect, opts)
+                    if hasattr(target, 'remove_effect'):
+                        dismiss_count += target.remove_effect(effect, opts)
             else:
                 dismiss_count = effect.action.target.remove_effect(effect, opts)
 

@@ -1,8 +1,10 @@
 """YAML-driven condition spells (natural20/spell/condition_spells.py) and the
 off-plane helper: Hold Monster, Hypnotic Pattern, Dominate Person/Beast,
 Banishment, Calm Emotions and Phantasmal Force."""
+from natural20.actions.spell_action import SpellAction
 from natural20.npc import Npc
 from natural20.spell.condition_spells import ConditionSaveSpell, ConditionSpellEffect
+from natural20.utils.action_builder import acquire_targets
 from natural20.utils.action_restrictions import is_restricted
 from natural20.utils.off_plane import off_plane
 from natural20.utils.spell_loader import load_spell_class
@@ -49,6 +51,19 @@ def test_hold_monster_upcast_targets_two(tmp_path):
     with forced_save(arena.goblin, 1), forced_save(arena.goblin2, 1):
         arena.cast('hold_monster', 6, [arena.goblin, arena.goblin2])
     assert 'paralyzed' in arena.goblin.statuses and 'paralyzed' in arena.goblin2.statuses
+
+
+def test_hold_monster_targeting_excludes_undead(tmp_path):
+    arena = _arena(tmp_path)
+    step = SpellAction.build(arena.session, arena.caster)['next'](['hold_monster', 5])
+    param = step['param'][0]
+    assert param.get('exclude_races') == ['undead']
+    undead = Npc(arena.session, 'skeleton', {'name': 'skeleton', 'race': ['undead']})
+    arena.session.register_entity(undead)
+    arena.map.add(undead, 6, 2, 'b')
+    arena.battle.add(undead, 'b', add_to_initiative=True)
+    assert undead not in acquire_targets(param, arena.caster, arena.battle, arena.map)
+    assert arena.goblin in acquire_targets(param, arena.caster, arena.battle, arena.map)
 
 
 def test_hypnotic_pattern_area_ends_on_damage(tmp_path):

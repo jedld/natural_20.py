@@ -148,6 +148,33 @@ class TestCombatTurnRules(unittest.TestCase):
         brute.properties = dict(brute.properties, spellcaster_level=9)
         self.assertEqual(brute.cantrip_level(), 9)
 
+    def test_start_of_turn_death_skips_action_phase(self):
+        pc1 = self._add_pc([5, 3])
+        pc2 = self._add_pc([5, 4])
+        brute = self._add_brute([5, 5])
+        self.battle.start()
+        self.battle.combat_order = [pc1, pc2, brute]
+        self.battle.set_current_turn(pc1)
+
+        class LethalStartOfTurn:
+            def __init__(self):
+                self.fired = []
+
+            def start_of_turn(self, entity, opts=None):
+                self.fired.append(entity)
+                entity.make_dead(battle=(opts or {}).get('battle'))
+                return []
+
+        hook = LethalStartOfTurn()
+        pc1.register_event_hook('start_of_turn', hook, 'start_of_turn')
+        called = []
+
+        self.battle.while_active(max_rounds=0, callback=lambda entity: called.append(entity) or False)
+
+        self.assertEqual(hook.fired, [pc1])
+        self.assertTrue(pc1.dead())
+        self.assertEqual(called, [pc2, brute])
+
 
 if __name__ == '__main__':
     unittest.main()
