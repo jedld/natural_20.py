@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,6 +42,14 @@ jobs:
         env:
           PYTEST_TIMEOUT: 60
           TEMPLATE_DIR: ${{ github.workspace }}/templates
+          # The suite is wide (~2700 tests, mostly short) and the runner has
+          # 4 vCPUs; without this each of the 4 xdist workers spawns a
+          # multi-threaded OpenBLAS pool and the threads thrash. Pinning BLAS
+          # to one thread per worker cut the wall time ~25% in local testing.
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MKL_NUM_THREADS: "1"
+          NUMEXPR_NUM_THREADS: "1"
 
   webapp:
     runs-on: ubuntu-latest
