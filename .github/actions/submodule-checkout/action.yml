@@ -1,0 +1,49 @@
+name: 'Checkout private submodules'
+description: >-
+  Initialize the private n20-webapp and user_levels submodules over SSH using
+  per-repo read-only deploy keys, then fetch them. Run after actions/checkout
+  (which only authenticates the main repository).
+inputs:
+  webapp-key:
+    description: 'Private half of the read-only deploy key for jedld/n20-webapp'
+    required: true
+  campaigns-key:
+    description: 'Private half of the read-only deploy key for jedld/n20-campaigns'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure SSH for submodule repos
+      shell: bash
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan github.com >> ~/.ssh/known_hosts
+        printf '%s\n' "${{ inputs.webapp-key }}" > ~/.ssh/id_n20_webapp
+        printf '%s\n' "${{ inputs.campaigns-key }}" > ~/.ssh/id_n20_campaigns
+        chmod 600 ~/.ssh/id_n20_webapp ~/.ssh/id_n20_campaigns
+        # One host alias per submodule repo: GitHub authenticates the first
+        # offered key and maps it to that repo's deploy-key identity, so a
+        # shared Host block would 404 the second repo. IdentitiesOnly pins
+        # exactly one key per alias.
+        cat > ~/.ssh/config <<'EOF'
+        Host github.com-n20-webapp
+          HostName github.com
+          User git
+          IdentityFile ~/.ssh/id_n20_webapp
+          IdentitiesOnly yes
+        Host github.com-n20-campaigns
+          HostName github.com
+          User git
+          IdentityFile ~/.ssh/id_n20_campaigns
+          IdentitiesOnly yes
+        EOF
+        # actions/checkout adds a global git@github.com: -> https rewrite when
+        # no ssh-key input is given; the private submodule repos cannot be read
+        # with the default GITHUB_TOKEN, so undo it and route each submodule
+        # URL through its host alias instead (git picks the longest match).
+        git config --global --unset-all 'url.https://github.com/.insteadOf' || true
+        git config --global url."git@github.com-n20-webapp:jedld/n20-webapp.git".insteadOf "git@github.com:jedld/n20-webapp.git"
+        git config --global url."git@github.com-n20-campaigns:jedld/n20-campaigns.git".insteadOf "git@github.com:jedld/n20-campaigns.git"
+    - name: Initialize submodules
+      shell: bash
+      run: git submodule update --init --recursive
