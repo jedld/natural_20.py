@@ -1,6 +1,6 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.extensions.hit_computations import AttackSpell
 import pdb
@@ -24,7 +24,7 @@ class RayOfFrostSpell(AttackSpell):
             'next': set_target
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         entity = self.source
         level = 1
         if entity.cantrip_level() >= 5:
@@ -33,10 +33,10 @@ class RayOfFrostSpell(AttackSpell):
             level += 1
         if entity.cantrip_level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.ray_of_frost'))
+        return DieRoll.roll(f'{level}d8', crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.ray_of_frost'), estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
@@ -47,7 +47,7 @@ class RayOfFrostSpell(AttackSpell):
             result.append(event)
 
         if hit:
-            damage_roll = self._damage(battle, crit=attack_roll.nat_20())
+            damage_roll = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle))
             result.extend([
                 {
                     'source': entity,
@@ -88,6 +88,17 @@ class RayOfFrostSpell(AttackSpell):
 
         return result
 
+    def dismiss(self, entity, _descriptor=None, opts=None):
+        # When this cast's slow ends, also unregister its start_of_turn hook
+        # from the caster; otherwise the hook fires forever and hooks
+        # accumulate one per cast.
+        source = self.source
+        hooks = getattr(source, 'entity_event_hooks', None)
+        if source is not None and hooks:
+            for event_type, entries in list(hooks.items()):
+                kept = [h for h in entries if h.get('effect') is not self]
+                if len(kept) != len(entries):
+                    source.entity_event_hooks[event_type] = kept
 
     @staticmethod
     def start_of_turn(entity, opt=None):
@@ -104,6 +115,22 @@ class RayOfFrostSpell(AttackSpell):
     @staticmethod
     def apply(battle, item, session=None):
         if item['type'] == 'ray_of_frost':
-            item['source'].add_casted_effect({ "target" : item['target'], "effect" : item['effect']})
-            item['target'].register_effect('speed_override', RayOfFrostSpell, effect=item['effect'], source=item['source'])
-            item['source'].register_event_hook('start_of_turn', RayOfFrostSpell, effect=item['effect'])
+            target = item['target']
+            source = item['source']
+            new_effect = item['effect']
+            # The slow does not stack: clear any existing Ray of Frost slow
+            # on the target (including its caster-side hook) before
+            # registering this cast.
+            for entry in list(target.effects.get('speed_override', [])):
+                if entry.get('handler') is not RayOfFrostSpell:
+                    continue
+                old_effect = entry.get('effect')
+                if old_effect is None or old_effect is new_effect:
+                    continue
+                try:
+                    target.remove_effect(old_effect)
+                except Exception:
+                    pass
+            source.add_casted_effect({ "target" : target, "effect" : new_effect})
+            target.register_effect('speed_override', RayOfFrostSpell, effect=new_effect, source=source)
+            source.register_event_hook('start_of_turn', RayOfFrostSpell, effect=new_effect)

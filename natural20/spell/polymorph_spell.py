@@ -64,7 +64,7 @@ class PolymorphSpell(Spell):
             return 0.0
         if battle is None or not battle.opposing(self.source, target):
             return 1.0
-        save = target.save_throw('wisdom', battle, {'is_magical': True})
+        save = target.save_throw('wisdom', battle, {'is_magical': True, 'estimated': True})
         return 1.0 - save.prob(self._spell_dc(self.source, self.action))
 
     def resolve(self, entity, battle, spell_action, _battle_map):

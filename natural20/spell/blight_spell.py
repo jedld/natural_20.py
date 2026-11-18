@@ -46,18 +46,13 @@ class BlightSpell(Spell):
         extra = max(0, level - self.BASE_LEVEL)
         return 8 + extra
 
-    def _damage(self, battle, opts=None, *, max_damage=False, spell_action=None):
+    def _damage(self, battle, opts=None, estimated=False, *, max_damage=False, spell_action=None):
         opts = opts or {}
         dice = self._dice_count(spell_action or opts.get('spell_action'))
         entity = self.source
         if max_damage:
             return DieRoll([8] * dice, 0, 8)
-        return DieRoll.roll(
-            f"{dice}d8",
-            battle=battle,
-            entity=entity,
-            description='dice_roll.spells.blight',
-        )
+        return DieRoll.roll(f'{dice}d8', battle=battle, entity=entity, description='dice_roll.spells.blight', estimated=estimated)
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target

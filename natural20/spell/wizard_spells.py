@@ -7,7 +7,7 @@ from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.spell.extensions.save_check import SaveCheck
 from natural20.spell.hold_person_spell import HoldPersonSpell
 from natural20.spell.extensions.save_for_half import SaveForHalfMixin
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 
 
 def _spell_dc(entity, spell_action=None, default='intelligence'):
@@ -195,11 +195,12 @@ class AreaSaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         param['require_los'] = self.properties.get('require_los', False)
         return {'param': [param], 'next': set_target}
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, opts=None, estimated=False):
         return self._scaled_damage_roll(
             battle, self.BASE_DAMAGE, self.PER_SLOT_DAMAGE,
             opts=opts, base_level=self.BASE_LEVEL,
-            description=f"dice_roll.spells.{self.properties.get('id', self.name)}")
+            description=f"dice_roll.spells.{self.properties.get('id', self.name)}",
+            estimated=estimated)
 
     def _target_entities(self, entity, battle_map, target):
         if self.SHAPE == 'line':
@@ -342,7 +343,7 @@ class ScorchingRaySpell(AttackSpell):
                 opts={'action': spell_action, 'attack_index': index})
             events.extend(hook_events)
             if hit:
-                damage_roll = DieRoll.roll('2d6', crit=attack_roll.nat_20(), battle=battle, entity=entity,
+                damage_roll = DieRoll.roll('2d6', crit=spell_attack_is_critical(attack_roll, entity, target, battle), battle=battle, entity=entity,
                                            description='dice_roll.spells.scorching_ray')
                 events.append({'source': entity, 'target': target, 'attack_name': 'scorching_ray',
                                'damage_type': self.properties.get('damage_type'), 'attack_roll': attack_roll,

@@ -13,7 +13,7 @@ from natural20.spell.extensions.damage_scaling import DamageScalingMixin
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.spell.extensions.save_check import SaveCheck
 from natural20.spell.hold_person_spell import HoldPersonSpell
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 
 
 class RaySicknessPoison:
@@ -101,14 +101,12 @@ class RayOfSicknessSpell(DamageScalingMixin, AttackSpell):
             'next': set_target,
         }
 
-    def _damage(self, battle, crit=False, opts=None):
-        dice = self._scaled_damage_dice(self.BASE_DAMAGE, self.PER_SLOT_DAMAGE,
-                                        self._resolve_at_level(opts), base_level=self.BASE_LEVEL)
-        return DieRoll.roll(dice, crit=crit, battle=battle, entity=self.source,
-                            description='dice_roll.spells.ray_of_sickness')
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
+        dice = self._scaled_damage_dice(self.BASE_DAMAGE, self.PER_SLOT_DAMAGE, self._resolve_at_level(opts), base_level=self.BASE_LEVEL)
+        return DieRoll.roll(dice, crit=crit, battle=battle, entity=self.source, description='dice_roll.spells.ray_of_sickness', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(None, opts=opts).expected()
+        return self._damage(None, opts=opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, battle_map):
         target = spell_action.target
@@ -125,7 +123,7 @@ class RayOfSicknessSpell(DamageScalingMixin, AttackSpell):
         if not hit:
             result.append({**common, 'type': 'spell_miss'})
             return result
-        damage = self._damage(battle, crit=attack_roll.nat_20(),
+        damage = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle),
                               opts={'at_level': getattr(spell_action, 'at_level', None)})
         result.append({**common, 'type': 'spell_damage', 'damage_roll': damage, 'damage': damage})
         if hasattr(target, 'immune_to_condition') and target.immune_to_condition('poisoned'):

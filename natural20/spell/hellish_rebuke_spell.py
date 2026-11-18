@@ -29,7 +29,7 @@ class HellishRebukeSpell(Spell):
             'next': set_target
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         if opts is None:
             opts = {}
         at_level = opts.get('at_level', getattr(self.action, 'at_level', 1) or 1)
@@ -37,24 +37,15 @@ class HellishRebukeSpell(Spell):
             at_level = 1
         # 2d10 base; +1d10 for every slot above 1st.
         dice = 2 + max(0, at_level - 1)
-        return DieRoll.roll(
-            f"{dice}d10",
-            crit=crit,
-            battle=battle,
-            entity=self.source,
-            description=self.t(
-                'dice_roll.spells.generic_damage',
-                spell=self.t('spell.hellish_rebuke') if hasattr(self, 't') else 'Hellish Rebuke'
-            ) if hasattr(self, 't') else 'dice_roll.spells.hellish_rebuke',
-        )
+        return DieRoll.roll(f'{dice}d10', crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.hellish_rebuke') if hasattr(self, 't') else 'Hellish Rebuke') if hasattr(self, 't') else 'dice_roll.spells.hellish_rebuke', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts=opts).expected()
+        return self._damage(battle, opts=opts, estimated=True).expected()
 
     def compute_hit_probability(self, battle, opts=None):
         target = self.action.target
         entity = self.source
-        result = target.save_throw('dexterity', battle, {'is_magical': True})
+        result = target.save_throw('dexterity', battle, {'is_magical': True, 'estimated': True})
         # All-or-half: even on save we still deal half damage, so the spell
         # always lands. Treat hit_probability as 1.0 minus the save chance
         # to mirror burning_hands' convention for AI heuristics.

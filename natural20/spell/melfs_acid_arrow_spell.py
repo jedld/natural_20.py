@@ -11,7 +11,7 @@ import uuid
 from natural20.die_roll import DieRoll
 from natural20.spell.extensions.damage_scaling import DamageScalingMixin
 from natural20.spell.extensions.hit_computations import AttackSpell
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 
 
 class AcidArrowBurn:
@@ -107,13 +107,11 @@ class MelfsAcidArrowSpell(DamageScalingMixin, AttackSpell):
         return self._scaled_damage_dice(base, self.PER_SLOT_DAMAGE,
                                         self._resolve_at_level(opts), base_level=self.BASE_LEVEL)
 
-    def _damage(self, battle, crit=False, opts=None):
-        return DieRoll.roll(self._dice(self.BASE_DAMAGE, opts), crit=crit, battle=battle,
-                            entity=self.source, description='dice_roll.spells.melfs_acid_arrow')
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
+        return DieRoll.roll(self._dice(self.BASE_DAMAGE, opts), crit=crit, battle=battle, entity=self.source, description='dice_roll.spells.melfs_acid_arrow', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return (DieRoll.roll(self._dice(self.BASE_DAMAGE, opts)).expected()
-                + DieRoll.roll(self._dice(self.BURN_DAMAGE, opts)).expected())
+        return DieRoll.estimate(self._dice(self.BASE_DAMAGE, opts)).expected() + DieRoll.estimate(self._dice(self.BURN_DAMAGE, opts)).expected()
 
     def resolve(self, entity, battle, spell_action, battle_map):
         target = spell_action.target
@@ -129,7 +127,7 @@ class MelfsAcidArrowSpell(DamageScalingMixin, AttackSpell):
             'adv_info': adv_info, 'cover_ac': cover_ac, 'spell': self.properties,
         }
         if hit:
-            damage = self._damage(battle, crit=attack_roll.nat_20(), opts=level_opts)
+            damage = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle), opts=level_opts)
             result.append({**common, 'type': 'spell_damage', 'damage_roll': damage, 'damage': damage})
             result.append({
                 'type': 'melfs_acid_arrow',

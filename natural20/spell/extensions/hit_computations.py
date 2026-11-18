@@ -33,9 +33,19 @@ class AttackSpell(Spell):
         target = self._primary_target()
         if target is None:
             return 0.0
-        _, attack_roll, _, _, _ , _= evaluate_spell_attack(self.session, self.source, target, self.properties, battle=battle, opts=opts)
-        target_ac, _cover_ac = effective_ac(battle, self.source, target)
-        return attack_roll.prob(target_ac)
+        # Estimate analytically: scoring must not roll game dice or run the
+        # full attack pipeline (luck windows, one-shot effects).
+        from natural20.die_roll import DieRoll
+        advantage_mod, adv_info = target_advantage_condition(
+            self.session, self.source, target, self.properties, battle=battle, overrides=opts)
+        caster = self.source
+        if getattr(caster, 'familiar', None) and caster.familiar():
+            caster = caster.owner
+        attack_mod = caster.spell_attack_modifier_for(self.properties)
+        target_ac, _cover_ac = effective_ac(battle, self.source, target, spell_attack=True)
+        return DieRoll.estimate(DieRoll.d20(attack_mod),
+                                advantage=advantage_mod > 0,
+                                disadvantage=advantage_mod < 0).prob(target_ac)
 
     def _primary_target(self):
         """Multi-target selections (e.g. Scorching Ray rays) arrive as a list or tuple."""

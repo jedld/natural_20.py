@@ -73,7 +73,7 @@ class FearSpell(Spell):
         if not targets:
             return 0.0
         dc = entity.spell_save_dc(HoldPersonSpell._caster_spell_ability(entity, self.action))
-        roll = targets[0].save_throw('wisdom', battle, {'is_magical': True})
+        roll = targets[0].save_throw('wisdom', battle, {'is_magical': True, 'estimated': True})
         return 1.0 - roll.prob(dc)
 
     def resolve(self, entity, battle, spell_action, battle_map):

@@ -42,16 +42,16 @@ class CureWoundsSpell(Spell):
             'next': set_target
         }
 
-    def _heal(self, battle, opts=None):
+    def _heal(self, battle, opts=None, estimated=False):
         entity = self.source
         dice = slot_healing_dice(self, '1d8')
-        return DieRoll.roll(f"{dice}+{entity.cleric_spell_casting_modifier()}", battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'))
+        return DieRoll.roll(f'{dice}+{entity.cleric_spell_casting_modifier()}', battle=battle, entity=entity, description=self.t('dice_roll.spells.cure_wounds'), estimated=estimated)
 
     def compute_hit_probability(self, battle, opts=None):
         return 1.0
 
     def avg_damage(self, battle, opts=None):
-        return -self._heal(battle, opts).expected()
+        return -self._heal(battle, opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target

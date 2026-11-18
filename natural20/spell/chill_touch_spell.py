@@ -1,6 +1,6 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.spell.extensions.hit_computations import AttackSpell
 import pdb
 class ChillTouchSpellUndeadEffect:
@@ -50,7 +50,7 @@ class ChillTouchSpell(AttackSpell):
             'next': set_target,
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         entity = self.source
         level = 1
         if entity.cantrip_level() >= 5:
@@ -59,10 +59,10 @@ class ChillTouchSpell(AttackSpell):
             level += 1
         if entity.cantrip_level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.chill_touch")
+        return DieRoll.roll(f'{level}d8', crit=crit, battle=battle, entity=entity, description='dice_roll.spells.chill_touch', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         target = spell_action.target
@@ -73,7 +73,7 @@ class ChillTouchSpell(AttackSpell):
             result.append(event)
 
         if hit:
-            damage_roll = self._damage(battle, crit=attack_roll.nat_20())
+            damage_roll = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle))
             result.extend([{
                 'source': entity,
                 'target': target,

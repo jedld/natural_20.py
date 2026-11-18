@@ -1,6 +1,7 @@
 from natural20.actions.attack_action import AttackAction
 from natural20.die_roll import DieRoll
 from natural20.utils.attack_util import damage_event
+from natural20.utils.spell_attack_util import spell_attack_is_critical
 from natural20.spell.spell import Spell
 
 
@@ -121,7 +122,7 @@ class BoomingBladeSpell(Spell):
         if hit and thunder_dice > 0:
             thunder_roll = DieRoll.roll(
                 f'{thunder_dice}d8',
-                crit=bool(attack_roll and attack_roll.nat_20()),
+                crit=spell_attack_is_critical(attack_roll, entity, target, battle),
                 battle=battle,
                 entity=entity,
                 description=self.t(

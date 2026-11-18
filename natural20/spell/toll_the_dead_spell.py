@@ -27,7 +27,7 @@ class TollTheDeadSpell(Spell):
             'next': set_target
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         entity = self.source
         level = 1
         if entity.cantrip_level() >= 5:
@@ -38,12 +38,11 @@ class TollTheDeadSpell(Spell):
             level += 1
         target = self.action.target
         if target.hp() < target.max_hp():
-            return DieRoll.roll(f"{level}d12", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.toll_the_dead')))
-
-        return DieRoll.roll(f"{level}d8", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')))
+            return DieRoll.roll(f'{level}d12', crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.toll_the_dead')), estimated=estimated)
+        return DieRoll.roll(f'{level}d8', crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.firebolt')), estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
 
     def compute_hit_probability(self, battle, opts=None):
@@ -52,7 +51,7 @@ class TollTheDeadSpell(Spell):
         """
         target = self.action.target
         entity = self.source
-        result = target.save_throw('wisdom', battle, { "is_magical": True })
+        result = target.save_throw('wisdom', battle, { "is_magical": True, "estimated": True })
 
         return 1.0 - result.prob(entity.spell_save_dc("wisdom"))
 

@@ -3,6 +3,7 @@
 from natural20.actions.attack_action import AttackAction
 from natural20.die_roll import DieRoll
 from natural20.spell.hold_person_spell import HoldPersonSpell
+from natural20.utils.spell_attack_util import spell_attack_is_critical
 from natural20.spell.spell import Spell
 
 
@@ -160,7 +161,7 @@ class TrueStrikeSpell(Spell):
         if hit and extra > 0:
             radiant = DieRoll.roll(
                 f'{extra}d6',
-                crit=bool(attack_roll and attack_roll.nat_20()),
+                crit=spell_attack_is_critical(attack_roll, entity, target, battle),
                 battle=battle,
                 entity=entity,
                 description='dice_roll.spells.true_strike',

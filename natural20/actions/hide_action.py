@@ -51,28 +51,67 @@ class HideAction(Action):
         else:
             heavily_obscured = False
 
-        opponent_passive_perception = 0
+        ruleset = getattr(self.source.session, 'ruleset', None)
+        is_2024 = bool(ruleset and getattr(ruleset, 'name', '') == '5e-2024')
 
-        # Re-hiding is judged on the new roll, not hidden by the old one.
         was_hidden = 'hidden' in self.source.statuses
-        if was_hidden:
-            self.source.statuses.remove('hidden')
-        try:
+
+        if is_2024:
+            # 2024: you can hide only when out of every foe's line of
+            # sight and heavily obscured or behind three-quarters/total
+            # cover, then pass a DC 15 Dexterity (Stealth) check.
+            if battle is not None and source_map is not None:
+                _can, cover_reasons = source_map.can_hide(self.source, None, battle)
+                if not _can:
+                    hide_failed_reasons.extend(cover_reasons)
+            if int(stealth_roll.result()) < 15:
+                hide_failed_reasons.append('stealth check failed (DC 15)')
+        elif was_hidden:
+            # Already hidden and unspotted: re-hiding is judged on the NEW
+            # roll, not covered by the old hidden status — any foe with line
+            # of sight to you contests it with their passive Perception, and
+            # a roll that would leave you observable fails the attempt.
+            for opp in opponents:
+                opponent_map = map_of(opp)
+                if source_map != opponent_map:
+                    continue
+                if not source_map:
+                    continue
+                # can_see with the hidden status ON answers "does this foe
+                # currently perceive me here?": it contests their Perception
+                # against the old hidden roll.
+                if source_map.can_see(opp, self.source):
+                    hide_failed_reasons.append(f"{opp.label()} can see {self.source.label()}")
+                    continue
+                # They do not see me now, but would they see me if I stepped
+                # out and hid again? Judge the NEW roll against their passive
+                # Perception only for foes watching this spot.
+                self.source.statuses.remove('hidden')
+                try:
+                    watches_spot = source_map.can_see(opp, self.source)
+                finally:
+                    self.source.statuses.append('hidden')
+                if not watches_spot:
+                    continue
+                opp_pp = opp.passive_perception()
+                if heavily_obscured:
+                    opp_pp -= 5
+                if opp.class_feature('keen_sight_and_smell'):
+                    opp_pp += 5
+                if stealth_roll < opp_pp:
+                    hide_failed_reasons.append(
+                        f"{opp.label()} would notice {self.source.label()}")
+        else:
+            # 2014, not yet hidden: you can't hide from a creature that can
+            # see you clearly. There is no stealth-versus-perception contest
+            # at this point: foes who can't see you search later (can_see
+            # compares passive Perception against the hidden roll).
             for opp in opponents:
                 opponent_map = map_of(opp)
                 if source_map != opponent_map:
                     continue
                 if source_map and source_map.can_see(opp, self.source):
-                    opponent_passive_perception = opp.passive_perception()
-                    if heavily_obscured:
-                        opponent_passive_perception -= 5
-                    if opp.class_feature('keen_sight_and_smell'):
-                        opponent_passive_perception += 5
-                    if stealth_roll < opponent_passive_perception:
-                        hide_failed_reasons.append(f"{opp.label()} can see {self.source.label()}")
-        finally:
-            if was_hidden:
-                self.source.statuses.append('hidden')
+                    hide_failed_reasons.append(f"{opp.label()} can see {self.source.label()}")
 
         if hide_failed_reasons:
             self.result = [{

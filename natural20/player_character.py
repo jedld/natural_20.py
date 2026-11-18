@@ -805,7 +805,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       current_ac = self.eval_effect('ac_override', { "armor_class" : self.equipped_ac() })
   
     if self.has_effect('ac_bonus'):
-      current_ac += self.eval_effect('ac_bonus')
+      current_ac += self.eval_effect('ac_bonus', {'stacked': True}) or 0
 
     return current_ac
 

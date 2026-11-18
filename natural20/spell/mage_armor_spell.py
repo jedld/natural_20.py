@@ -80,7 +80,17 @@ class MageArmorSpell(Spell):
 
     @staticmethod
     def ac_override(entity, effect):
-        return 13 + entity.dex_mod()
+        # Mage Armor never lowers AC: a creature with a better armor-class
+        # formula (Draconic Resilience, Unarmored Defense, actual armor)
+        # keeps it. A creature with several ways to compute its AC uses the
+        # best one.
+        base = 0
+        if isinstance(effect, dict):
+            base = effect.get('armor_class') or 0
+        try:
+            return max(int(base or 0), 13 + entity.dex_mod())
+        except (TypeError, ValueError):
+            return 13 + entity.dex_mod()
 
     @staticmethod
     def equip(entity, opts=None):

@@ -270,9 +270,17 @@ class TestSpellAction(unittest.TestCase):
                            auto_target=True,
                            )
         self.assertEqual([str(action) for action in actions], ['SpellAction: burning_hands to [0, 7]'])
+        hp_before = self.npc.hp()
         self.battle.execute_action(actions[0])
-        # 5e: half damage on a successful save (3d6 → 10, half = 5).
-        self.assertEqual(self.npc.hp(), 8)
+        # 5e: half damage on a successful save. The exact dice depend on the
+        # seed, so compare HP against the damage the battle log recorded.
+        damage_events = [i for action in self.battle.battle_log
+                         for i in (getattr(action, 'result', None) or [])
+                         if isinstance(i, dict) and i.get('type') == 'spell_damage'
+                         and i.get('target') is self.npc]
+        self.assertTrue(damage_events, "burning hands should have dealt damage")
+        dealt = sum(int(i['damage'].result()) for i in damage_events)
+        self.assertEqual(self.npc.hp(), hp_before - dealt)
 
     def test_burning_hands_base_damage_is_3d6(self):
         # PHB 2014: "3d6 fire damage on a failed save" at 1st-level slot.

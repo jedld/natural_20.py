@@ -103,7 +103,7 @@ class AuraOfVitalitySpell(Spell):
     def avg_damage(self, battle, opts=None):
         if not _heals_on_cast(self.session):
             return 0
-        return -DieRoll.roll(str(self.properties.get('heal_dice', '2d6'))).expected()
+        return -DieRoll.estimate(str(self.properties.get('heal_dice', '2d6'))).expected()
 
     def resolve(self, entity, battle, spell_action, battle_map):
         effect = AuraOfVitalityEffect(entity, self.properties)

@@ -26,7 +26,8 @@ class Rollable:
 
 class Roller:
     def __init__(self, roll_str, crit=False, disadvantage=False, advantage=False,
-                 description=None, entity=None, battle=None, controller=None, advantage_str=None, disadvantage_str=None):
+                 description=None, entity=None, battle=None, controller=None, advantage_str=None, disadvantage_str=None,
+                 estimated=False):
         self.roll_str = roll_str
         self.crit = crit
         self.advantage = advantage
@@ -37,6 +38,8 @@ class Roller:
         self.controller = controller
         self.advantage_str = advantage_str
         self.disadvantage_str = disadvantage_str
+        # Scoring estimates set this: the DieRoll is parsed, not rolled.
+        self.estimated = estimated
 
     # support >= and <=
     def __ge__(self, other):
@@ -63,9 +66,22 @@ class Roller:
         modifier_str = detail.modifier
         modifier_op = detail.modifier_op
 
+        # AI scoring estimates: parse the roll without ever drawing from the
+        # game RNG (a rolled estimate shifts every later die in the fight and
+        # is noisy). `DieRoll.expected()`/`prob()` stay exact on such a roll.
+        if self.estimated:
+            if self.crit and die_type_str and number_of_die:
+                sign = '-' if modifier_str and str(modifier_str).startswith('-') else ''
+                rest = f"{sign}{abs(int(modifier_str))}" if modifier_str else ''
+                return DieRoll.estimate(f"{number_of_die * 2}d{die_type_str}{rest}",
+                                        advantage=self.advantage,
+                                        disadvantage=self.disadvantage)
+            return DieRoll.estimate(self.roll_str, advantage=self.advantage,
+                                    disadvantage=self.disadvantage)
+
         # If no die type is specified, treat this as a fixed modifier roll.
         if not die_type_str:
-            mod_value = int(f"{modifier_op}{modifier_str}") if modifier_str else 0
+            mod_value = DieRoll.modifier_value(modifier_op, modifier_str)
             return DieRoll([number_of_die], mod_value, 0, roller=self)
 
         die_sides = int(die_type_str)
@@ -110,7 +126,7 @@ class Roller:
                            modifier_op=modifier_op, modifier_val=modifier_val)
         else:
             # For addition and subtraction, use the legacy system for backward compatibility
-            mod_value = 0 if not modifier_str else int(f"{modifier_op}{modifier_str}")
+            mod_value = 0 if not modifier_str else DieRoll.modifier_value(modifier_op, modifier_str)
             result = DieRoll(rolls, mod_value, die_sides,
                            advantage=self.advantage, disadvantage=self.disadvantage, roller=self)
         
@@ -666,6 +682,51 @@ class DieRoll(Rollable):
         except ValueError:
             return False
 
+    @staticmethod
+    def modifier_value(modifier_op, modifier_str):
+        """Combine a modifier operator and operand into a signed integer.
+
+        Handles signed operands ("+-2" from stringified negative bonuses)
+        instead of naively concatenating ``op + digits``.
+        """
+        if not modifier_str:
+            return 0
+        value = int(modifier_str)
+        if modifier_op == '-':
+            value = -value
+        return value
+
+    @staticmethod
+    def d20(mod=0):
+        """Build a d20 roll string whose negative modifier renders as
+        "1d20-2" instead of the misparsable "1d20+-2"."""
+        mod = 0 if mod is None else int(mod)
+        return f"1d20{'+' if mod >= 0 else '-'}{abs(mod)}"
+
+    @staticmethod
+    def estimate(roll_str, advantage=False, disadvantage=False):
+        """A DieRoll parsed from ``roll_str`` but with no dice rolled.
+
+        Use for AI hit-chance / mean-damage estimates: they must never draw
+        from the game RNG, and they must not be noisy.
+        """
+        detail = DieRoll.parse(str(roll_str))
+        if not detail.die_type:
+            mod = DieRoll.modifier_value(detail.modifier_op, detail.modifier)
+            rolls = [detail.die_count] if detail.die_count else []
+            return DieRoll(rolls, mod, 0, advantage=advantage, disadvantage=disadvantage)
+        sides = int(detail.die_type)
+        if detail.modifier_op in ('*', '/'):
+            roll = DieRoll([1] * (detail.die_count or 1), 0, sides,
+                           advantage=advantage, disadvantage=disadvantage,
+                           modifier_op=detail.modifier_op,
+                           modifier_val=int(detail.modifier) if detail.modifier else None)
+        else:
+            mod = DieRoll.modifier_value(detail.modifier_op, detail.modifier)
+            roll = DieRoll([1] * (detail.die_count or 1), mod, sides,
+                           advantage=advantage, disadvantage=disadvantage)
+        return roll
+
     def __eq__(self, other):
         if isinstance(other, DieRoll):
             return (self.rolls == other.rolls and
@@ -693,8 +754,10 @@ class DieRoll(Rollable):
         For example: "2d6+3" or "d20" or "1d20/2" or just "5" (a fixed modifier).
         """
         roll_str = str(roll_str).strip()
-        # Try to parse with a regular expression.
-        pattern = r'^(?:(\d+)?d(\d+))?(?:\s*([+\-*/])\s*(\d+))?$'
+        # Try to parse with a regular expression. The modifier operand may be
+        # signed ("1d20+-2" from a stringified negative bonus still parses as
+        # -2 rather than +2).
+        pattern = r'^(?:(\d+)?d(\d+))?(?:\s*([+\-*/])\s*(-?\d+))?$'
         match = re.match(pattern, roll_str)
         detail = DieRollDetail()
         if match:
@@ -721,7 +784,9 @@ class DieRoll(Rollable):
                         die_count_str += c
                     elif c == 'd':
                         state = 'die_type'
-                    elif c == '+':
+                    elif c in '+-*/':
+                        if c != '+':
+                            modifier_op = c
                         state = 'modifier'
                 elif state == 'die_type':
                     if c != ' ':
@@ -752,9 +817,10 @@ class DieRoll(Rollable):
 
     @staticmethod
     def roll(roll_str, crit=False, disadvantage=False, advantage=False,
-             description=None, entity=None, battle=None, controller=None, advantage_str=None, disadvantage_str=None):
+             description=None, entity=None, battle=None, controller=None, advantage_str=None, disadvantage_str=None,
+             estimated=False):
         roller = Roller(roll_str, crit=crit, disadvantage=disadvantage, advantage=advantage,
-                        description=description, entity=entity, battle=battle, controller=controller, advantage_str=advantage_str, disadvantage_str=disadvantage_str)
+                        description=description, entity=entity, battle=battle, controller=controller, advantage_str=advantage_str, disadvantage_str=disadvantage_str, estimated=estimated)
         return roller.roll()
 
     @staticmethod
@@ -784,7 +850,10 @@ class DieRoll(Rollable):
             return fudge_val
 
         if advantage or disadvantage:
-            return random.sample(range(1, die_sides + 1), 2)
+            # Two independent rolls: sampling without replacement made pairs
+            # like (20, 20) with advantage or (1, 1) with disadvantage
+            # impossible.
+            return [random.randint(1, die_sides), random.randint(1, die_sides)]
         return random.randint(1, die_sides)
 
     @staticmethod

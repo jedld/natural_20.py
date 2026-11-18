@@ -1961,6 +1961,10 @@ weapon_attack_rules:                 # exceptions to weapon-attack rules (never 
     ignore_properties: [loading]
   - weapons: {weapon_type: crossbow, property: light}
     extra_attack_ability_damage: true   # Light-property extra attack adds the ability modifier
+damage_roll_rules:                   # damage-die exceptions (weapon Attack Rolls only)
+  - weapons: true                    # same weapon filter as weapon_attack_rules
+    roll_twice_best: true            # roll the damage dice twice, keep either total;
+                                     # once per turn (Savage Attacker)
 luck:                                # natural20/utils/luck_points.py
   pool: luck_points
   self_advantage: true               # after your attack / save / check fails: roll another d20, keep the higher
@@ -1985,6 +1989,12 @@ free_casts:                          # same keys as class free_casts (see Data-d
   even with Extra Attack (other weapons may take the remaining attacks).
   Bonus-action, reaction and legendary attacks are single shots. NPC stat-block
   attacks are exempt.
+- `damage_roll_rules` with `roll_twice_best: true` is the generic Savage
+  Attacker mechanic (`natural20/utils/feat_mechanics.should_roll_damage_twice`,
+  applied in `AttackAction._resolve_hit`): once per turn a weapon damage roll
+  is rolled twice and either total may be used (it also stacks with a crit).
+  The SRD 5.2.1 Soldier origin feat is `templates/feats/savage_attacker.yml`
+  (`origin_feat: savage_attacker` in the 2024 Soldier background overlay).
 - `spell_abilities: {spell: ability}` on the sheet sets the casting ability of
   feat- or race-granted spells (`Entity.spell_source_ability`). A free-cast
   spell cast inline (e.g. Shield as a reaction) by a creature with no matching

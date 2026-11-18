@@ -1,0 +1,47 @@
+# SRD 5.2 Wizard overlay — the arcane tradition (subclass) moves from 2nd to
+# 3rd level, and Evoker features follow the 2024 schedule (3/6/10/14).
+# Feature *identifiers* are shared with the 2014 list where the mechanic is
+# the same; level placement follows the SRD 5.2.1 progression table.
+---
+inherit: "@templates/char_classes/wizard.yml"
+progression:
+  level_1:
+    class_features:
+      - spellcasting
+      - arcane_recovery
+  level_2:
+    class_features: []
+  level_3:
+    class_features:
+      - arcane_tradition
+  level_4:
+    class_features:
+      - ability_score_improvement
+  level_18:
+    class_features:
+      - spell_mastery
+  level_20:
+    class_features:
+      - signature_spells
+arcane_tradition_features:
+  school_of_abjuration:
+    level_2: []
+    level_3:
+      - arcane_ward
+    level_6:
+      - projected_ward
+    level_10:
+      - improved_abjuration
+    level_14:
+      - spell_resistance
+  school_of_evocation:
+    level_2: []
+    level_3:
+      - evocation_savant
+      - potent_cantrip
+    level_6:
+      - sculpt_spells
+    level_10:
+      - empowered_evocation
+    level_14:
+      - overchannel

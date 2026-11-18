@@ -25,12 +25,12 @@ class IceKnifeSpell(AttackSpell):
             'next': set_target,
         }
 
-    def _damage(self, battle, opts=None):
+    def _damage(self, battle, opts=None, estimated=False):
         entity = self.source
-        return DieRoll.roll("1d10", battle=battle, entity=entity, description="dice_roll.spells.ice_knife")
+        return DieRoll.roll('1d10', battle=battle, entity=entity, description='dice_roll.spells.ice_knife', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, battle_map):
         target = spell_action.target

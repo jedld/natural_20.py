@@ -153,12 +153,9 @@ class SpiritGuardiansSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         battle_map = battle.map_for(self.source)
         if battle_map is None:
             return 0
-        squares = set(battle_map.squares_in_emanation(
-            self.source, self.properties.get('radius', 15), include_origin=True))
-        foes = [e for e in battle.entities
-                if e is not self.source and not e.dead() and battle.opposing(self.source, e)
-                and tuple(battle_map.entity_or_object_pos(e) or (-1, -1)) in squares]
-        per_target = DieRoll.roll(self.damage_dice(), battle=None).expected() * 0.75
+        squares = set(battle_map.squares_in_emanation(self.source, self.properties.get('radius', 15), include_origin=True))
+        foes = [e for e in battle.entities if e is not self.source and (not e.dead()) and battle.opposing(self.source, e) and (tuple(battle_map.entity_or_object_pos(e) or (-1, -1)) in squares)]
+        per_target = DieRoll.estimate(self.damage_dice()).expected() * 0.75
         return per_target * len(foes)
 
     def resolve(self, entity, battle, spell_action, battle_map):

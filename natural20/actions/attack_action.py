@@ -556,16 +556,16 @@ class AttackAction(Action):
             else:
                 item['source'].unequip(item['weapon'], transfer_inventory=False)
 
-            if item['type'] == 'damage':
-                item['target'].add_item(item['weapon'])
+            # A thrown weapon that hits lands in (or near) the target's
+            # space; picking it back up is an Object Interaction. It never
+            # ends up in the target's inventory.
+            if item.get('target') is not None:
+                ground_pos = item['battle'].entity_or_object_pos(item['target'])
             else:
-                if item.get('target') is not None:
-                    ground_pos = item['battle'].entity_or_object_pos(item['target'])
-                else:
-                    ground_pos = tuple(item['blind_square'])
-                ground_object = next((o for o in item['battle'].map_for(item['source']).objects_at(*ground_pos) if isinstance(o, Ground)), None)
-                if ground_object:
-                    ground_object.add_item(item['weapon'])
+                ground_pos = tuple(item['blind_square'])
+            ground_object = next((o for o in item['battle'].map_for(item['source']).objects_at(*ground_pos) if isinstance(o, Ground)), None)
+            if ground_object:
+                ground_object.add_item(item['weapon'])
 
         if battle:
             entity_state = battle.entity_state_for(item['source'])
@@ -692,12 +692,14 @@ class AttackAction(Action):
         if self.target is None and self.target_square is not None:
             _, _, attack_mod, _, _ = self.get_weapon_info(opts or {})
             confidence = float(getattr(self, 'blind_confidence', 0.35))
-            return confidence * DieRoll.roll(f"1d20+{attack_mod}", disadvantage=True).prob(self.BLIND_ASSUMED_AC)
+            return confidence * DieRoll.estimate(DieRoll.d20(attack_mod), disadvantage=True).prob(self.BLIND_ASSUMED_AC)
         advantage_mod, adv_info, attack_mod = self.compute_advantage_info(battle, opts)
         target_ac, _cover_ac = effective_ac(battle, self.source, self.target,
                                             weapon=self.get_attack_info(opts or {}), thrown=self.thrown)
 
-        return DieRoll.roll(f"1d20+{attack_mod}", advantage=advantage_mod > 0, disadvantage=advantage_mod < 0).prob(target_ac)
+        return DieRoll.estimate(DieRoll.d20(attack_mod),
+                                advantage=advantage_mod > 0,
+                                disadvantage=advantage_mod < 0).prob(target_ac)
 
     def compute_advantage_info(self, battle, opts=None):
         if opts is None:
@@ -715,7 +717,7 @@ class AttackAction(Action):
         from natural20.utils.monster_traits import additional_damage_entries, average_roll
         total = 0.0
         if damage_roll and not self.grapple_instead:
-            total += DieRoll.roll(damage_roll).expected()
+            total += DieRoll.estimate(damage_roll).expected()
         for entry in additional_damage_entries(weapon):
             total += average_roll(entry['damage_die'])
         return total
@@ -770,7 +772,7 @@ class AttackAction(Action):
                     continue
                 if attack_target_issue(source, target, follow_up) is None:
                     continue
-                follow = DieRoll.roll(follow_up['damage_die']).expected() if follow_up.get('damage_die') else 0
+                follow = average_roll(follow_up['damage_die']) if follow_up.get('damage_die') else 0
                 follow += sum(average_roll(e['damage_die']) for e in additional_damage_entries(follow_up))
                 value += hit_chance * follow
                 break
@@ -790,8 +792,7 @@ class AttackAction(Action):
                 save_type, _, dc = str(effect['save_dc']).partition(':')
                 try:
                     mod = int(target.saving_throw_mod(save_type) or 0)
-                    sign = '+' if mod >= 0 else ''
-                    fail_chance = 1.0 - DieRoll.roll(f"1d20{sign}{mod}").prob(int(dc))
+                    fail_chance = 1.0 - DieRoll.estimate(DieRoll.d20(mod)).prob(int(dc))
                 except Exception:
                     fail_chance = 0.5
             weight = float(effect.get('ai_value', weapon.get('ai_value', 8)) or 0)
@@ -840,7 +841,7 @@ class AttackAction(Action):
                 self.evaluate_feature_protection(battle, map, target, adv_info)
 
             if self.attack_roll is None:
-                self.attack_roll = DieRoll.roll_with_lucky(self.source, f"1d20+{attack_mod}", disadvantage=self.with_disadvantage(),
+                self.attack_roll = DieRoll.roll_with_lucky(self.source, DieRoll.d20(attack_mod), disadvantage=self.with_disadvantage(),
                                             advantage=self.with_advantage(), description='dice_roll.attack', battle=battle)
                 if not hasattr(self.attack_roll, 'metadata'):
                     self.attack_roll.metadata = {}
@@ -962,7 +963,7 @@ class AttackAction(Action):
         weapon, attack_name, attack_mod, _damage_roll, ammo_type = self.get_weapon_info(opts)
         self.advantage_mod = -1
         self.attack_roll = DieRoll.roll_with_lucky(
-            self.source, f"1d20+{attack_mod}", disadvantage=True,
+            self.source, DieRoll.d20(attack_mod), disadvantage=True,
             description='dice_roll.attack', battle=battle,
         )
         self.result.append({
@@ -1044,7 +1045,10 @@ class AttackAction(Action):
         if (not crit and attack_roll is not None
                 and (getattr(target, 'paralyzed', lambda: False)()
                      or getattr(target, 'unconscious', lambda: False)())
-                and weapon.get('type') == 'melee_attack' and battle is not None):
+                and battle is not None):
+            # Any hit on a paralyzed or unconscious creature is a critical
+            # hit if the attacker is within 5 feet of it, whatever weapon
+            # (or ranged/spell attack) was used.
             attack_map = battle.map_for(self.source)
             if attack_map is not None and attack_map.distance(self.source, target) * attack_map.feet_per_grid <= 5:
                 crit = True
@@ -1064,8 +1068,18 @@ class AttackAction(Action):
                                                 description='dice_roll.sneak_attack', entity=self.source, battle=battle)
 
         if damage_roll is not None:
-            damage = DieRoll.roll(damage_roll, crit=crit, description='dice_roll.damage',
-                                    entity=self.source, battle=battle)
+            from natural20.utils.feat_mechanics import should_roll_damage_twice
+            if should_roll_damage_twice(self.source, weapon, battle):
+                # Savage Attacker: roll the weapon's damage dice twice and
+                # use either total.
+                first = DieRoll.roll(damage_roll, crit=crit, description='dice_roll.damage',
+                                     entity=self.source, battle=battle)
+                second = DieRoll.roll(damage_roll, crit=crit, description='dice_roll.savage_attacker',
+                                      entity=self.source, battle=battle)
+                damage = first if first.result() >= second.result() else second
+            else:
+                damage = DieRoll.roll(damage_roll, crit=crit, description='dice_roll.damage',
+                                        entity=self.source, battle=battle)
 
             # Half-Orc Savage Attacks: on a melee weapon crit, add one extra
             # weapon damage die to the critical damage.
@@ -1447,6 +1461,17 @@ class AttackAction(Action):
                 current_hp = self.source.hp()
                 if max_hp and current_hp is not None and current_hp <= max_hp // 2:
                     damage_roll = half_hp_die
+            # NPC YAML ``damage_mod`` (e.g. goblin Shortbow: 1d6 + 2): add the
+            # flat bonus to the damage die unless it is already baked into
+            # damage_die.
+            damage_mod = npc_action.get("damage_mod")
+            if damage_roll and damage_mod not in (None, 0, '') and '+' not in str(damage_roll):
+                try:
+                    mod_val = int(damage_mod)
+                except (TypeError, ValueError):
+                    mod_val = 0
+                if mod_val:
+                    damage_roll = f"{damage_roll}{f'+{mod_val}' if mod_val >= 0 else mod_val}"
             ammo_type = npc_action.get("ammo", None)
             if self.source.class_feature('martial_role_attacker'):
                 try:

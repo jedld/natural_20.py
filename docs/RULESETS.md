@@ -121,7 +121,7 @@ Gated by `Ruleset.weapon_mastery_enabled()` (on for `5e-2024`). Weapon propertie
 | **Graze** | On a miss | Damage equal to the attack ability modifier |
 | **Nick / Cleave** | YAML only in this slice | TWF rewrite / extra attack not implemented yet |
 
-Chargen (2024 classes with the feature) asks the player to pick that many mastery properties. Stored as `known_weapon_masteries` on the PC YAML. Legacy sheets with the feature but no list still receive every mastery on weapons they are proficient with. 2014 campaigns ignore `weapon_mastery` on items.
+Chargen (2024 classes with the feature) asks the player to pick that many **weapon kinds** you are proficient with; each chosen weapon grants you its Mastery (SRD 5.2.1 counts weapon kinds, not mastery names). The chosen weapons are stored as `known_weapon_masteries` on the PC YAML (weapon ids like `longsword`). Legacy sheets that stored mastery names keep working for weapons carrying that mastery, and legacy sheets with the feature but no list still receive every mastery on weapons they are proficient with. 2014 campaigns ignore `weapon_mastery` on items.
 
 Attack buttons and the character sheet show the mastery when the campaign ruleset enables it. Combat log events use `event: weapon_mastery`.
 
@@ -131,6 +131,23 @@ Attack buttons and the character sheet show the mastery when the campaign rulese
 - **Long range** compares the distance in feet with the weapon's normal `range` (the `thrown.range` for thrown weapons).
 - **Archery** adds +2 to ranged weapon *attack rolls* only, not damage.
 - 2024 Lucky (luck points), Sharpshooter and Crossbow Expert are YAML in the `players_handbook_2024` expansion pack; the mechanics are generic (`feat_mechanics.py`, `luck_points.py`). See `docs/CAMPAIGN_BUILDING.md` → "Other feat YAML mechanics". Lucky is offered after the d20 is rolled, with the same odds as spending it beforehand.
+
+### Attacks and hiding (edition differences)
+
+- **Automatic criticals.** In both editions any attack *roll that hits* is a
+  critical hit when the attacker is within 5 feet of a paralyzed or
+  unconscious creature — melee, ranged and spell attacks alike
+  (`AttackAction.resolve`, `spell_attack_is_critical` in
+  `natural20/utils/spell_attack_util.py`). A natural 20 always crits at any
+  range.
+- **Hiding.** 2014: hiding fails outright while any conscious foe can see the
+  hider (`HideAction.resolve` → `Map.can_see`); hidden-vs-searcher resolution
+  is Stealth vs passive Perception. 2024: you may only hide when out of every
+  foe's line of sight and heavily obscured or behind three-quarters/total
+  cover (`Map.can_hide`), then pass a DC 15 Dexterity (Stealth) check.
+- **Thrown weapons** land in the target's space on a hit (as a `Ground`
+  object), never in the target's inventory; picking one up is an object
+  interaction. SRD 5.2.1 thrown ranges: dagger and handaxe 20/60.
 
 ### Paladin and feats
 

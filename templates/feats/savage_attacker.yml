@@ -1,0 +1,9 @@
+savage_attacker:
+  name: Savage Attacker
+  description: |
+    Once per turn, when you make a weapon Attack Roll, you can roll the
+    damage die for that Attack twice and use either total.
+  prerequisites: []
+  damage_roll_rules:
+    - weapons: true
+      roll_twice_best: true

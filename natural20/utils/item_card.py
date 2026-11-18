@@ -147,9 +147,13 @@ def _weapon_masteries(entity, item: Dict[str, Any]) -> List[Dict[str, Any]]:
         except Exception:
             has_feature = False
 
+    # The known list counts weapon kinds, so the trained flag is a property
+    # of this weapon, not of each mastery name.
+    from natural20.weapon_mastery import weapon_kind_known
+    trained = weapon_kind_known(entity, item) if (known is not None or has_feature) else False
+
     rows = []
     for name in names:
-        trained = (known is None and has_feature) or (known and name in known)
         rows.append({
             'id': name,
             'label': MASTERY_LABELS.get(name, _title_token(name)),

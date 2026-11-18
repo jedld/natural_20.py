@@ -196,7 +196,10 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
 
     try:
         from natural20.weapon_mastery import consume_sap_disadvantage, consume_vex_advantage
-        if consume_sap_disadvantage(target):
+        # SRD 5.2.1 Sap: "On a hit, the target has disadvantage on its next
+        # attack roll before the start of your next turn." The marker lives on
+        # the sapped creature and is consumed when *it* attacks.
+        if consume_sap_disadvantage(source):
             disadvantage.append('weapon_mastery_sap')
         if consume_vex_advantage(source, target):
             advantage.append('weapon_mastery_vex')
@@ -233,10 +236,18 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
     if weapon and 'heavy' in weapon.get('properties', []) and source.size == 'small':
         disadvantage.append('small_creature_using_heavy')
 
-    if weapon and (not thrown and weapon['type'] == 'melee_attack') and target.prone():
+    weapon_type = (weapon.get('type') or '') if isinstance(weapon, dict) else ''
+    # Ranged/melee spell attacks take the same modifiers as weapon attacks
+    # (SRD: disadvantage on a ranged attack within 5 ft of a hostile, ranged
+    # attacks against prone targets at disadvantage, melee attacks against
+    # prone targets at advantage).
+    is_melee_attack = (not thrown) and weapon_type in ('melee_attack', 'melee_spell_attack')
+    is_ranged_attack = thrown or weapon_type in ('ranged_attack', 'ranged_spell_attack')
+
+    if weapon and is_melee_attack and target.prone():
         advantage.append('target_is_prone')
 
-    if weapon and (thrown or weapon['type'] == 'ranged_attack'):
+    if weapon and is_ranged_attack:
         if target.prone():
             disadvantage.append('target_is_prone_range')
 
@@ -257,7 +268,7 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
         if distract_helpers:
             advantage.append('being_helped')
 
-        if weapon and (thrown or weapon['type'] == 'ranged_attack'):
+        if weapon and is_ranged_attack:
             from natural20.utils.feat_mechanics import (
                 no_adjacent_enemy_disadvantage, no_long_range_disadvantage,
             )

@@ -1,5 +1,5 @@
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.spell.extensions.hit_computations import AttackSpell
 import pdb
 
@@ -24,18 +24,18 @@ class GuidingBoltSpell(AttackSpell):
             'next': set_target,
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         if opts is None:
             opts = {}
         entity = self.source
         dmg_level = 4
-        at_level = opts.get("at_level", 1)
+        at_level = opts.get('at_level', 1)
         if at_level > 1:
             dmg_level += at_level - 1
-        return DieRoll.roll(f"{dmg_level}d6", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.guiding_bolt")
+        return DieRoll.roll(f'{dmg_level}d6', crit=crit, battle=battle, entity=entity, description='dice_roll.spells.guiding_bolt', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         result = []
@@ -46,7 +46,7 @@ class GuidingBoltSpell(AttackSpell):
             result.append(event)
 
         if hit:
-            damage_roll = self._damage(battle, crit=attack_roll.nat_20(), opts={"at_level": spell_action.at_level})
+            damage_roll = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle), opts={"at_level": spell_action.at_level})
             result.extend([{
                 'source': entity,
                 'target': target,

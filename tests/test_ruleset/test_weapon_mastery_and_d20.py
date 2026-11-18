@@ -210,6 +210,43 @@ def test_known_mastery_list_gates_properties(tmp_path):
     assert can_use_mastery(fighter, pike, "push") is False
 
 
+def test_known_list_counts_weapon_kinds(tmp_path):
+    """The rule counts *weapon kinds* whose mastery you know, not mastery
+    names: a chosen kind gates exactly that weapon, and other weapons that
+    happen to share the same mastery property are not covered."""
+    from natural20.weapon_mastery import can_use_mastery, weapon_kind_known
+
+    root = _campaign(tmp_path, "5e-2024")
+    session = Session(str(root))
+    from natural20.player_character import PlayerCharacter
+
+    fighter = PlayerCharacter.load(session, "high_elf_fighter.yml")
+    fighter.properties["known_weapon_masteries"] = ["longsword", "pike", "longbow"]
+    longsword = session.load_weapon("longsword")
+    mace = session.load_weapon("mace")  # also a Sap weapon, but not chosen
+    pike = session.load_weapon("pike")
+    assert can_use_mastery(fighter, longsword, "sap") is True
+    assert can_use_mastery(fighter, pike, "push") is True
+    assert can_use_mastery(fighter, mace, "sap") is False
+    assert weapon_kind_known(fighter, session.load_weapon("warhammer")) is False
+
+
+def test_legacy_mastery_name_list_still_works(tmp_path):
+    """Pre-fix sheets stored mastery names; those keep working so existing
+    characters do not silently lose their masteries."""
+    from natural20.weapon_mastery import can_use_mastery
+
+    root = _campaign(tmp_path, "5e-2024")
+    session = Session(str(root))
+    from natural20.player_character import PlayerCharacter
+
+    fighter = PlayerCharacter.load(session, "high_elf_fighter.yml")
+    fighter.properties["known_weapon_masteries"] = ["sap"]
+    assert can_use_mastery(fighter, session.load_weapon("longsword"), "sap") is True
+    assert can_use_mastery(fighter, session.load_weapon("mace"), "sap") is True
+    assert can_use_mastery(fighter, session.load_weapon("pike"), "push") is False
+
+
 def test_mastery_state_round_trips_on_pc(tmp_path):
     from natural20.player_character import PlayerCharacter
 

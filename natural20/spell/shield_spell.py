@@ -31,7 +31,9 @@ class ShieldSpell(Spell):
 
     @staticmethod
     def ac_bonus(entity, effect):
-        return 5
+        # AC bonuses from different sources stack (add onto any previous
+        # active value).
+        return (int((effect or {}).get('value') or 0)) + 5
 
     @staticmethod
     def start_of_turn(entity, opts=None):
@@ -50,7 +52,13 @@ class ShieldSpell(Spell):
         spell = battle.session.load_spell('shield')
         original_action = opts.get('original_action', None)
 
-        if attack_roll is None or attack_roll.result() in range(effective_ac, effective_ac + 5):
+        if attack_roll is None or (
+            attack_roll.result() in range(effective_ac, effective_ac + 5)
+            # Never spend the slot/reaction on a natural 20 (it hits even at
+            # +5 AC) or a natural 1 (it already missed).
+            and not attack_roll.nat_20()
+            and not attack_roll.nat_1()
+        ):
             entity_controller = battle.controller_for(entity)
             if entity_controller is None:
                 return [[], False]

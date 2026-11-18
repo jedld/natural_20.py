@@ -156,6 +156,17 @@ def sensed_creatures(battle, observer) -> List[Dict[str, Any]]:
         if stale:
             memory.pop(uid, None)
             continue
+        # A guess at a square the observer can currently watch is worthless:
+        # if the creature were still there it would be seen, so the square is
+        # provably empty and the blind attack would be an automatic miss.
+        # Hidden or invisible creatures fail this check and keep their
+        # (genuine) guesses.
+        try:
+            if battle.can_see(observer, creature, entity_2_pos=tuple(entry['pos'])):
+                memory.pop(uid, None)
+                continue
+        except Exception:
+            pass
         remembered.append({
             'uid': uid, 'pos': tuple(entry['pos']), 'kind': KIND_LAST_KNOWN,
             'round': int(entry.get('round') or 0),

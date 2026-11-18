@@ -47,7 +47,9 @@ class ShieldOfFaithSpell(Spell):
 
     @staticmethod
     def ac_bonus(entity, effect):
-        return 2
+        # AC bonuses from different sources stack (add onto any previous
+        # active value).
+        return (int((effect or {}).get('value') or 0)) + 2
 
 
     def resolve(self, entity, battle, spell_action, _battle_map):

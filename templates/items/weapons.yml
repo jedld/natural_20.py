@@ -37,8 +37,8 @@ dagger:
   range: 5
   subtype: weapon
   thrown:
-    range: 30
-    range_max: 120
+    range: 20
+    range_max: 60
   type: melee_attack
   weight: 10
 quarterstaff:
@@ -182,7 +182,7 @@ handaxe:
   range: 5
   subtype: weapon
   thrown:
-    range: 30
+    range: 20
     range_max: 60
   type: melee_attack
   weight: 10

@@ -21,7 +21,7 @@ class PoisonSpraySpell(Spell):
         }
     
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         entity = self.source
         level = 1
         if entity.cantrip_level() >= 5:
@@ -30,10 +30,10 @@ class PoisonSpraySpell(Spell):
             level += 1
         if entity.cantrip_level() >= 17:
             level += 1
-        return DieRoll.roll(f"{level}d12", crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.sacred_flame'))
+        return DieRoll.roll(f'{level}d12', crit=crit, battle=battle, entity=entity, description=self.t('dice_roll.spells.sacred_flame'), estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
 
     def compute_hit_probability(self, battle, opts=None):
@@ -42,7 +42,7 @@ class PoisonSpraySpell(Spell):
         """
         target = self.action.target
         entity = self.source
-        result = target.save_throw('constitution', battle, { "is_magical": True })
+        result = target.save_throw('constitution', battle, { "is_magical": True, "estimated": True })
 
         return 1.0 - result.prob(entity.spell_save_dc("constitution"))
 

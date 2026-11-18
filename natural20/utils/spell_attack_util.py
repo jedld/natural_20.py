@@ -58,6 +58,32 @@ def mirror_image_outcome_for(action, attack_roll, target):
     return None
 
 
+def spell_attack_is_critical(attack_roll, source, target, battle):
+    """True when this spell attack roll scores a critical hit.
+
+    A natural 20 always crits. Additionally (2014 and 2024 alike), any hit
+    roll against a paralyzed or unconscious creature is an automatic
+    critical when the attacker is within 5 feet of it, so melee *and*
+    ranged spell attacks from an adjacent square crit too.
+    """
+    if attack_roll is None:
+        return False
+    if attack_roll.nat_20():
+        return True
+    if source is None or target is None or battle is None:
+        return False
+    if not (getattr(target, 'paralyzed', lambda: False)()
+            or getattr(target, 'unconscious', lambda: False)()):
+        return False
+    attack_map = battle.map_for(source)
+    if attack_map is None:
+        return False
+    try:
+        return attack_map.distance(source, target) * attack_map.feet_per_grid <= 5
+    except Exception:
+        return False
+
+
 def evaluate_spell_attack(session, entity, target, spell_properties, battle=None, opts=None):
     """Roll one spell attack against *target*.
 

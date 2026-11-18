@@ -1,6 +1,6 @@
 from natural20.die_roll import DieRoll
 from natural20.spell.extensions.hit_computations import AttackSpell
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 
 
 class ChromaticOrbSpell(AttackSpell):
@@ -54,22 +54,15 @@ class ChromaticOrbSpell(AttackSpell):
             'next': set_damage_type
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         if opts is None:
             opts = {}
-
         at_level = int(opts.get('at_level', 1) or 1)
         dice_count = 3 + max(0, at_level - 1)
-        return DieRoll.roll(
-            f"{dice_count}d8",
-            crit=crit,
-            battle=battle,
-            entity=self.source,
-            description="dice_roll.spells.chromatic_orb"
-        )
+        return DieRoll.roll(f'{dice_count}d8', crit=crit, battle=battle, entity=self.source, description='dice_roll.spells.chromatic_orb', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts=opts).expected()
+        return self._damage(battle, opts=opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         result = []
@@ -96,7 +89,7 @@ class ChromaticOrbSpell(AttackSpell):
         if hit:
             damage_roll = self._damage(
                 battle,
-                crit=attack_roll.nat_20(),
+                crit=spell_attack_is_critical(attack_roll, entity, target, battle),
                 opts={"at_level": spell_action.at_level}
             )
             result.append({

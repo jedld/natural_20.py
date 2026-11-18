@@ -1,6 +1,6 @@
 from natural20.spell.spell import Spell
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.weapons import damage_modifier, target_advantage_condition
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.extensions.hit_computations import AttackSpell
@@ -40,15 +40,15 @@ class EldritchBlastSpell(AttackSpell):
             'next': set_target
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         # Each beam does 1d10 force damage (+ Agonizing Blast style riders).
         from natural20.utils.class_mechanics import cantrip_damage_bonus
         bonus = cantrip_damage_bonus(self.source, 'eldritch_blast')
-        expr = "1d10" if not bonus else f"1d10{'+' if bonus > 0 else ''}{bonus}"
-        return DieRoll.roll(expr, crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.eldritch_blast')))
+        expr = '1d10' if not bonus else f"1d10{('+' if bonus > 0 else '')}{bonus}"
+        return DieRoll.roll(expr, crit=crit, battle=battle, entity=self.source, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.eldritch_blast')), estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, crit=False, opts=opts).expected()
+        return self._damage(battle, crit=False, opts=opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         targets = spell_action.target
@@ -83,7 +83,7 @@ class EldritchBlastSpell(AttackSpell):
                 result.append(event)
 
             if hit:
-                damage_roll = self._damage(battle, crit=attack_roll.nat_20())
+                damage_roll = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle))
                 result.append({
                     "source": entity,
                     "target": target,

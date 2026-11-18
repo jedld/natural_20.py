@@ -975,7 +975,7 @@ class Entity(EntityStateEvaluator, Notable):
             if advantage and disadvantage:
                 advantage = disadvantage = False
 
-            roll = DieRoll.roll_with_lucky(self, f"1d20+{modifiers}",
+            roll = DieRoll.roll_with_lucky(self, DieRoll.d20(modifiers),
                                            description=description,
                                            advantage=advantage,
                                            disadvantage=disadvantage,
@@ -1043,7 +1043,7 @@ class Entity(EntityStateEvaluator, Notable):
         disadvantage = bool(disadvantage_modifiers)
         if advantage and disadvantage:
             advantage = disadvantage = False
-        roll = DieRoll.roll_with_lucky(self, f"1d20+{modifier}",
+        roll = DieRoll.roll_with_lucky(self, DieRoll.d20(modifier),
                                        description=opts.get('description', f"dice roll for {short} check"),
                                        advantage=advantage, disadvantage=disadvantage, battle=battle)
         if not hasattr(roll, 'metadata'):
@@ -1487,9 +1487,11 @@ class Entity(EntityStateEvaluator, Notable):
             if 'unconscious' in self.statuses:
                 self.statuses.remove('unconscious')
 
-            # dismiss all effects
-            for effect in self.casted_effects:
-                self.dismiss_effect(effect['effect'])
+            # Dying only breaks concentration; non-concentration effects the
+            # creature cast (Aid, Bless, ...) persist. Effects whose duration
+            # runs through the dead creature's turn hooks expire on their own.
+            if self.concentration:
+                self.dismiss_effect(self.concentration)
 
             # Fire YAML-registered 'died' event hooks (e.g. spawn, set_session).
             try:
@@ -1678,9 +1680,10 @@ class Entity(EntityStateEvaluator, Notable):
             while 'stable' in self.statuses:
                 self.statuses.remove('stable')
 
-            # dismiss all effects
-            for effect in self.casted_effects:
-                self.dismiss_effect(effect['effect'])
+            # Going unconscious only breaks concentration; every other effect
+            # the creature cast (Aid, Bless, Sanctuary, ...) persists.
+            if self.concentration:
+                self.dismiss_effect(self.concentration)
 
     def _apply_knock_unconscious(self):
         """5e knockout: 0 HP, unconscious, and stable instead of dying."""
@@ -1696,7 +1699,7 @@ class Entity(EntityStateEvaluator, Notable):
         else:
             bonus = 0
         proficiency_mod += bonus
-        return DieRoll.roll_with_lucky(self, f"1d20+{proficiency_mod}",
+        return DieRoll.roll_with_lucky(self, DieRoll.d20(proficiency_mod),
                             description=self.t('dice_roll.thieves_tools'),
                             battle=battle)
 
@@ -2419,7 +2422,7 @@ class Entity(EntityStateEvaluator, Notable):
         if self.surprised() and ruleset is not None:
             if ruleset.surprise_model() == "initiative_disadvantage":
                 disadvantage = True
-        roll = DieRoll.roll_with_lucky(self, f"1d20+{self.initiative_bonus()}", description="initiative",
+        roll = DieRoll.roll_with_lucky(self, DieRoll.d20(self.initiative_bonus()), description="initiative",
                                        advantage=advantage,
                                        disadvantage=disadvantage,
                                        battle=battle)
@@ -2548,7 +2551,14 @@ class Entity(EntityStateEvaluator, Notable):
             else:
                 dismiss_count = effect.action.target.remove_effect(effect, opts)
 
-        dismiss_count += self.remove_effect(effect, opts)
+        # Once the target-side pass removed this cast, this entity's own
+        # entries for it (its casted_effects bookkeeping) are gone too. Match
+        # the object by identity only from here on: a name-matching fallback
+        # would tear down other casters' casts of the same spell instead.
+        own_opts = dict(opts)
+        if dismiss_count:
+            own_opts['_allow_id_fallback'] = False
+        dismiss_count += self.remove_effect(effect, own_opts)
         return dismiss_count
 
     def remove_effect(self, effect, opts={}):
@@ -2577,37 +2587,67 @@ class Entity(EntityStateEvaluator, Notable):
             return getattr(f.get('effect'), 'id', None)
 
         effect_id = getattr(effect, 'id', None)
+        has_source = effect_id is not None and getattr(effect, 'source', None) is not None
 
-        removed_effects = {}
-        if effect_id is not None and hasattr(effect, 'source') and effect.source:
+        # Match the *exact cast*: entries that only share the spell's YAML
+        # id belong to other casters/casts (two clerics both Bless the same
+        # ally) and must survive when one cast is dismissed. Identity is
+        # used whenever the exact object is registered somewhere; otherwise
+        # fall back to id matching (covers effect instances re-created by
+        # save/load).
+        all_entries = list(effect.source.casted_effects) if has_source else []
+        for value in self.effects.values():
+            all_entries += value
+        for value in self.entity_event_hooks.values():
+            all_entries += value
+        allow_id_fallback = opts.get('_allow_id_fallback', True)
+        by_identity = (any(f.get('effect') is effect for f in all_entries)
+                       or not allow_id_fallback)
+
+        def matches(f):
+            if by_identity:
+                return f.get('effect') is effect
+            return effect_id is not None and entry_id(f) == effect_id
+
+        removed_effects = []
+
+        if has_source:
             for f in effect.source.casted_effects:
-                if entry_id(f) == effect_id:
-                    removed_effects[effect_id] = f
+                if matches(f):
+                    removed_effects.append(f)
 
-            effect.source.casted_effects = [f for f in effect.source.casted_effects if entry_id(f) != effect_id]
+            effect.source.casted_effects = [
+                f for f in effect.source.casted_effects if not matches(f)
+            ]
 
         dismiss_count = 0
 
         new_effects = {}
         for key, value in self.effects.items():
+            kept = []
             for f in value:
-                if effect_id is not None and entry_id(f) == effect_id:
-                    removed_effects[effect_id] = f
+                if matches(f):
+                    removed_effects.append(f)
                     dismiss_count += 1
-
-            new_effects[key] = [f for f in value if entry_id(f) is None or entry_id(f) not in removed_effects]
+                else:
+                    kept.append(f)
+            new_effects[key] = kept
         self.effects = new_effects
 
         new_entity_event_hooks = {}
         for key, value in self.entity_event_hooks.items():
-            delete_hooks = [f for f in value if f['effect'] == effect]
+            delete_hooks = [f for f in value if matches(f)]
             dismiss_count += len(delete_hooks)
             new_entity_event_hooks[key] = [f for f in value if f not in delete_hooks]
         self.entity_event_hooks = new_entity_event_hooks
 
-        # call the dismiss hooks
-        for f in removed_effects.values():
-            if f['effect'] and hasattr(f['effect'], 'dismiss'):
+        # call the dismiss hooks (once per distinct entry)
+        seen = []
+        for f in removed_effects:
+            if any(f is s for s in seen):
+                continue
+            seen.append(f)
+            if f.get('effect') and hasattr(f['effect'], 'dismiss'):
                 f['effect'].dismiss(self, f, opts)
 
         return dismiss_count
@@ -2629,6 +2669,8 @@ class Entity(EntityStateEvaluator, Notable):
         entity_state = battle.entity_state_for(self)
         if not entity_state:
             raise ValueError("entity has not been added to the battle yet")
+        # Out-of-battle Savage Attacker bookkeeping does not survive a turn.
+        self._savage_attacker_used = False
 
         from natural20.utils.legendary_actions import legendary_pool_size
         total_legendary_actions = legendary_pool_size(self)
@@ -2647,6 +2689,7 @@ class Entity(EntityStateEvaluator, Notable):
             'granted_attack': None,
             'post_attack_teleport': 0,
             'fancy_footwork_targets': set(),
+            'savage_attacker_used': False,
             'action_surge': None,
             'multiattack_started': False,
             'casted_level_spells': [],
@@ -3381,11 +3424,16 @@ class Entity(EntityStateEvaluator, Notable):
         return save_roll
 
     def _roll_save_throw(self, save_type, battle, opts):
+        # AI hit-chance estimates set opts['estimated']: the d20 (and Bless
+        # dice) are parsed, not rolled, so scoring never consumes the game
+        # RNG and never shifts later dice in the fight.
+        estimated = bool(opts.get('estimated'))
         auto_fail = next((s for s in ('paralyzed', 'stunned') if s in self.statuses), None)
         if save_type in ('strength', 'dexterity') and auto_fail:
             return DieRoll.roll(
                 "1", battle=battle, entity=self,
                 description=f"dice_roll.{save_type}_saving_throw ({auto_fail}, auto-fail)",
+                estimated=estimated,
             )
 
         modifier = self.ability_mod(save_type)
@@ -3485,10 +3533,15 @@ class Entity(EntityStateEvaluator, Notable):
 
         has_advantage = len(advantages) > 0
         has_disadvantage = len(disadvantages) > 0
+        # 5e: if modifier and feature both apply to the same roll, they cancel
+        # out and the die is rolled normally.
+        if has_advantage and has_disadvantage:
+            has_advantage = has_disadvantage = False
         advantage_str = ",".join(advantages) if len(advantages) > 0 else ""
         disadvantage_str = ",".join(disadvantages) if len(disadvantages) > 0 else ""
         save_roll = DieRoll.roll(f"d20{op}{modifier}", advantage=has_advantage, disadvantage=has_disadvantage, battle=battle, entity=self,
-                            description=f"dice_roll.{save_type}_saving_throw", advantage_str=advantage_str, disadvantage_str=disadvantage_str)
+                            description=f"dice_roll.{save_type}_saving_throw", advantage_str=advantage_str, disadvantage_str=disadvantage_str,
+                            estimated=estimated)
         if not hasattr(save_roll, 'metadata'):
             save_roll.metadata = {}
         save_roll.metadata['is_saving_throw'] = True
@@ -3499,11 +3552,14 @@ class Entity(EntityStateEvaluator, Notable):
             save_roll = self.eval_effect('saving_throw_override', { 'save_roll' : save_roll })
 
         if self.has_effect('bless'):
-            save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
+            save_roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle,
+                                      estimated=estimated)
 
         if self.has_effect('bane'):
-            bane_pen = DieRoll.roll("1d4", description="bane", entity=self, battle=battle)
-            save_roll += DieRoll.roll("-" + str(bane_pen.result()), entity=self, battle=battle)
+            bane_pen = DieRoll.roll("1d4", description="bane", entity=self, battle=battle,
+                                    estimated=estimated)
+            save_roll += DieRoll.roll("-" + str(bane_pen.result()), entity=self, battle=battle,
+                                      estimated=estimated)
 
         if save_type == 'constitution' and opts.get('concentration') is not None:
             from natural20.utils.attack_penalties import penalty_dice, subtract_dice
@@ -3872,10 +3928,10 @@ class Entity(EntityStateEvaluator, Notable):
         return total
 
     def ranged_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        return DieRoll.roll(f"1d20+{self.spell_attack_modifier_for(spell)}", description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        return DieRoll.roll(DieRoll.d20(self.spell_attack_modifier_for(spell)), description=f"Ranged Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def melee_spell_attack(self, battle, spell, advantage=False, disadvantage=False):
-        return DieRoll.roll(f"1d20+{self.spell_attack_modifier_for(spell)}", description=f"Melee Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
+        return DieRoll.roll(DieRoll.d20(self.spell_attack_modifier_for(spell)), description=f"Melee Spell Attack: {spell['name']}", entity=self, battle=battle, advantage=advantage, disadvantage=disadvantage)
 
     def multiattack(self, battle, npc_action):
         if not npc_action:
@@ -4183,7 +4239,7 @@ class Entity(EntityStateEvaluator, Notable):
                     and total_damage > 0
                     and not form_drop
                     and not self.unconscious()
-                    and not (self.hp() < 0 and abs(self.hp()) >= self.properties.get('max_hp', 0))
+                    and not (self.hp() < 0 and abs(self.hp()) >= self.max_hp())
                     and self.class_feature('relentless_endurance')
                     and not getattr(self, 'relentless_endurance_used', False)):
                 self.attributes['hp'] = 1
@@ -4232,7 +4288,7 @@ class Entity(EntityStateEvaluator, Notable):
                 self.attributes["hp"] = 0
             elif self.dead():
                 pass
-            elif self.hp() < 0 and overflow >= self.properties['max_hp']:
+            elif self.hp() < 0 and overflow >= self.max_hp():
                 if knock_out:
                     instant_death = False
                     self._apply_knock_unconscious()
@@ -4775,7 +4831,7 @@ class Entity(EntityStateEvaluator, Notable):
             disadvantage = True
         roll = DieRoll.roll_with_lucky(
             self,
-            f"1d20+{self.dex_mod() + bonus}",
+            DieRoll.d20(self.dex_mod() + bonus),
             disadvantage=disadvantage,
             description=description or 'dice_roll.dexterity',
             battle=battle
@@ -4816,7 +4872,7 @@ class Entity(EntityStateEvaluator, Notable):
         bonus = self.proficiency_bonus() if self.sleight_of_hand_proficient() else 0
         roll = DieRoll.roll_with_lucky(
             self,
-            f"1d20+{self.dex_mod() + bonus}",
+            DieRoll.d20(self.dex_mod() + bonus),
             disadvantage=disadvantage,
             description=description or 'dice_roll.sleight_of_hand',
             battle=battle

@@ -126,7 +126,13 @@ def known_mastery_count(klass, level, class_def=None) -> int:
 
 
 def known_weapon_masteries(entity) -> set[str] | None:
-    """Return known mastery names, or None meaning “all weapon masteries”.
+    """Return known weapon kinds (the weapons whose mastery you can use), or
+    None meaning “all weapon masteries”.
+
+    The rule counts *weapon kinds*, not mastery names: when a class feature
+    or chargen grants a number of weapon masteries, each one applies to a
+    chosen weapon you are proficient with. So the stored list holds weapon
+    ids/kinds (``longbow``, ``longsword``), not mastery names.
 
     An explicit list (including empty) always wins. Missing list + class
     feature (or NPC) still means all, so legacy sheets and monster attacks
@@ -135,13 +141,64 @@ def known_weapon_masteries(entity) -> set[str] | None:
     props = getattr(entity, "properties", None) or {}
     known = props.get("known_weapon_masteries")
     if isinstance(known, list):
-        return {str(m).lower() for m in known}
+        return {str(m).strip().lower().replace(' ', '_') for m in known}
     if getattr(entity, "class_feature", None) and entity.class_feature("weapon_mastery"):
         return None
     npc = getattr(entity, "npc", None)
     if callable(npc) and npc():
         return None
     return set()
+
+
+def weapon_kind(weapon: dict | None) -> str:
+    """Canonical kind id for a weapon dict (weapon YAML or NPC attack)."""
+    if not isinstance(weapon, dict):
+        return ""
+    for key in ("id", "_inventory_key", "weapon_key", "weapon"):
+        value = weapon.get(key)
+        if value:
+            return str(value).strip().lower().replace(' ', '_')
+    name = weapon.get("name")
+    if name:
+        return str(name).strip().lower().replace(' ', '_')
+    return ""
+
+
+def _weapon_kind_words(weapon: dict | None) -> set[str]:
+    words = set()
+    if not isinstance(weapon, dict):
+        return words
+    kind = weapon_kind(weapon)
+    if kind:
+        words.add(kind)
+        words.update(kind.split('_'))
+    for key in ("id", "weapon_type", "category", "name", "_inventory_key"):
+        value = weapon.get(key)
+        if value:
+            words.add(str(value).lower().replace(' ', '_'))
+    return words
+
+
+def weapon_kind_known(entity, weapon: dict | None) -> bool:
+    """True when the entity's known-weapon list covers this weapon kind.
+
+    Entries are weapon kinds (SRD 5.2 rule). Legacy sheets that stored
+    mastery *names* keep working for those weapons, so pre-fix characters
+    do not silently lose their masteries.
+    """
+    known = known_weapon_masteries(entity)
+    if known is None:
+        return True
+    if not known or not isinstance(weapon, dict):
+        return False
+    words = _weapon_kind_words(weapon)
+    if any(kind in words for kind in known if kind not in MASTERY_PROPERTIES):
+        return True
+    # Legacy data: mastery names stored instead of weapon kinds.
+    for mastery in weapon_masteries(weapon):
+        if mastery in known:
+            return True
+    return False
 
 
 def can_use_mastery(entity, weapon: dict | None, mastery: str) -> bool:
@@ -159,10 +216,7 @@ def can_use_mastery(entity, weapon: dict | None, mastery: str) -> bool:
                     return False
             except Exception:
                 pass
-    known = known_weapon_masteries(entity)
-    if known is None:
-        return True
-    return mastery in known
+    return weapon_kind_known(entity, weapon)
 
 
 def active_masteries(entity, weapon: dict | None) -> list[str]:

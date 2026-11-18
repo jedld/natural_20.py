@@ -63,18 +63,12 @@ class ViciousMockerySpell(Spell):
             n += 1
         return n
 
-    def _damage(self, battle, crit=False):
+    def _damage(self, battle, crit=False, estimated=False):
         n = self._dice_count()
-        return DieRoll.roll(
-            f"{n}d4",
-            crit=crit,
-            battle=battle,
-            entity=self.source,
-            description='dice_roll.spells.vicious_mockery',
-        )
+        return DieRoll.roll(f'{n}d4', crit=crit, battle=battle, entity=self.source, description='dice_roll.spells.vicious_mockery', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle).expected()
+        return self._damage(battle, estimated=True).expected()
 
     def compute_hit_probability(self, battle, opts=None):
         target = self.action.target if self.action else None
@@ -82,7 +76,7 @@ class ViciousMockerySpell(Spell):
             target = target[0] if target else None
         if target is None:
             return 0.0
-        result = target.save_throw('wisdom', battle, {'is_magical': True})
+        result = target.save_throw('wisdom', battle, {'is_magical': True, 'estimated': True})
         return 1.0 - result.prob(self.source.spell_save_dc('charisma'))
 
     def resolve(self, entity, battle, spell_action, _battle_map):

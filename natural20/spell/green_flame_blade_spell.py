@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from natural20.die_roll import DieRoll
 from natural20.spell.spell import Spell
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.weapons import damage_modifier
 from natural20.utils.ac_utils import effective_ac
 from natural20.spell.extensions.hit_computations import AttackSpell
@@ -75,7 +75,7 @@ class GreenFlameBladeSpell(AttackSpell):
         result = list(events)
 
         if hit:
-            primary_damage = self._primary_damage(battle, crit=attack_roll.nat_20())
+            primary_damage = self._primary_damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle))
             result.extend([{
                 "source": entity,
                 "target": target,

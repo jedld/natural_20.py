@@ -1,5 +1,5 @@
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.utils.ac_utils import effective_ac
 import pdb
@@ -24,16 +24,15 @@ class ShockingGraspSpell(AttackSpell):
         }
     
     def compute_hit_probability(self, battle, opts = None):
-        if opts is None:
-            opts = {}
-        advantage_override = {}
-
-        if any(armor["metallic"] for armor in self.action.target.equipped_armor()):
-            advantage_override['advantage'] = ['shocking_grasp_metallic']
-
-        _, attack_roll, _, _, _ = evaluate_spell_attack(self.session, self.source, self.action.target, self.properties, battle=battle, advantage_override=advantage_override)
-        target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
-        return attack_roll.prob(target_ac)
+        target = self.action.target if self.action else None
+        if target is None:
+            return 0.0
+        overrides = dict(opts or {})
+        metallic = getattr(target, 'equipped_metallic_armor', None)
+        if callable(metallic) and metallic():
+            overrides.setdefault('advantage', []).append('shocking_grasp_metallic')
+        # Analytic estimate via the shared AttackSpell path: no dice rolled.
+        return super().compute_hit_probability(battle, overrides)
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         result = []
@@ -58,7 +57,7 @@ class ShockingGraspSpell(AttackSpell):
             if entity.cantrip_level() >= 17:
                 level += 1
 
-            damage_roll = DieRoll.roll(f"{level}d8", crit=attack_roll.nat_20(), battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.shocking_grasp')))
+            damage_roll = DieRoll.roll(f"{level}d8", crit=spell_attack_is_critical(attack_roll, entity, target, battle), battle=battle, entity=entity, description=self.t('dice_roll.spells.generic_damage', spell=self.t('spell.shocking_grasp')))
             result.extend([
                 {
                     'source': entity,

@@ -24,6 +24,13 @@ class MagicMissileSpell(Spell):
     def compute_hit_probability(self, battle, opts = None):
         return 1.0
 
+    def avg_damage(self, battle, opts=None):
+        # Darts always hit: the heuristic AI must score this spell by its
+        # expected damage instead of the default 0.
+        cast_level = (self.action.at_level if self.action and getattr(self.action, 'at_level', None) else None) or 1
+        darts = 3 + (cast_level - 1)
+        return darts * DieRoll.estimate('1d4+1').expected()
+
     def resolve(self, entity, battle, spell_action, _battle_map):
         targets = spell_action.target
 

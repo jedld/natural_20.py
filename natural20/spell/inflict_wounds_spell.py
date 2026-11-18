@@ -1,5 +1,5 @@
 from natural20.die_roll import DieRoll
-from natural20.utils.spell_attack_util import evaluate_spell_attack
+from natural20.utils.spell_attack_util import evaluate_spell_attack, spell_attack_is_critical
 from natural20.spell.extensions.hit_computations import AttackSpell
 from natural20.utils.ac_utils import effective_ac
 
@@ -22,26 +22,23 @@ class InflictWoundsSpell(AttackSpell):
             'next': set_target
         }
     
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         if opts is None:
             opts = {}
         entity = self.source
         dmg_level = 3
-        at_level = opts.get("at_level", 1)
+        at_level = opts.get('at_level', 1)
         if at_level > 1:
             dmg_level += at_level - 1
-        return DieRoll.roll(f"{dmg_level}d10", crit=crit, battle=battle, entity=entity, description="dice_roll.spells.inflict_wounds")
+        return DieRoll.roll(f'{dmg_level}d10', crit=crit, battle=battle, entity=entity, description='dice_roll.spells.inflict_wounds', estimated=estimated)
 
     def compute_hit_probability(self, battle, opts = None):
-        if opts is None:
-            opts = {}
-
-        _, attack_roll, _, _, _, _ = evaluate_spell_attack(self.session, self.source, self.action.target, self.properties, battle=battle)
-        target_ac, _cover_ac = effective_ac(battle, self.source, self.action.target)
-        return attack_roll.prob(target_ac)
+        # Analytic estimate via the shared AttackSpell path: an estimate must
+        # never run the real attack pipeline (it would roll game dice).
+        return super().compute_hit_probability(battle, opts)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts).expected()
+        return self._damage(battle, opts, estimated=True).expected()
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         result = []
@@ -52,7 +49,7 @@ class InflictWoundsSpell(AttackSpell):
             result.append(event)
 
         if hit:
-            damage_roll = self._damage(battle, crit=attack_roll.nat_20())
+            damage_roll = self._damage(battle, crit=spell_attack_is_critical(attack_roll, entity, target, battle))
             result.extend([
                 {
                     'source': entity,

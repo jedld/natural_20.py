@@ -86,7 +86,7 @@ class DamageScalingMixin:
     def _scaled_damage_roll(self, battle, base_dice: str, per_slot_dice: str,
                             *, at_level=None, opts=None,
                             crit: bool = False, description: str = "",
-                            base_level: int = 1):
+                            base_level: int = 1, estimated: bool = False):
         """Roll ``base_dice + (slot - base_level) * per_slot_dice``.
 
         ``at_level`` may be supplied explicitly; otherwise resolved via
@@ -98,4 +98,4 @@ class DamageScalingMixin:
                                         at_level, base_level=base_level)
         return DieRoll.roll(expr, crit=crit, battle=battle,
                             entity=getattr(self, 'source', None),
-                            description=description)
+                            description=description, estimated=estimated)

@@ -40,16 +40,17 @@ class BurningHandsSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         return max(entity.spell_save_dc('intelligence'),
                    entity.spell_save_dc('charisma'))
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         # 5e 2014: 3d6 base at 1st-level slot, +1d6 per slot level above 1st.
         return self._scaled_damage_roll(
             battle, "3d6", "1d6",
             opts=opts, crit=crit,
             description=self.t('dice_roll.spells.burning_hands'),
+            estimated=estimated,
         )
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts=opts).expected()
+        return self._damage(battle, opts=opts, estimated=True).expected()
 
     def compute_hit_probability(self, battle, opts=None):
         """
@@ -74,7 +75,8 @@ class BurningHandsSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
                         require_los=True)
                     for sq in squares:
                         candidate = battle_map.entity_at(sq[0], sq[1])
-                        if candidate is not None and candidate is not entity:
+                        if (candidate is not None and candidate is not entity
+                                and not getattr(candidate, 'dead', lambda: False)()):
                             save_target = candidate
                             break
             except Exception:
@@ -85,7 +87,7 @@ class BurningHandsSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
             # No valid target to score against; treat as zero hit probability
             # so the AI doesn't pick this action over a real attack.
             return 0.0
-        result = save_target.save_throw('dexterity', battle, {"is_magical": True})
+        result = save_target.save_throw('dexterity', battle, {"is_magical": True, "estimated": True})
         return 1.0 - result.prob(self._save_dc(entity))
 
     def resolve(self, entity, battle, spell_action, battle_map):
@@ -99,16 +101,21 @@ class BurningHandsSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         entity_targets = []
         for square in squares:
             _entity = battle_map.entity_at(square[0], square[1])
-            if _entity is not None and _entity != entity and _entity not in entity_targets:
+            # Corpses take no saves, damage or push from area spells.
+            if (_entity is not None and _entity != entity and _entity not in entity_targets
+                    and not getattr(_entity, 'dead', lambda: False)()):
                 entity_targets.append(_entity)
 
         spell_dc = self._save_dc(entity)
+        # Area damage rolls once for the whole casting (like Thunderwave
+        # and Shatter), not separately per creature.
+        shared_damage = self._damage(battle, opts={'at_level': at_level})
 
         return self.resolve_save_for_half(
             entity_targets,
             ability='dexterity',
             dc=spell_dc,
-            damage_roll=lambda _t: self._damage(battle, opts={'at_level': at_level}),
+            damage_roll=shared_damage,
             attack_name='burning_hands',
             damage_type=self.properties['damage_type'],
             battle=battle,

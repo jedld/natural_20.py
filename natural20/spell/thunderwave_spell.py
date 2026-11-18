@@ -26,17 +26,18 @@ class ThunderwaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
             'next': set_target
         }
 
-    def _damage(self, battle, crit=False, opts=None):
+    def _damage(self, battle, crit=False, opts=None, estimated=False):
         # 5e: 2d8 base, +1d8 per slot level above 1st.
         return self._scaled_damage_roll(
             battle, "2d8", "1d8",
             opts=opts, crit=crit,
             description=self.t('dice_roll.spells.generic_damage',
                                spell=self.t('spell.thunderwave')),
+            estimated=estimated,
         )
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle, opts=opts).expected()
+        return self._damage(battle, opts=opts, estimated=True).expected()
 
     def _cube_squares_from_face(self, battle_map, origin, towards, size_squares=3):
         """
@@ -94,7 +95,8 @@ class ThunderwaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         entity_targets = []
         for (x, y) in squares:
             tgt = battle_map.entity_at(x, y)
-            if tgt is not None and tgt != entity:
+            # Corpses take no saves, damage or push from area spells.
+            if tgt is not None and tgt != entity and not getattr(tgt, 'dead', lambda: False)():
                 if tgt not in entity_targets:
                     entity_targets.append(tgt)
         damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})
@@ -103,14 +105,17 @@ class ThunderwaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
         dc = entity.spell_save_dc('intelligence')
 
         def push_on_failure(target, _dmg):
-            push_to = target.push_from(battle_map, src_pos[0], src_pos[1], distance=10)
+            # The landing square is computed at commit time (see apply) so
+            # that earlier pushes are already applied and no two pushed
+            # creatures can land on (and overwrite) one square.
             return [{
                 'type': 'thunderwave_push',
                 'source': entity,
                 'target': target,
                 'refresh_map': True,
                 'map': battle_map,
-                'push_to': push_to,
+                'push_from': [int(src_pos[0]), int(src_pos[1])],
+                'distance': 10,
             }]
 
         return self.resolve_save_for_half(
@@ -132,6 +137,13 @@ class ThunderwaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
                 session = battle.session
             evt_mgr = (battle.event_manager if battle else (session.event_manager if session else None))
             push_to = item.get('push_to')
+            if push_to is None and item.get('push_from') is not None:
+                # Recompute the landing square now, at commit time, so each
+                # push sees the squares freed/occupied by the pushes applied
+                # before it and no two creatures land on one square.
+                push_to = item['target'].push_from(
+                    item['map'], item['push_from'][0], item['push_from'][1],
+                    distance=item.get('distance', 10))
             if push_to:
                 # Move the target
                 item['map'].move_to(item['target'], *push_to, battle)

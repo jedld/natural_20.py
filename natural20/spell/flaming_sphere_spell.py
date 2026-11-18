@@ -162,7 +162,7 @@ class FlamingSphereSpell(DamageScalingMixin, Spell):
                                         self._resolve_at_level(opts), base_level=self.BASE_LEVEL)
 
     def avg_damage(self, battle, opts=None):
-        return DieRoll.roll(self.damage_dice(opts)).expected()
+        return DieRoll.estimate(self.damage_dice(opts)).expected()
 
     def resolve(self, entity, battle, spell_action, battle_map):
         center = spell_action.target

@@ -793,7 +793,9 @@ def additional_damage_entries(npc_action, target=None):
 def average_roll(die):
     try:
         from natural20.die_roll import DieRoll
-        return float(DieRoll.roll(str(die)).expected())
+        # Analytic mean: never draws from the game RNG, so AI option
+        # scoring cannot shift later dice in a fight.
+        return float(DieRoll.estimate(str(die)).expected())
     except Exception:
         return 0.0
 

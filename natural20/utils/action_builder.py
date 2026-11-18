@@ -199,28 +199,42 @@ def _optimize_cube_targets(position_choices, entity, battle, map, size_squares):
     return selected_positions
 
 def _awareness(entity, battle):
-    """Enemies the caster can see, squares where it senses an unseen one, and
-    its allies. AoE placement must not use the true position of a hidden foe."""
+    """Enemies the caster can see, squares where it senses an unseen one (with
+    confidence weights), and its allies. AoE placement must not use the true
+    position of a hidden foe."""
     opponents = battle.opponents_of(entity)
     allies = set(battle.allies_of(entity))
     ally_uids = {a.entity_uid for a in allies}
     seen = {e for e in opponents if battle.can_see(entity, e)}
-    sensed = set()
+    sensed = {}
     try:
-        from natural20.utils.unseen_targets import sensed_creatures
-        sensed = {tuple(entry['pos']) for entry in sensed_creatures(battle, entity)
-                  if entry.get('uid') not in ally_uids}
+        from natural20.utils.unseen_targets import sensed_creatures, CONFIDENCE, KIND_LAST_KNOWN
+        sensed = {tuple(entry['pos']): CONFIDENCE.get(entry.get('kind'), 0.35)
+                  for entry in sensed_creatures(battle, entity)
+                  if entry.get('uid') not in ally_uids
+                  # Stale "last known" squares only count for their
+                  # confidence: the creature may have moved on.
+                  }
     except Exception:
-        pass
+        sensed = {}
     return seen, sensed, allies
 
 
-def _score_squares(squares, entity, battle, map, aware=None):
+def _score_squares(squares, entity, battle, map, aware=None, center=None):
     seen, sensed, allies = aware if aware is not None else _awareness(entity, battle)
     score = 0
     for sx, sy in squares:
-        if (sx, sy) in sensed:
-            score += 1
+        if center is not None:
+            # A creature with no line of effect from the area's center is in
+            # total cover from the burst: it never counts for placement.
+            try:
+                if map.line_of_sight(center[0], center[1], sx, sy) is None:
+                    continue
+            except Exception:
+                continue
+        weight = sensed.get((sx, sy))
+        if weight is not None:
+            score += weight
             continue
         ent = map.entity_at(sx, sy)
         if ent is None or (hasattr(ent, 'dead') and ent.dead()):
@@ -239,7 +253,7 @@ def _optimize_radius_targets(position_choices, entity, battle, map, radius_ft):
     aware = _awareness(entity, battle)
     for i, position in enumerate(position_choices):
         squares = map.squares_in_radius(tuple(position), radius_ft)
-        score = _score_squares(squares, entity, battle, map, aware)
+        score = _score_squares(squares, entity, battle, map, aware, center=tuple(position))
         if score >= best_score:
             best_score = score
             best_position = i

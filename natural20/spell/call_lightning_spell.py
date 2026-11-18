@@ -57,7 +57,7 @@ class CallLightningSpell(AreaSaveSpell):
         from natural20.die_roll import DieRoll
         at_level = self._resolve_at_level(opts)
         dice = 3 + max(0, at_level - 3)
-        return DieRoll.roll(f"{dice}d10", battle=None).expected() * 0.75
+        return DieRoll.estimate(f'{dice}d10').expected() * 0.75
 
     def bolt_items(self, entity, battle, battle_map, center, dice, dc):
         from natural20.die_roll import DieRoll

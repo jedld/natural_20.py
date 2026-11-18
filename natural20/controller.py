@@ -40,7 +40,18 @@ class Controller:
 
     def select_action(self, battle, entity, available_actions = None) -> Action:
         return None
-    
+
+    def select_reaction(self, entity, battle, map, valid_actions, event) -> Action:
+        """Choose an immediate reaction (opportunity attack, Shield, Counterspell, ...).
+
+        Base contract: no reaction (``None``). Controllers that can react
+        (``GenericController``, ``WebController``, ``LlmMcpController``)
+        override this; reaction call sites treat ``None`` as "skip". Declaring
+        it here means reaction hooks no longer crash on bare-``Controller``
+        combatants (see also the ``hasattr`` guards in counterspell/attack_util).
+        """
+        return None
+
     def move_for(self, entity: Entity, battle):
         # choose available moves at random and return it
         available_actions = self._compute_available_moves(entity, battle)

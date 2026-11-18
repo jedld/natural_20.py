@@ -413,7 +413,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
     def armor_class(self):
         current_ac = self.properties["default_ac"]
         if self.has_effect('ac_bonus'):
-            current_ac += self.eval_effect('ac_bonus')
+            current_ac += self.eval_effect('ac_bonus', {'stacked': True}) or 0
         if self.class_feature('improved_defense'):
             current_ac += 1
         return current_ac

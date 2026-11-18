@@ -193,3 +193,41 @@ def no_adjacent_enemy_disadvantage(entity, weapon, thrown=False):
 
 def extra_attack_adds_ability(entity, weapon):
     return has_weapon_rule(entity, weapon, 'extra_attack_ability_damage')
+
+
+# ---------------------------------------------------------------------------
+# Damage roll rules (Savage Attacker)
+# ---------------------------------------------------------------------------
+
+def should_roll_damage_twice(source, weapon, battle):
+    """True when a feat's ``damage_roll_rules`` lets this weapon damage roll
+    be rolled twice and keep the higher total (Savage Attacker).
+
+    Once per turn, weapon damage rolls only (no spells). A critical's
+    doubled dice are still the attack's single damage roll, so the feat can
+    apply on top of a crit. Marks the use on the entity.
+    """
+    if source is None or not is_weapon(weapon):
+        return False
+    matched = [spec for _feat, spec in feat_specs(source, 'damage_roll_rules')
+               if spec.get('roll_twice_best') and weapon_matches(weapon, spec.get('weapons'))]
+    if not matched:
+        return False
+
+    state = None
+    if battle is not None and hasattr(battle, 'entity_state_for'):
+        try:
+            state = battle.entity_state_for(source)
+        except Exception:
+            state = None
+    if state is not None:
+        if state.get('savage_attacker_used'):
+            return False
+        state['savage_attacker_used'] = True
+    else:
+        # Outside a battle there is no turn bookkeeping; allow it once and
+        # remember it on the creature until its next turn resets the flag.
+        if getattr(source, '_savage_attacker_used', False):
+            return False
+        source._savage_attacker_used = True
+    return True

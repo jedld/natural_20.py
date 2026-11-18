@@ -54,7 +54,7 @@ class ConsumableBuffEffect:
     @staticmethod
     def ac_bonus(entity, opt=None):
         opt = opt or {}
-        return int(opt['effect'].buffs.get('ac_bonus', 0) or 0)
+        return int(opt['effect'].buffs.get('ac_bonus', 0) or 0) + int(opt.get('value') or 0)
 
     @staticmethod
     def attack_roll_die(entity, opt=None):

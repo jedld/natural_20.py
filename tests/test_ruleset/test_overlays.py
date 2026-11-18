@@ -46,7 +46,8 @@ def test_soldier_background_has_attribute_bonus_2024(tmp_path):
     backgrounds = session.load_backgrounds()
     soldier = backgrounds.get("soldier") or {}
     assert soldier.get("attribute_bonus", {}).get("str") == 2
-    assert soldier.get("origin_feat") == "alert"
+    # SRD 5.2.1: the Soldier's origin feat is Savage Attacker (not Alert).
+    assert soldier.get("origin_feat") == "savage_attacker"
 
 
 def test_soldier_background_no_asi_2014(tmp_path):

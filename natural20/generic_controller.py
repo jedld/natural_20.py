@@ -599,6 +599,29 @@ class GenericController(Controller):
                     score -= 0.3
                 return score
 
+            if spell_name == 'mage_armor':
+                # Value the buff by the AC it actually grants: the higher of
+                # (13 + DEX) over the target's current AC. A target that
+                # already wears armor or already has Mage Armor gains
+                # nothing.
+                score = 0
+                for target in targets:
+                    if not battle.allies(entity, target):
+                        continue
+                    try:
+                        if target.wearing_armor() or target.has_spell_effect('mage_armor'):
+                            continue
+                        current_ac = target.armor_class()
+                        gain = (13 + target.dex_mod()) - current_ac
+                    except Exception:
+                        continue
+                    if gain <= 0:
+                        continue
+                    # Roughly: each extra AC point avoids ~5% of incoming
+                    # attacks over the fight; weighted like other buffs.
+                    score += 0.25 * gain * (1.5 if has_melee_pressure(target) else 1.0)
+                return score
+
             return 0
 
         def score_use_item(action):

@@ -39,7 +39,7 @@ class HasteSpell(Spell):
 
     @staticmethod
     def ac_bonus(entity, opt=None):
-        return 2
+        return (int((opt or {}).get('value') or 0)) + 2
 
     @staticmethod
     def start_of_turn(entity, opt=None):

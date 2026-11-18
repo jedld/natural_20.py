@@ -61,7 +61,7 @@ class PushCreatureSpell(Spell):
             return 0.0
         ability = str(self.properties.get('save') or 'strength')
         dc = self.source.spell_save_dc(HoldPersonSpell._caster_spell_ability(self.source, self.action))
-        roll = target.save_throw(ability, battle, {'is_magical': True})
+        roll = target.save_throw(ability, battle, {'is_magical': True, 'estimated': True})
         return 1.0 - roll.prob(dc)
 
     def resolve(self, entity, battle, spell_action, battle_map):

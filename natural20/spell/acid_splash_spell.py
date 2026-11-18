@@ -56,18 +56,12 @@ class AcidSplashSpell(Spell):
             n += 1
         return n
 
-    def _damage(self, battle, crit=False):
+    def _damage(self, battle, crit=False, estimated=False):
         n = self._dice_count()
-        return DieRoll.roll(
-            f"{n}d6",
-            crit=crit,
-            battle=battle,
-            entity=self.source,
-            description='dice_roll.spells.acid_splash',
-        )
+        return DieRoll.roll(f'{n}d6', crit=crit, battle=battle, entity=self.source, description='dice_roll.spells.acid_splash', estimated=estimated)
 
     def avg_damage(self, battle, opts=None):
-        return self._damage(battle).expected()
+        return self._damage(battle, estimated=True).expected()
 
     @staticmethod
     def _targets(target):
@@ -85,7 +79,7 @@ class AcidSplashSpell(Spell):
         targets = self._targets(self.action.target if self.action else None)
         if not targets:
             return 0.0
-        result = targets[0].save_throw('dexterity', battle, {'is_magical': True})
+        result = targets[0].save_throw('dexterity', battle, {'is_magical': True, 'estimated': True})
         return 1.0 - result.prob(self._spell_dc(self.source, self.action))
 
     def resolve(self, entity, battle, spell_action, _battle_map):

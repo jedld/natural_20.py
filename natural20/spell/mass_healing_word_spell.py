@@ -42,11 +42,9 @@ class MassHealingWordSpell(Spell):
         at_level = getattr(self.action, 'at_level', None) or self.properties.get('level', self.BASE_LEVEL)
         return 1 + max(0, int(at_level) - self.BASE_LEVEL)
 
-    def _heal(self, battle):
+    def _heal(self, battle, estimated=False):
         entity = self.source
-        return DieRoll.roll(f"{self._dice()}d4+{entity.cleric_spell_casting_modifier()}",
-                            battle=battle, entity=entity,
-                            description='dice_roll.spells.mass_healing_word')
+        return DieRoll.roll(f'{self._dice()}d4+{entity.cleric_spell_casting_modifier()}', battle=battle, entity=entity, description='dice_roll.spells.mass_healing_word', estimated=estimated)
 
     @staticmethod
     def _targets(target):
@@ -65,7 +63,7 @@ class MassHealingWordSpell(Spell):
 
     def avg_damage(self, battle, opts=None):
         targets = self._targets(getattr(self.action, 'target', None)) or [None]
-        return -self._heal(None).expected() * len(targets)
+        return -self._heal(None, estimated=True).expected() * len(targets)
 
     def resolve(self, entity, battle, spell_action, _battle_map):
         results = []
