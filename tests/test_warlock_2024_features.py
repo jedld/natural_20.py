@@ -170,10 +170,13 @@ def test_importer_extracts_invocations_and_mystic_arcanum(tmp_path):
 
 
 def test_imported_dragonlance_warlock_loads():
+    from tests.ranger_spell_helpers import missing_packs
     root = ROOT / 'user_levels' / 'dragonlance'
     sheet = root / 'characters' / 'chestnut_latchlifter.yml'
     if not sheet.is_file():
         pytest.skip('dragonlance campaign submodule not checked out')
+    if missing_packs(['players_handbook_2024', 'xanathars_guide']):
+        pytest.skip('expansion packs required by dragonlance not installed')
     session = Session(root_path=str(root), event_manager=EventManager())
     pc = PlayerCharacter.load(session, 'characters/chestnut_latchlifter.yml')
     assert pc.level() == 11

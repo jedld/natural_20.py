@@ -36,3 +36,7 @@ third_party/CosyVoice
 .local_packages/
 .roo/
 logs/
+
+# Paid third-party expansion content is not published with this repo.
+# Keep local checkouts out of git; copy public-domain SRD content into templates/ instead.
+expansion_packs/

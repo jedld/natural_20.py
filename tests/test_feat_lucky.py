@@ -20,6 +20,12 @@ from natural20.utils.luck_points import (
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
+from tests.ranger_spell_helpers import missing_packs
+
+PACK_SKIP = pytest.mark.skipif(
+    missing_packs(['players_handbook_2024']),
+    reason='players_handbook_2024 expansion pack not installed')
+
 
 def _campaign(tmp_path):
     dest = tmp_path / "campaign"
@@ -56,6 +62,7 @@ def _d20(face, modifier=0, **kw):
     return DieRoll([face], modifier, 20, **kw)
 
 
+@PACK_SKIP
 def test_pool_equals_proficiency_bonus_and_restores_on_long_rest(setup):
     _session, battle, ranger, _goblin, _events = setup
     pb = ranger.proficiency_bonus()
@@ -69,6 +76,7 @@ def test_pool_equals_proficiency_bonus_and_restores_on_long_rest(setup):
     assert luck_points(ranger) == pb
 
 
+@PACK_SKIP
 def test_self_advantage_after_failed_attack_roll(setup):
     _session, battle, ranger, goblin, events = setup
     pb = ranger.proficiency_bonus()
@@ -84,6 +92,7 @@ def test_self_advantage_after_failed_attack_roll(setup):
     assert events[-1]['remaining'] == pb - 1
 
 
+@PACK_SKIP
 def test_successful_or_hopeless_roll_does_not_spend(setup):
     _session, battle, ranger, goblin, _events = setup
     pb = ranger.proficiency_bonus()
@@ -101,6 +110,7 @@ def test_no_luck_out_of_combat(setup):
     assert luck_on_own_roll(ranger, roll, 15, battle=None) is roll
 
 
+@PACK_SKIP
 def test_luck_on_failed_saving_throw(setup):
     _session, battle, ranger, _goblin, events = setup
     pb = ranger.proficiency_bonus()
@@ -115,6 +125,7 @@ def test_luck_on_failed_saving_throw(setup):
     assert events[-1]['roll_kind'] == 'wisdom_saving_throw'
 
 
+@PACK_SKIP
 def test_impose_disadvantage_on_hit_against_lucky_creature(setup):
     _session, battle, ranger, goblin, events = setup
     pb = ranger.proficiency_bonus()
@@ -133,6 +144,7 @@ def test_impose_disadvantage_on_hit_against_lucky_creature(setup):
     assert luck_against_attack(ranger, goblin, miss, 15, battle=battle) is miss
 
 
+@PACK_SKIP
 def test_attack_action_offers_luck_to_defender(setup):
     session, battle, ranger, goblin, _events = setup
     pb = ranger.proficiency_bonus()
@@ -148,6 +160,7 @@ def test_attack_action_offers_luck_to_defender(setup):
     assert luck_points(ranger) == pb - 1
 
 
+@PACK_SKIP
 def test_luck_points_round_trip_through_save_load(setup):
     session, _battle, ranger, _goblin, _events = setup
     pb = ranger.proficiency_bonus()

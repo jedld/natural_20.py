@@ -67,6 +67,18 @@ git -C user_levels lfs pull
 
 For the full repository layout guide, see [docs/REPOSITORY_SPLIT.md](docs/REPOSITORY_SPLIT.md).
 
+### Expansion packs (not published)
+
+`expansion_packs/` holds YAML for non-SRD sourcebooks (2024 PHB, Tasha's,
+Xanathar's). That content is paid third-party material and is **not tracked
+in this public repository** — it is git-ignored and may only exist as a
+local (or private-remote) checkout. The engine resolves packs from a
+campaign's `index.json` `expansion_packs` entries and simply skips missing
+packs, so a public clone loads and runs SRD content normally; the few
+pack-dependent tests (marked with `tests.ranger_spell_helpers.missing_packs`)
+skip themselves automatically. Keep SRD/public-domain content in
+`templates/` instead.
+
 ## Disclaimer
 
 This library is an independent research project for AI research. The developers and researchers in this project are in no way affiliated with Wizards of the Coast or Hasbro. D&D is a registered trademark of Wizards of the Coast. This project only includes content from the System Reference Document (SRD). Abilities outside the SRD from official published sources may be included for research purposes but are clearly marked.

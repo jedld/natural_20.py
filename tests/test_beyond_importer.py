@@ -587,6 +587,9 @@ def test_spell_abilities_from_race_and_feat_spells(tmp_path):
 
 
 def test_data_driven_artificer_slots_round_half_up(tmp_path):
+    from tests.ranger_spell_helpers import missing_packs
+    if missing_packs(['tashas_cauldron']):
+        pytest.skip('tashas_cauldron expansion pack not installed')
     imp = _artificer_campaign(tmp_path)
     assert imp._class_yaml("artificer").get("subclass_property") == "artificer_specialist"
     assert imp._compute_spell_slots({"artificer": 11}, {}) == {"artificer": {1: 4, 2: 3, 3: 3}}

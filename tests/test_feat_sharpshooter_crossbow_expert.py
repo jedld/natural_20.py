@@ -23,6 +23,12 @@ from natural20.weapons import compute_advantages_and_disadvantages, damage_modif
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
+from tests.ranger_spell_helpers import missing_packs
+
+PACK_SKIP = pytest.mark.skipif(
+    missing_packs(['players_handbook_2024']),
+    reason='players_handbook_2024 expansion pack not installed')
+
 
 def _campaign(tmp_path):
     dest = tmp_path / "campaign"
@@ -72,6 +78,7 @@ def _damage_mod(entity, weapon, second_hand=False):
 
 # --- Sharpshooter ---------------------------------------------------------
 
+@PACK_SKIP
 def test_sharpshooter_ignores_half_and_three_quarters_cover(setup, monkeypatch):
     session, battle, ranger, goblin = setup
     longbow = session.load_weapon('longbow')
@@ -88,6 +95,7 @@ def test_sharpshooter_ignores_half_and_three_quarters_cover(setup, monkeypatch):
         assert ac_utils.effective_ac(battle, ranger, goblin, weapon=dagger, thrown=True)[1] == cover
 
 
+@PACK_SKIP
 def test_sharpshooter_ignores_long_range_disadvantage(setup):
     session, battle, ranger, goblin = setup
     battle.map_for(goblin).move_to(goblin, 4, 0, battle)
@@ -107,6 +115,7 @@ def test_long_range_compares_feet(setup):
         session, battle, ranger, goblin, dict(session.load_weapon('longbow'), range=10))
 
 
+@PACK_SKIP
 def test_adjacent_enemy_disadvantage_waivers(setup):
     session, battle, ranger, goblin = setup
     longbow = session.load_weapon('longbow')
@@ -164,6 +173,7 @@ def test_loading_after_another_weapon_is_allowed(setup):
     assert not _loading_issue(session, battle, ranger, goblin, 'heavy_crossbow')
 
 
+@PACK_SKIP
 def test_crossbow_expert_ignores_loading(setup):
     session, battle, ranger, goblin = setup
     _feats(ranger, 'crossbow_expert')
@@ -177,6 +187,7 @@ def test_npc_attacks_ignore_loading(setup):
     assert not has_loading(goblin, session.load_weapon('heavy_crossbow'))
 
 
+@PACK_SKIP
 def test_crossbow_expert_light_crossbow_extra_attack_adds_modifier(setup):
     session, _battle, ranger, _goblin = setup
     hand = session.load_weapon('hand_crossbow')

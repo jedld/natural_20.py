@@ -5,6 +5,8 @@ import os
 
 import pytest
 
+from tests.ranger_spell_helpers import missing_packs
+
 from natural20.actions.npc_area_action import NpcAreaAction, area_configs, is_ready, roll_recharges
 from natural20.actions.spell_action import SpellAction
 from natural20.die_roll import DieRoll
@@ -274,6 +276,7 @@ DRAGONLANCE = os.path.join(os.path.dirname(__file__), '..', 'user_levels', 'drag
 
 
 @pytest.mark.skipif(not os.path.isdir(os.path.join(DRAGONLANCE, 'npcs')), reason='campaign submodule missing')
+@pytest.mark.skipif(missing_packs(['players_handbook_2024']), reason='players_handbook_2024 expansion pack not installed')
 @pytest.mark.parametrize('npc_type', ['aurak_draconian', 'bozak_draconian', 'drayan'])
 def test_draconian_npcs_load(npc_type):
     from natural20.session import Session

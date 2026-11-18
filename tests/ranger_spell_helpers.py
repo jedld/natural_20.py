@@ -4,6 +4,7 @@ import json
 import random
 from contextlib import contextmanager
 
+import pytest
 import yaml
 
 from natural20.actions.spell_action import SpellAction
@@ -15,8 +16,17 @@ from natural20.npc import Npc
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.utils.serialization import Serialization
+from natural20.yaml_loader import templates_root
 
 SIZE = 16
+
+# Paid-content expansion packs are not tracked in the public repository.
+PACKS_ROOT = templates_root().parent / 'expansion_packs'
+
+
+def missing_packs(packs) -> list:
+    """Pack names from ``packs`` whose directory is not installed."""
+    return [str(p) for p in (packs or ()) if not (PACKS_ROOT / str(p)).is_dir()]
 
 
 @contextmanager
@@ -30,6 +40,9 @@ def forced_save(entity, total):
 
 
 def make_campaign(tmp_path, ruleset='5e-2014', packs=()):
+    missing = missing_packs(packs)
+    if missing:
+        pytest.skip('expansion pack(s) not installed: ' + ', '.join(missing))
     (tmp_path / 'maps').mkdir(exist_ok=True)
     rows = ['.' * SIZE for _ in range(SIZE)]
     (tmp_path / 'maps' / 'field.yml').write_text(yaml.safe_dump({
