@@ -71,13 +71,15 @@ For the full repository layout guide, see [docs/REPOSITORY_SPLIT.md](docs/REPOSI
 
 `expansion_packs/` holds YAML for non-SRD sourcebooks (2024 PHB, Tasha's,
 Xanathar's). That content is paid third-party material and is **not tracked
-in this public repository** — it is git-ignored and may only exist as a
-local (or private-remote) checkout. The engine resolves packs from a
-campaign's `index.json` `expansion_packs` entries and simply skips missing
-packs, so a public clone loads and runs SRD content normally; the few
-pack-dependent tests (marked with `tests.ranger_spell_helpers.missing_packs`)
-skip themselves automatically. Keep SRD/public-domain content in
-`templates/` instead.
+in this public repository** — it is git-ignored and lives only on the
+private GitLab mirror (`natural20.gitlab`) and in local checkouts. To work
+with packs locally, fetch them from a private-remote clone and copy the
+`expansion_packs/` directory into your working tree. The engine resolves
+packs from a campaign's `index.json` `expansion_packs` entries and simply
+skips missing packs, so a public clone loads and runs SRD content normally;
+the few pack-dependent tests (marked with
+`tests.ranger_spell_helpers.missing_packs`) skip themselves automatically.
+Keep SRD/public-domain content in `templates/` instead.
 
 ## Disclaimer
 
