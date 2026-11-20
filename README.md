@@ -22,6 +22,7 @@ This project provides a complete [Gymnasium](https://gymnasium.farama.org/) comp
 - [Running Tests](#running-tests)
 - [Observation and Action Spaces](#observation-and-action-spaces)
 - [Environment Initialization Options](#environment-initialization-options)
+- [Citation](#citation)
 - [Documentation](#documentation)
 
 ---
@@ -648,6 +649,39 @@ Tuple containing:
 | `event_manager` | obj | — | Custom event manager |
 | `custom_session` | obj | — | Custom session object |
 | `reactions_callback` | func | — | Reaction callback |
+
+## Citation
+
+If you use natural_20.py in your research, please cite the paper describing the environment or the repository itself.
+
+The environment and its LLM-controlled adversary setup are described in:
+
+> **Reinforcement Learning Environment with LLM-Controlled Adversary in D&D 5th Edition Combat**
+> Joseph Emmanuel DL Dayo, Michel Onasis S. Ogbinar, Prospero C. Naval Jr
+> arXiv:2503.15726 [cs.AI], 2025 — <https://arxiv.org/abs/2503.15726>
+
+BibTeX for the paper:
+
+```bibtex
+@article{dayo2025reinforcement,
+  title   = {Reinforcement Learning Environment with LLM-Controlled Adversary in D&D 5th Edition Combat},
+  author  = {Dayo, Joseph Emmanuel DL and Ogbinar, Michel Onasis S. and Naval, Prospero C.},
+  journal = {arXiv preprint arXiv:2503.15726},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2503.15726}
+}
+```
+
+BibTeX for the repository:
+
+```bibtex
+@misc{natural_20_py,
+  title  = {natural\_20.py: A D\&D 5e Game Engine for AI Research},
+  author = {Dayo, Joseph Emmanuel DL and others},
+  year   = {2026},
+  howpublished = {\url{https://github.com/jedld/natural_20.py}}
+}
+```
 
 ## Documentation
 
