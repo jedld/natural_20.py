@@ -62,7 +62,7 @@ class TimedConditionEffect:
 
     @classmethod
     def apply_to(cls, target, condition, source=None, battle=None):
-        if target is None or target.immune_to_condition(condition):
+        if target is None or target.immune_to_condition(condition, source=source):
             return None
         own_turn = False
         if battle is not None:

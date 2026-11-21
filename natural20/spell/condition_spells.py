@@ -59,7 +59,7 @@ def _creature_types(entity):
     return types
 
 
-def eligible(spec, creature):
+def eligible(spec, creature, source=None):
     """True when ``creature`` can be affected under the spec's type rules."""
     if creature is None or not hasattr(creature, 'register_effect'):
         return False
@@ -72,12 +72,12 @@ def eligible(spec, creature):
     excluded = {str(t).lower() for t in spec.get('exclude_creature_types') or []}
     if excluded & types:
         return False
-    if spec.get('charmed') and creature.immune_to_condition('charmed'):
+    if spec.get('charmed') and creature.immune_to_condition('charmed', source=source):
         return False
     for condition in spec.get('conditions') or []:
         if condition in ('incapacitated',):
             continue
-        if creature.immune_to_condition(condition):
+        if creature.immune_to_condition(condition, source=source):
             return False
     return True
 
@@ -461,11 +461,11 @@ class ConditionSaveSpell(Spell):
         dc = entity.spell_save_dc(HoldPersonSpell._caster_spell_ability(entity, spell_action))
         results, afflicted, warded = [], [], []
         for creature in targets:
-            if spec.get('ally_condition_immunities') and not creature.dead() and eligible(spec, creature) \
+            if spec.get('ally_condition_immunities') and not creature.dead() and eligible(spec, creature, entity) \
                     and self._ally(creature, entity, battle):
                 warded.append(creature)
                 continue
-            if creature.dead() or not eligible(spec, creature) or not self._can_see_caster(creature, entity, battle_map):
+            if creature.dead() or not eligible(spec, creature, entity) or not self._can_see_caster(creature, entity, battle_map):
                 results.append({'type': 'spell_miss', 'source': entity, 'target': creature,
                                 'attack_name': name, 'message': 'unaffected', 'spell': self.properties})
                 continue

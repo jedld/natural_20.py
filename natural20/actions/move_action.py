@@ -145,6 +145,11 @@ class MoveAction(Action):
         while actual_moves and not map.placeable(self.source, *actual_moves[-1], battle):
             actual_moves.pop()
 
+        # Frightened (SRD): the creature can't willingly move closer to the
+        # source of its fear; the path stops before the first such step.
+        from natural20.utils.fear import truncate_path_for_fear
+        actual_moves = truncate_path_for_fear(self.source, actual_moves, map, battle)
+
         if not self.ignore_opportunity_attacks:
             actual_moves = self.check_opportunity_attacks(self.source, actual_moves, battle)
 

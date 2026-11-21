@@ -117,7 +117,7 @@ class Entity(EntityStateEvaluator, Notable):
 
     _AURA_WARDED_CONDITIONS = frozenset({'charmed', 'frightened'})
 
-    def immune_to_condition(self, condition):
+    def immune_to_condition(self, condition, source=None):
         if condition in self.condition_immunities:
             return True
         if condition in self.equipped_item_list('condition_immunities'):
@@ -126,7 +126,9 @@ class Entity(EntityStateEvaluator, Notable):
         if condition in class_condition_immunities(self):
             return True
         if self.has_effect('condition_immunity') and \
-                condition in (self.eval_effect('condition_immunity', {'stacked': True, 'value': []}) or []):
+                condition in (self.eval_effect('condition_immunity', {
+                    'stacked': True, 'value': [], 'source': source,
+                }) or []):
             return True
         if condition in self._AURA_WARDED_CONDITIONS:
             from natural20.utils.auras import aura_condition_immunity
@@ -952,6 +954,12 @@ class Entity(EntityStateEvaluator, Notable):
             advantage_modifiers.extend(
                 racial_check_advantage(self, check_ability, opts.get('purpose')))
 
+            # Barbarian - Rage (5e SRD): advantage on Strength ability checks
+            # (rage benefits require not wearing heavy armor).
+            if check_ability == 'str' and getattr(self, 'is_raging', None) and self.is_raging() \
+                    and not self.wearing_heavy_armor():
+                advantage_modifiers.append('rage')
+
             if self.has_effect('ability_check_advantage_modifier'):
                 ability = None
                 for ab, skills in self.SKILL_AND_ABILITY_MAP.items():
@@ -1685,6 +1693,12 @@ class Entity(EntityStateEvaluator, Notable):
             if self.concentration:
                 self.dismiss_effect(self.concentration)
 
+            # Barbarian - Rage (SRD): "It ends early if you are knocked
+            # unconscious." Duck-typed: only creatures with a rage feature
+            # implement end_rage.
+            if getattr(self, 'is_raging', None) and self.is_raging():
+                self.end_rage(reason='unconscious')
+
     def _apply_knock_unconscious(self):
         """5e knockout: 0 HP, unconscious, and stable instead of dying."""
         self.attributes['hp'] = 0
@@ -2179,8 +2193,9 @@ class Entity(EntityStateEvaluator, Notable):
         if self.has_effect('resistance_override'):
             return self.eval_effect('resistance_override', { "stacked": True, "value" : base})
         # Barbarian - Rage (5e SRD): while raging, gain resistance to
-        # bludgeoning, piercing, and slashing damage.
-        if getattr(self, 'is_raging', None) and self.is_raging():
+        # bludgeoning, piercing, and slashing damage (heavy armor voids
+        # the rage benefits).
+        if getattr(self, 'is_raging', None) and self.is_raging() and not self.wearing_heavy_armor():
             for dt in ['bludgeoning', 'piercing', 'slashing']:
                 if dt not in base:
                     base.append(dt)
@@ -2655,6 +2670,19 @@ class Entity(EntityStateEvaluator, Notable):
     def wearing_armor(self):
         return any(item['type'] in ['armor', 'shield'] for item in self.equipped_items())
 
+    def wearing_heavy_armor(self):
+        """True when an equipped armor has the heavy subtype (SRD Rage,
+        Unarmored Defense and similar "if you aren't wearing heavy armor"
+        features consult this)."""
+        try:
+            equipped = self.equipped_items() or []
+        except Exception:
+            return False
+        for item in equipped:
+            if item.get('type') == 'armor' and item.get('subtype') == 'heavy':
+                return True
+        return False
+
     def has_multiattack(self):
         return self.properties.get('multiattack', None) is not None
 
@@ -2696,7 +2724,10 @@ class Entity(EntityStateEvaluator, Notable):
             'casted_spells': [],
             'positions_entered': {},
             'turn_start_position': self._turn_start_position(battle),
-            'legendary_actions': total_legendary_actions
+            'legendary_actions': total_legendary_actions,
+            # Attacks resolved this turn (Reckless Attack must be declared
+            # on/before the first one).
+            'attacks_this_turn': 0,
         })
 
         self._reset_spiritual_weapon(battle)
@@ -3508,6 +3539,12 @@ class Entity(EntityStateEvaluator, Notable):
             elif save_type == 'dexterity':
                 disadvantages.append('shell_defense')
 
+        # Barbarian - Rage (5e SRD): advantage on Strength saving throws
+        # (rage benefits require not wearing heavy armor).
+        if save_type == 'strength' and getattr(self, 'is_raging', None) and self.is_raging() \
+                and not self.wearing_heavy_armor():
+            advantages.append('rage')
+
         extra_dis = opts.get('disadvantage') or opts.get('disadvantages')
         if extra_dis:
             if isinstance(extra_dis, str):
@@ -4068,6 +4105,12 @@ class Entity(EntityStateEvaluator, Notable):
             self.heal(dmg)
             return
 
+        # Barbarian - Rage bookkeeping: damage taken since the creature's
+        # last turn keeps the rage going (the mixin's end_of_turn hook
+        # otherwise ends it). Duck-typed so NPCs without rage are unaffected.
+        if dmg and getattr(self, 'is_raging', None) and self.is_raging():
+            self._rage_damaged_since = True
+
         if self.immune_to(damage_type):
             self.session.event_manager.received_event({
                 'source': self, 'event': 'damage_immunity',
@@ -4481,6 +4524,23 @@ class Entity(EntityStateEvaluator, Notable):
         })
         return True
 
+    def can_gain_hit_points(self, amt=1):
+        """False when a heal of ``amt`` would restore nothing (Chill Touch /
+        ``NoHealingEffect`` heal overrides; swarms can't regain HP)."""
+        if self.class_feature('swarm'):
+            return False
+        if self.has_effect("heal_override"):
+            try:
+                result = self.eval_effect("heal_override", {"heal": amt})
+            except Exception:
+                return True
+            try:
+                if int(result or 0) <= 0:
+                    return False
+            except (TypeError, ValueError):
+                pass
+        return True
+
     def heal(self, original_amt):
         if self.dead():
             return
@@ -4552,12 +4612,26 @@ class Entity(EntityStateEvaluator, Notable):
         if battle is not None:
             from natural20.utils.luck_points import luck_on_own_roll
             roll = luck_on_own_roll(self, roll, 10, battle=battle, roll_kind='death_saving_throw')
-        if roll.nat_20():
+        if roll.nat_20() and self.can_gain_hit_points(1):
             self.make_conscious()
             self.heal(1)
             # print(f"{self.name} rolled a natural 20 on a death saving throw and is now conscious with 1 hp")
             self.event_manager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
                                                     'fails': self.death_fails, 'complete': True, 'stable': True, 'success': True})
+        elif roll.nat_20():
+            # "On a 20, you regain 1 hit point." A creature that can't regain
+            # hit points (Chill Touch and similar) regains none, so the nat 20
+            # just counts as an ordinary success and it stays down.
+            self.death_saves += 1
+            complete = False
+            if self.death_saves >= 3:
+                complete = True
+                self.death_saves = 0
+                self.death_fails = 0
+                self.make_stable()
+            self.event_manager.received_event({'source': self, 'event': 'death_save', 'roll': roll, 'saves': self.death_saves,
+                                                    'fails': self.death_fails, 'complete': complete, 'stable': complete,
+                                                    'no_healing': True})
         elif roll.result() >= 10:
             self.death_saves += 1
             complete = False

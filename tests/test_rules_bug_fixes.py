@@ -1090,5 +1090,525 @@ class SpellScoringSweepTest(unittest.TestCase):
                            "expected to exercise most of the spell catalog")
 
 
+# ---------------------------------------------------------------------------
+# Second batch (issues 31-44), reported by the Forests and Faeries team.
+# ---------------------------------------------------------------------------
+
+
+class WeaponMasteryMarkerTest(unittest.TestCase):
+    """Issue 31/32: Sap/Vex markers were spent by AI scoring passes, and
+    Sap/Slow never expired when their applier was dead or incapacitated."""
+
+    def _setup(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        battle = Battle(session, map_)
+        attacker = PlayerCharacter.load(session, 'high_elf_fighter.yml',
+                                        {'name': 'Vex Owner'})
+        victim = PlayerCharacter.load(session, 'high_elf_mage.yml',
+                                      {'name': 'Sapped Victim'})
+        battle.add(attacker, 'a', position=[0, 5])
+        battle.add(victim, 'b', position=[2, 5])
+        return session, battle, attacker, victim
+
+    def test_scoring_peeks_sap_without_spending_it(self):
+        from natural20.weapons import compute_advantages_and_disadvantages
+        session, battle, attacker, victim = self._setup()
+        weapon = session.load_weapon('longsword')
+        attacker._sap_next_attack = True
+
+        for _ in range(3):
+            _, disadvantages = compute_advantages_and_disadvantages(
+                session, attacker, victim, weapon, battle=battle,
+                consume_masteries=False)
+            self.assertIn('weapon_mastery_sap', disadvantages)
+            self.assertTrue(attacker._sap_next_attack,
+                            "hit-chance scoring spent the Sap marker")
+
+        _, disadvantages = compute_advantages_and_disadvantages(
+            session, attacker, victim, weapon, battle=battle)
+        self.assertIn('weapon_mastery_sap', disadvantages)
+        self.assertFalse(attacker._sap_next_attack,
+                         "the real attack roll must spend the marker")
+
+    def test_scoring_peeks_vex_without_spending_it(self):
+        from natural20.weapons import compute_advantages_and_disadvantages
+        session, battle, attacker, victim = self._setup()
+        weapon = session.load_weapon('longsword')
+        attacker._vex_advantage_vs = {victim.entity_uid: True}
+
+        advantages, _ = compute_advantages_and_disadvantages(
+            session, attacker, victim, weapon, battle=battle,
+            consume_masteries=False)
+        self.assertIn('weapon_mastery_vex', advantages)
+        self.assertTrue(attacker._vex_advantage_vs.get(victim.entity_uid))
+
+        attack = AttackAction(session, attacker, 'attack', {'target': victim})
+        attack.using = 'longsword'
+        attack.target = victim
+        _, _, _ = attack.compute_advantage_info(battle)
+        self.assertTrue(attacker._vex_advantage_vs.get(victim.entity_uid),
+                        "AttackAction.compute_hit_probability spent the Vex marker")
+
+    def test_sap_expires_at_start_of_applier_turn_when_incapacitated(self):
+        session, battle, attacker, victim = self._setup()
+        victim._sap_next_attack = True
+        victim._sap_from = attacker.entity_uid
+        battle.start(combat_order=[attacker, victim])
+        attacker.add_condition('incapacitated') if hasattr(attacker, 'add_condition') \
+            else attacker.statuses.append('incapacitated')
+        battle.start_turn()
+        self.assertFalse(victim._sap_next_attack,
+                         "Sap must expire at the start of the applier's turn "
+                         "even when the applier never acts")
+
+    def test_sap_expires_when_dead_appliers_turn_is_skipped(self):
+        session, battle, attacker, victim = self._setup()
+        victim._sap_next_attack = True
+        victim._sap_from = attacker.entity_uid
+        battle.start(combat_order=[attacker, victim])
+        attacker.make_dead(cause='test')
+        battle.skip_dead_turns()
+        self.assertFalse(victim._sap_next_attack,
+                         "a dead creature's next turn never starts, so its "
+                         "Sap/Slow markers must expire when skipped")
+
+
+class FearApproachTest(unittest.TestCase):
+    """Issue 33: frightened creatures must not be able to move closer to the
+    source of their fear (voluntary movement only)."""
+
+    def setUp(self):
+        from natural20.utils.fear import apply_fear
+        self.session = _session()
+        self.map = Map(self.session, 'large_map')
+        self.battle = Battle(self.session, self.map)
+        self.source = PlayerCharacter.load(self.session, 'high_elf_fighter.yml',
+                                           {'name': 'Fearsome'})
+        self.target = PlayerCharacter.load(self.session, 'high_elf_mage.yml',
+                                           {'name': 'Scaredy'})
+        self.battle.add(self.source, 'a', position=[3, 0])
+        self.battle.add(self.target, 'b', position=[0, 0])
+        apply_fear(self.target, self.source)
+
+    def test_path_toward_fear_source_truncated(self):
+        from natural20.utils.fear import truncate_path_for_fear
+        kept = truncate_path_for_fear(self.target,
+                                      [(0, 0), (1, 0), (2, 0)],
+                                      self.map, self.battle)
+        self.assertEqual(kept, [(0, 0)])
+
+    def test_sideways_steps_stay_legal(self):
+        from natural20.utils.fear import truncate_path_for_fear
+        kept = truncate_path_for_fear(self.target,
+                                      [(0, 0), (0, 1), (1, 1)],
+                                      self.map, self.battle)
+        self.assertEqual(kept, [(0, 0), (0, 1)])
+
+    def test_move_action_path_is_clipped(self):
+        from natural20.actions.move_action import MoveAction
+        action = MoveAction(self.session, self.target, 'move')
+        action.move_path = [(0, 0), (1, 0)]
+        self.battle.entity_state_for(self.target)['movement'] = 30
+        action.resolve(self.session, self.map,
+                       {'battle': self.battle, 'ignore_opportunity_attacks': True})
+        for item in action.result:
+            MoveAction.apply(self.battle, item, self.session)
+        self.assertEqual(list(self.map.position_of(self.target)), [0, 0])
+
+        # Control: the same step is legal for a creature that isn't afraid.
+        brave = PlayerCharacter.load(self.session, 'high_elf_mage.yml',
+                                     {'name': 'Brave'})
+        self.battle.add(brave, 'c', position=[0, 1])
+        control = MoveAction(self.session, brave, 'move')
+        control.move_path = [(0, 1), (1, 0)]
+        self.battle.entity_state_for(brave)['movement'] = 30
+        control.resolve(self.session, self.map,
+                        {'battle': self.battle, 'ignore_opportunity_attacks': True})
+        for item in control.result:
+            MoveAction.apply(self.battle, item, self.session)
+        self.assertEqual(list(self.map.position_of(brave)), [1, 0])
+
+    def test_unfrightened_creature_unaffected(self):
+        from natural20.utils.fear import truncate_path_for_fear
+        other = PlayerCharacter.load(self.session, 'high_elf_fighter.yml',
+                                     {'name': 'Brave'})
+        self.battle.add(other, 'c', position=[0, 1])
+        kept = truncate_path_for_fear(other, [(0, 1), (1, 0)], self.map, self.battle)
+        self.assertEqual(kept, [(0, 1), (1, 0)])
+
+
+class ProtectionFromEvilAndGoodTest(unittest.TestCase):
+    """Issue 34: the spell's benefits were never actually applied."""
+
+    def setUp(self):
+        from natural20.spell.protection_from_evil_and_good_spell import (
+            ProtectionEvilAndGoodEffect,
+        )
+        self.session = _session()
+        self.map = Map(self.session, 'battle_sim_objects')
+        self.battle = Battle(self.session, self.map)
+        self.warded = PlayerCharacter.load(self.session, 'high_elf_mage.yml')
+        self.battle.add(self.warded, 'a', position=[0, 5])
+        self.skeleton = self.session.npc('skeleton')
+        self.goblin = self.session.npc('goblin')
+        self.battle.add(self.skeleton, 'b', position=[5, 5])
+        self.battle.add(self.goblin, 'b', position=[6, 5])
+
+        effect = ProtectionEvilAndGoodEffect(self.warded, {})
+        for key in ('targeted_advantage_override', 'condition_immunity'):
+            self.warded.register_effect(key, ProtectionEvilAndGoodEffect,
+                                        effect=effect, source=self.warded)
+
+    def test_cannot_be_frightened_by_undead_but_humans_still_can(self):
+        from natural20.utils.fear import apply_fear
+        self.assertTrue(self.warded.immune_to_condition('frightened',
+                                                        source=self.skeleton))
+        self.assertFalse(self.warded.immune_to_condition('frightened',
+                                                         source=self.goblin))
+        self.assertFalse(apply_fear(self.warded, self.skeleton))
+        self.assertTrue(apply_fear(self.warded, self.goblin))
+
+    def test_protected_types_attack_at_disadvantage(self):
+        from natural20.weapons import compute_advantages_and_disadvantages
+        weapon = self.session.load_weapon('club')
+        _, disadvantages = compute_advantages_and_disadvantages(
+            self.session, self.skeleton, self.warded, weapon, battle=self.battle)
+        self.assertIn('protection_from_evil_and_good', disadvantages)
+
+        _, disadvantages = compute_advantages_and_disadvantages(
+            self.session, self.goblin, self.warded, weapon, battle=self.battle)
+        self.assertNotIn('protection_from_evil_and_good', disadvantages)
+
+
+class _NoHealHandler:
+    @staticmethod
+    def heal_override(entity, opts=None):
+        return 0
+
+
+class _Nat20Roll:
+    def nat_20(self):
+        return True
+
+    def nat_1(self):
+        return False
+
+    def result(self):
+        return 20
+
+
+class NoHealingAndDeathSavesTest(unittest.TestCase):
+    """Issue 35: creatures that can't regain hit points (swarms, Chill
+    Touch) must not pop up on a natural 20 death save."""
+
+    def test_can_gain_hit_points_gates(self):
+        session = _session()
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        self.assertTrue(fighter.can_gain_hit_points(1))
+
+        fighter.register_effect('heal_override', _NoHealHandler,
+                                effect='chill_touch', source=None)
+        self.assertFalse(fighter.can_gain_hit_points(1))
+
+        fighter.dismiss_effect('heal_override') if hasattr(fighter, 'dismiss_effect') else None
+        fighter.effects.pop('heal_override', None)
+        fighter.class_feature = lambda name: name == 'swarm'
+        self.assertFalse(fighter.can_gain_hit_points(1))
+
+    def test_nat20_death_save_without_healing_stays_down(self):
+        from unittest import mock
+        session = _session()
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        fighter.attributes['hp'] = 0
+        fighter.make_unconscious()
+        fighter.register_effect('heal_override', _NoHealHandler,
+                                effect='chill_touch', source=None)
+        with mock.patch('natural20.die_roll.DieRoll.roll_with_lucky',
+                        classmethod(lambda cls, *a, **k: _Nat20Roll())):
+            fighter.death_saving_throw()
+        self.assertEqual(fighter.hp(), 0)
+        self.assertEqual(fighter.death_saves, 1)
+        self.assertFalse(fighter.conscious())
+
+    def test_nat20_death_save_usually_restores_one(self):
+        from unittest import mock
+        session = _session()
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        fighter.attributes['hp'] = 0
+        fighter.make_unconscious()
+        with mock.patch('natural20.die_roll.DieRoll.roll_with_lucky',
+                        classmethod(lambda cls, *a, **k: _Nat20Roll())):
+            fighter.death_saving_throw()
+        self.assertEqual(fighter.hp(), 1)
+        self.assertTrue(fighter.conscious())
+
+
+class ReactionStartOfBattleTest(unittest.TestCase):
+    """Issue 36: combatants start with a reaction available (opportunity
+    attacks happen before your first turn)."""
+
+    def test_reaction_available_before_first_turn(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        battle.add(fighter, 'a', position=[0, 5])
+        state = battle.entity_state_for(fighter)
+        self.assertEqual(state.get('reaction'), 1)
+
+
+class HiddenSensesTest(unittest.TestCase):
+    """Issue 37: failing to notice a hidden creature must not disable the
+    observer's other senses (blindsight range, truesight)."""
+
+    def setUp(self):
+        self.session = _session()
+        self.map = Map(self.session, 'large_map')
+        self.attacker = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.sneaky = PlayerCharacter.load(self.session, 'halfling_rogue.yml')
+        self.map.add(self.attacker, 0, 0)
+        self.map.add(self.sneaky, 2, 0)
+
+    def test_hidden_undetected_then_truesight_sees_it(self):
+        self.sneaky.do_hide(30)
+        self.assertFalse(self.attacker.passive_perception() >= 30)
+        self.assertFalse(self.map.can_see(self.attacker, self.sneaky),
+                         "passive Perception should miss DC 30 stealth")
+        self.attacker.properties['truesight'] = 60
+        try:
+            self.assertTrue(self.map.can_see(self.attacker, self.sneaky),
+                            "truesight sees hidden creatures in range")
+        finally:
+            self.attacker.properties.pop('truesight', None)
+
+    def test_blindsight_locates_hidden_creature(self):
+        self.sneaky.do_hide(30)
+        self.assertFalse(self.map.can_see(self.attacker, self.sneaky))
+        self.attacker.has_blindsight = lambda: True
+        self.attacker.blindsight = lambda feet: feet <= 30
+        self.assertTrue(self.map.can_see(self.attacker, self.sneaky),
+                        "blindsight locates creatures regardless of hiding")
+
+
+class PackTacticsGeometryTest(unittest.TestCase):
+    """Issue 38: the flanking ally must be within 5 feet of the *target*,
+    not within the ally's melee reach measured from the attacker."""
+
+    def setUp(self):
+        self.session = _session()
+        self.map = Map(self.session, 'battle_sim_objects')
+        self.battle = Battle(self.session, self.map)
+        self.attacker = PlayerCharacter.load(self.session, 'high_elf_fighter.yml',
+                                             {'name': 'Attacker'})
+        self.target = self.session.npc('goblin')
+        self.ally = self.session.npc('goblin')
+        self.battle.add(self.attacker, 'a', position=[0, 5])
+        self.battle.add(self.target, 'b', position=[2, 5])
+        self.battle.add(self.ally, 'a', position=[1, 6])
+
+    def test_ally_within_five_feet_of_target_counts(self):
+        self.assertTrue(self.battle.ally_within_enemy_melee_range(
+            self.attacker, self.target))
+
+    def test_ally_ten_feet_from_target_does_not_count(self):
+        self.map.remove(self.ally)
+        self.map.add(self.ally, 0, 6)  # adjacent to attacker, 10 ft from target
+        self.assertFalse(self.battle.ally_within_enemy_melee_range(
+            self.attacker, self.target))
+
+    def test_dead_ally_does_not_count(self):
+        self.ally.make_dead(cause='test')
+        self.assertFalse(self.battle.ally_within_enemy_melee_range(
+            self.attacker, self.target))
+
+
+class RageRulesTest(unittest.TestCase):
+    """Issue 39: heavy armor voids rage benefits; rage ends early when a
+    turn ends with no attack and no damage; Reckless Attack is a
+    first-attack-only declaration."""
+
+    def _barbarians(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        battle = Battle(session, map_)
+        raging = PlayerCharacter.load(session, 'goliath_barbarian.yml',
+                                      {'name': 'Bare'})
+        armored = PlayerCharacter.load(session, 'goliath_barbarian.yml',
+                                       {'name': 'Plated'})
+        foe = PlayerCharacter.load(session, 'high_elf_fighter.yml',
+                                   {'name': 'Foe'})
+        battle.add(raging, 'a', position=[0, 5])
+        battle.add(armored, 'a', position=[0, 6])
+        battle.add(foe, 'b', position=[2, 5])
+        armored.equip('chain_mail', ignore_inventory=True)
+        return session, battle, map_, raging, armored, foe
+
+    def test_heavy_armor_blocks_rage_and_its_benefits(self):
+        from natural20.actions.rage_action import RageAction
+        from natural20.weapons import damage_modifier
+        session, battle, _, raging, armored, _ = self._barbarians()
+        self.assertTrue(armored.wearing_heavy_armor())
+        self.assertFalse(RageAction.can(armored, battle))
+
+        # Force the state to compare benefit application, not activation.
+        armored.raging = True
+        raging.raging = True
+        self.assertIn('slashing', raging.effective_resistances())
+        self.assertNotIn('slashing', armored.effective_resistances())
+
+        weapon = session.load_weapon('longsword')
+        self.assertNotEqual(damage_modifier(armored, weapon),
+                            damage_modifier(raging, weapon),
+                            "heavy armor must not also give the rage damage die")
+
+    def test_rage_ends_early_when_turn_ends_without_attack_or_damage(self):
+        session, battle, _, raging, _, foe = self._barbarians()
+        raging.raging = True
+        raging.rage_rounds_remaining = 10
+        raging.reset_turn(battle)
+        raging.resolve_trigger('end_of_turn', {'battle': battle})
+        self.assertFalse(raging.is_raging())
+
+    def test_damage_or_attack_keeps_rage_alive(self):
+        session, battle, map_, raging, _, foe = self._barbarians()
+        raging.raging = True
+        raging.rage_rounds_remaining = 10
+        raging.reset_turn(battle)
+        raging.take_damage(2, battle=battle, damage_type='piercing')
+        raging.resolve_trigger('end_of_turn', {'battle': battle})
+        self.assertTrue(raging.is_raging(),
+                        "taking damage since the last turn keeps the rage up")
+
+        raging.reset_turn(battle)
+        raging.resolve_trigger('attack_resolved', {'target': foe})
+        raging.resolve_trigger('end_of_turn', {'battle': battle})
+        self.assertTrue(raging.is_raging(),
+                        "attacking a hostile creature keeps the rage up")
+
+    def test_unconscious_ends_rage(self):
+        session, battle, map_, raging, _, foe = self._barbarians()
+        raging.raging = True
+        raging.make_unconscious()
+        self.assertFalse(raging.is_raging())
+
+    def test_reckless_attack_gone_after_first_attack(self):
+        from natural20.actions.rage_action import RecklessAttackAction
+        session, battle, _, raging, _, foe = self._barbarians()
+        raging.raging = True
+        raging.reset_turn(battle)
+        state = battle.entity_state_for(raging)
+        state['action'] = 1
+        self.assertTrue(RecklessAttackAction.can(raging, battle))
+        state['attacks_this_turn'] = 1
+        self.assertFalse(RecklessAttackAction.can(raging, battle),
+                         "Reckless Attack is declared on your first attack "
+                         "of the turn, not after Action Surge")
+
+
+class SpellSlotTableTest(unittest.TestCase):
+    """Issue 40: Cleric/Paladin slot lookups read the cantrip/placeholder
+    column."""
+
+    def test_cleric_slots_use_the_right_column(self):
+        session = _session()
+        cleric = PlayerCharacter.load(session, 'dwarf_cleric.yml')  # level 3
+        self.assertEqual(cleric.max_slots_for_cleric(1), 4)
+        self.assertEqual(cleric.max_slots_for_cleric(2), 2)
+        self.assertEqual(cleric.max_slots_for_cleric(3), 0)
+
+    def test_paladin_slots_use_the_right_column(self):
+        session = _session()
+        paladin = PlayerCharacter.load(session, 'goliath_paladin.yml')  # level 2
+        self.assertEqual(paladin.max_slots_for_paladin(1), 2)
+        self.assertEqual(paladin.max_slots_for_paladin(2), 0)
+
+
+class NpcAcOverrideTest(unittest.TestCase):
+    """Issue 41: NPC armor_class ignored Mage Armor-style ac_override."""
+
+    def test_skeleton_with_mage_armor(self):
+        session = _session()
+        skeleton = session.npc('skeleton')
+        self.assertEqual(skeleton.armor_class(), 13)
+        skeleton.register_effect('ac_override', MageArmorSpell,
+                                 effect='mage_armor', source=None)
+        # 13 + DEX 2 beats the skeleton's natural 13.
+        self.assertEqual(skeleton.armor_class(), 15)
+
+
+class MissingSrdWeaponsTest(unittest.TestCase):
+    """Issue 42: eleven SRD weapons were missing from the catalog."""
+
+    EXPECTED = {
+        'club': ('1d4', 'bludgeoning', 'simple'),
+        'sickle': ('1d4', 'slashing', 'simple'),
+        'blowgun': ('1', 'piercing', 'simple'),
+        'flail': ('1d8', 'bludgeoning', 'martial'),
+        'glaive': ('1d10', 'slashing', 'martial'),
+        'greatsword': ('2d6', 'slashing', 'martial'),
+        'halberd': ('1d10', 'slashing', 'martial'),
+        'maul': ('2d6', 'bludgeoning', 'martial'),
+        'pike': ('1d10', 'piercing', 'martial'),
+        'war_pick': ('1d8', 'piercing', 'martial'),
+        'whip': ('1d4', 'slashing', 'martial'),
+    }
+
+    def test_weapons_load(self):
+        session = _session()
+        for name, (damage, damage_type, prof) in self.EXPECTED.items():
+            meta = session.load_weapon(name)
+            self.assertIsNotNone(meta, f"{name} missing from items/weapons.yml")
+            self.assertEqual(meta.get('damage'), damage, name)
+            self.assertEqual(meta.get('damage_type'), damage_type, name)
+            self.assertEqual(meta.get('proficiency_type'), [prof], name)
+            self.assertEqual(meta.get('subtype'), 'weapon', name)
+
+
+class HideScoringTest(unittest.TestCase):
+    """Issue 43: the heuristic controller must not value hide attempts
+    that the rules say auto-fail (or that are already up)."""
+
+    def setUp(self):
+        from natural20.generic_controller import GenericController
+        self.session = _session()
+        self.map = Map(self.session, 'battle_sim_objects')
+        self.battle = Battle(self.session, self.map)
+        self.rogue = PlayerCharacter.load(self.session, 'halfling_rogue.yml')
+        self.foe = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.battle.add(self.rogue, 'a', position=[0, 5])
+        self.battle.add(self.foe, 'b', position=[2, 5])
+        self.controller = GenericController(self.session)
+
+    def test_hidden_scores_below_nothing(self):
+        self.rogue.do_hide(20)
+        score = self.controller._score_hide(self.rogue, self.battle, self.map,
+                                            {self.foe: ((2, 5), [])})
+        self.assertLess(score, 0)
+
+    def test_hiding_in_plain_sight_scores_zero(self):
+        self.assertTrue(self.map.can_see(self.foe, self.rogue))
+        score = self.controller._score_hide(self.rogue, self.battle, self.map,
+                                            {self.foe: ((2, 5), [])})
+        self.assertEqual(score, 0.0)
+
+    def test_hiding_out_of_sight_earns_a_real_score(self):
+        self.map.remove(self.foe)
+        score = self.controller._score_hide(self.rogue, self.battle, self.map,
+                                            {self.foe: ((2, 5), [])})
+        self.assertGreater(score, 0.1,
+                           "a legal hide should beat filler bonus actions")
+
+
+class WizardCantripListTest(unittest.TestCase):
+    """Issue 44: Burning Hands was listed as a wizard cantrip."""
+
+    def test_burning_hands_is_a_first_level_spell(self):
+        data = yaml.safe_load(open('templates/char_classes/wizard.yml'))
+        spell_list = data['spell_list']
+        self.assertNotIn('burning_hands', spell_list['cantrip'])
+        self.assertIn('burning_hands', spell_list['level_1'])
+
+
 if __name__ == '__main__':
     unittest.main()

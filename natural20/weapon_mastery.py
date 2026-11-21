@@ -423,6 +423,25 @@ def apply_speed_reduction(entity, speed):
     return speed
 
 
+def has_sap_disadvantage(target) -> bool:
+    """True when the Sap marker is up, WITHOUT spending it.
+
+    AI scoring (``AttackAction.ai_value``, spell hit estimates, JEV) evaluates
+    the same advantage math as a real attack; only the real attack roll may
+    consume the one-shot marker.
+    """
+    return bool(getattr(target, "_sap_next_attack", False))
+
+
+def has_vex_advantage(source, target) -> bool:
+    vex_map = getattr(source, "_vex_advantage_vs", None)
+    if not vex_map:
+        return False
+    if vex_map.get(str(_entity_uid(target))):
+        return True
+    return bool(vex_map.get(_entity_uid(target)))
+
+
 def consume_sap_disadvantage(target) -> bool:
     if getattr(target, "_sap_next_attack", False):
         target._sap_next_attack = False

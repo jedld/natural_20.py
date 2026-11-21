@@ -4,12 +4,16 @@
 #   * Level 1 - Rage (bonus action; resistance to bludg/pierce/slash, +rage
 #     damage on STR melee weapon attacks, advantage on STR checks/saves
 #     while raging; 2 uses per long rest at L1-2; 1-minute / 10-round
-#     duration; ends early if knocked unconscious).
+#     duration; benefits need no heavy armor; ends early when knocked
+#     unconscious or when a turn ends without attacking a hostile creature
+#     or taking damage since the last turn; no spellcasting/concentration
+#     while raging - see SpellAction.can_cast).
 #   * Level 1 - Unarmored Defense (Barbarian): AC = 10 + DEX + CON when
 #     wearing no armor (shield allowed).
 #   * Level 2 - Reckless Attack (toggle for the turn: advantage on STR
 #     melee weapon attack rolls; attacks against the barbarian have
-#     advantage until the start of the next turn).
+#     advantage until the start of the next turn; declared on/before the
+#     first attack of the turn).
 #   * Level 2 - Danger Sense (advantage on DEX saves vs. effects you can
 #     see; flag-only - exposed via class_feature for callers to consult).
 
@@ -67,12 +71,19 @@ RAGE_DAMAGE = [
 RAGE_DURATION_ROUNDS = 10  # 1 minute
 
 
-class _BarbarianStartOfTurnHook:
-  """Callable wrapper registered as a start_of_turn entity hook.
+class _BarbarianTurnHooks:
+  """Callable entity-event hooks for Rage / Reckless Attack bookkeeping.
 
-  Counts down rage duration and clears the per-turn Reckless Attack flag.
   Defined as a class so it survives entity-level cleanup code that
   inspects ``handler.method``.
+
+  * ``start_of_turn``: counts down the rage duration and clears the
+    per-turn Reckless Attack flag.
+  * ``attack_resolved``: records that the raging barbarian attacked a
+    creature this turn.
+  * ``end_of_turn``: SRD - "It ends early if ... your turn ends and you
+    haven't attacked a hostile creature since your last turn or taken
+    damage since then." Evaluated once per turn slot.
   """
 
   def start_of_turn(self, entity, _opts=None):
@@ -84,6 +95,39 @@ class _BarbarianStartOfTurnHook:
       entity.rage_rounds_remaining = remaining
       if remaining <= 0:
         entity.end_rage(reason='duration')
+    return []
+
+  def attack_resolved(self, entity, _opts=None):
+    if getattr(entity, 'raging', False):
+      target = (_opts or {}).get('target')
+      if (
+        target is not None
+        and target is not entity
+        and not getattr(target, 'dead', lambda: False)()
+      ):
+        entity._rage_attacked_since = True
+    return []
+
+  def end_of_turn(self, entity, _opts=None):
+    if not getattr(entity, 'raging', False):
+      return []
+    battle = (_opts or {}).get('battle')
+    if battle is not None:
+      turn_key = (
+        id(battle),
+        getattr(battle, 'round', 0),
+        getattr(battle, 'current_turn_index', 0),
+      )
+      if getattr(entity, '_rage_end_turn_key', None) == turn_key:
+        return []
+      entity._rage_end_turn_key = turn_key
+    if (
+      not getattr(entity, '_rage_attacked_since', False)
+      and not getattr(entity, '_rage_damaged_since', False)
+    ):
+      entity.end_rage(reason='no_hostile_action_or_damage')
+    entity._rage_attacked_since = False
+    entity._rage_damaged_since = False
     return []
 
 
@@ -98,12 +142,19 @@ class Barbarian:
       self.rage_rounds_remaining = 0
     if not hasattr(self, 'reckless_attack_active'):
       self.reckless_attack_active = False
-    # Register a per-turn cleanup hook (rage countdown + reckless reset).
-    # entity_event_hooks are not persisted across save/load, but
-    # initialize_barbarian is re-run by PlayerCharacter.__init__ on load,
-    # so the hook is always present on a live instance.
-    hook = _BarbarianStartOfTurnHook()
+    if not hasattr(self, '_rage_attacked_since'):
+      self._rage_attacked_since = False
+    if not hasattr(self, '_rage_damaged_since'):
+      self._rage_damaged_since = False
+    # Register the per-turn hooks (rage countdown + reckless reset, rage
+    # end-early tracking). entity_event_hooks are not persisted across
+    # save/load, but initialize_barbarian is re-run by
+    # PlayerCharacter.__init__ on load, so they are always present on a
+    # live instance.
+    hook = _BarbarianTurnHooks()
     self.register_event_hook('start_of_turn', hook, 'start_of_turn')
+    self.register_event_hook('attack_resolved', hook, 'attack_resolved')
+    self.register_event_hook('end_of_turn', hook, 'end_of_turn')
 
   # ---------------- Rage ----------------
 

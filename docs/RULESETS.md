@@ -125,6 +125,17 @@ Chargen (2024 classes with the feature) asks the player to pick that many **weap
 
 Attack buttons and the character sheet show the mastery when the campaign ruleset enables it. Combat log events use `event: weapon_mastery`.
 
+Marker lifecycle (`natural20/weapon_mastery.py`): the one-shot markers
+(`_sap_next_attack`, `_vex_advantage_vs`, `_mastery_slow_from`) are spent by
+*real attack rolls only*. Scoring and preview paths — `AttackAction.compute_hit_probability`,
+spell hit estimates, JEV, the VTT `/target` preview — call
+`compute_advantages_and_disadvantages(..., consume_masteries=False)`, which
+peeks via `has_sap_disadvantage` / `has_vex_advantage` without clearing
+anything. Sap and Slow expire at the start of the applier's next turn even
+when the applier is incapacitated (`Battle.start_turn` runs
+`expire_mastery_start_of_turn` before any action) or dead (turns skipped by
+`Battle.skip_dead_turns` expire its markers).
+
 ### Weapon properties and 2024 feats (all editions)
 
 - **Loading** is enforced for player characters in both editions: one Loading shot per Attack action, whatever Extra Attack allows (`natural20/utils/weapon_loading.py`). Feat `weapon_attack_rules` `ignore_properties: [loading]` waives it.
@@ -337,6 +348,51 @@ Notes on the other spells (the same in both editions):
 - PHB 2024 pack: **Summon Fiend** (demon, devil or yugoloth spirit). The demon's Death Throes fire at 0 HP or when the spell ends, the devil has Devil's Sight and can mix Fiery Strike melee and ranged, and the yugoloth can teleport 30 ft after each Claws attack. The spirit vanishes at 0 HP, which ends the spell. Climb speed isn't modelled.
 - **Dimension Door** (SRD). Uses `MistyStepSpell` with YAML `range: 500` and `require_los: false`, so any empty square in range works. `ai_max_destinations` caps how many squares AI auto-targeting considers. Bringing a willing creature along and the 4d6 damage for an occupied destination aren't modelled; occupied squares can't be picked.
 - **Sending** (SRD). Picks a creature on the same map and logs a `sending` event, with the text taken from `spell_action.message` when set. Creatures with INT 1 or lower get the meaning but not the words (`understood: false`). It is a non-combat spell (`ai_in_combat: false`).
+
+### Core SRD combat rules (both editions)
+
+Fixed against the "dice tape" replays (issue #6, second batch); regression
+tests live in [`tests/test_rules_bug_fixes.py`](../tests/test_rules_bug_fixes.py).
+
+- **Reactions from combat start.** `Battle.add` seeds `reaction: 1` for every
+  combatant: opportunity attacks, Shield, Counterspell and NPC reactions work
+  before the creature's first turn (surprise is not modelled).
+- **Pack Tactics** (`Battle.ally_within_enemy_melee_range`): the flanking ally
+  must stand within 5 ft of the *target* and not be incapacitated; the ally's
+  own reach and weapons are irrelevant (a bowman next to the target counts, a
+  10-ft-reach ally 10 ft away does not), the ally need not be visible to the
+  target, and dead allies never help.
+- **Death saves without healing** (`Entity.can_gain_hit_points`): swarms and
+  `no-healing` riders (`heal_override` ≤ 0, e.g. Chill Touch) can't regain
+  hit points, so a natural 20 death save counts as an ordinary success — the
+  creature stays down. The `death_save` event carries `no_healing: true`.
+- **Protection from Evil and Good** (`natural20/spell/protection_from_evil_and_good_spell.py`):
+  per-casting `ProtectionEvilAndGoodEffect` registers a
+  `targeted_advantage_override` (listed creature types attack the warded
+  creature at disadvantage) and a source-aware `condition_immunity` (no
+  charm/fear/possession *from those types*). `Entity.immune_to_condition`
+  takes an optional `source=` and every fear/charm path passes it.
+- **Rage** (`natural20/entity_class/barbarian.py`): benefits require not
+  wearing heavy armor (`Entity.wearing_heavy_armor`, armor items with
+  `subtype: heavy`; RageAction won't activate in heavy armor, and the
+  resistance / +damage / STR save-and-check advantage are all gated). Rage
+  ends early when the raging creature's turn ends after attacking no hostile
+  creature and taking no damage since its last turn
+  (`_BarbarianTurnHooks` on the `attack_resolved` / `end_of_turn` entity
+  triggers; `Battle.next_turn` now passes `{'battle': self}` to
+  `end_of_turn` triggers), and on being knocked unconscious. Reckless Attack
+  must be declared on/before the *first* attack of the turn (battle state
+  key `attacks_this_turn`). Spellcasting and concentration are blocked while
+  raging (`SpellAction.can_cast`).
+- **Failing to notice a hidden creature** must not turn off the observer's
+  other senses: a lost Perception contest only suppresses *visual* sight, so
+  blindsight (and truesight, `properties.truesight`) still locate the hidden
+  creature in range (`Map.can_see`, `hidden_undetected`).
+- **Weapon catalog**: the missing SRD simple/martial weapons (`club`,
+  `sickle`, `blowgun`, `flail`, `glaive`, `greatsword`, `halberd`, `maul`,
+  `pike`, `war_pick`, `whip`) are defined in
+  [`templates/items/weapons.yml`](../templates/items/weapons.yml); the 2024
+  mastery overlay already referenced them.
 
 ## Changing edition mid-campaign
 

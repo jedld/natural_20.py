@@ -1856,10 +1856,13 @@ class Map(SerializableObject):
         if entity2 not in self.entities and entity2 not in self.interactable_objects:
             return False
 
+        hidden_undetected = False
         if entity2.hidden():
             _passive_perception_val = max(entity.passive_perception() or 0, active_perception)
             if _passive_perception_val < entity2.hidden_stealth:
-                return False
+                # Perception fails, but nonvisual senses (checked later in
+                # this function) still locate the creature in range.
+                hidden_undetected = True
 
         if entity2.concealed() and not ignore_concealment:
             if entity2.conceal_perception_dc() is None:
@@ -2086,6 +2089,19 @@ class Map(SerializableObject):
             except (TypeError, ValueError):
                 truesight = 0
             if truesight and dist_ft <= truesight:
+                return True
+            return False
+
+        if hidden_undetected:
+            # Perception lost the contest: only nonvisual senses locate the
+            # creature. Blindsight already returned above; truesight also
+            # sees hidden creatures within range.
+            truesight = (getattr(entity, 'properties', {}) or {}).get('truesight')
+            try:
+                truesight = int(truesight) if truesight else 0
+            except (TypeError, ValueError):
+                truesight = 0
+            if truesight and (sighting_distance or 0) * self.feet_per_grid <= truesight:
                 return True
             return False
 

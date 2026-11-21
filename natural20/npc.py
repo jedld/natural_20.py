@@ -412,6 +412,11 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
 
     def armor_class(self):
         current_ac = self.properties["default_ac"]
+        # Mage Armor and similar AC-recompute effects (ac_override) also
+        # apply to NPCs; the handler receives the creature's base AC and
+        # answers with the better computation.
+        if self.has_effect('ac_override'):
+            current_ac = self.eval_effect('ac_override', {"armor_class": current_ac})
         if self.has_effect('ac_bonus'):
             current_ac += self.eval_effect('ac_bonus', {'stacked': True}) or 0
         if self.class_feature('improved_defense'):

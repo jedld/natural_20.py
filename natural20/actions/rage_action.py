@@ -21,6 +21,10 @@ class RageAction(Action):
             return False
         if not entity.has_rage(1):
             return False
+        # SRD: the rage benefits apply "if you aren't wearing heavy armor";
+        # raging in heavy armor would just waste the use.
+        if getattr(entity, 'wearing_heavy_armor', None) and entity.wearing_heavy_armor():
+            return False
         if battle is None:
             return True
         return entity.total_bonus_actions(battle) > 0
@@ -94,7 +98,13 @@ class RecklessAttackAction(Action):
         state = battle.entity_state_for(entity)
         if not state:
             return False
-        return state.get('action', 0) > 0
+        if state.get('action', 0) <= 0:
+            return False
+        # SRD: you decide when you make your FIRST attack on your turn, so
+        # after Action Surge (or any earlier attack) it is too late.
+        if int(state.get('attacks_this_turn') or 0) > 0:
+            return False
+        return True
 
     def label(self):
         return 'Reckless Attack'

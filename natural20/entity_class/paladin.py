@@ -322,7 +322,10 @@ class Paladin():
             self.channel_divinity_count = self.channel_divinity_max
     
     def max_slots_for_paladin(self, level):
-        return PALADIN_SPELL_SLOT_TABLE[self.paladin_level - 1][level - 1] if level < len(PALADIN_SPELL_SLOT_TABLE[self.paladin_level - 1]) else 0
+        # Column 0 of the table is a leading 0 placeholder (Paladins have
+        # no cantrips), so slot levels index the row directly.
+        row = PALADIN_SPELL_SLOT_TABLE[self.paladin_level - 1]
+        return row[level] if 0 <= level < len(row) else 0
 
     def reset_paladin_spell_slots(self):
         return OrderedDict((index, slots) for index, slots in enumerate(PALADIN_SPELL_SLOT_TABLE[self.paladin_level - 1]))

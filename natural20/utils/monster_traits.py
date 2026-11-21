@@ -621,7 +621,7 @@ def apply_charm(target, charmer, save_dc=None, duration=None, repeat_save_when_h
     """Charm ``target`` (unless immune). Returns True when the charm took hold."""
     if target is None or charmer is None or target.dead():
         return False
-    if hasattr(target, 'immune_to_condition') and target.immune_to_condition(CHARMED_STATUS):
+    if hasattr(target, 'immune_to_condition') and target.immune_to_condition(CHARMED_STATUS, source=charmer):
         return False
     save_type, dc = None, None
     if save_dc:

@@ -22,7 +22,6 @@ spell_list:
   cantrip:
     - acid_splash
     - booming_blade
-    - burning_hands
     - blade_ward
     - chill_touch
     - dancing_lights

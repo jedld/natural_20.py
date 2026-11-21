@@ -12,6 +12,7 @@ from natural20.actions.lay_on_hands_action import LayOnHandsAction
 from natural20.actions.help_action import HelpAction
 from natural20.actions.shove_action import ShoveAction
 from natural20.actions.grapple_action import GrappleAction
+from natural20.actions.hide_action import HideAction
 from natural20.gym.types import EnvObject, Environment
 from natural20.entity import Entity
 from natural20.action import Action
@@ -500,6 +501,35 @@ class GenericController(Controller):
             }
         return self.battle_data[battle][entity]
 
+    def _score_hide(self, entity, battle, current_map, enemy_positions):
+        """Score a Hide action for the heuristic controller.
+
+        Mirrors the rules checks in HideAction.resolve: hiding while a
+        creature can currently see you clearly (2014) or without cover /
+        heavy obscurement from every foe's line of sight (2024) auto-
+        fails, and hiding again while already hidden is a waste of the
+        action.  Only hide attempts that can actually succeed earn a
+        bonus score.
+        """
+        if entity.hidden():
+            return -1.0
+        if not enemy_positions:
+            return 0.0
+        opponents = [opp for opp in enemy_positions if opp.conscious()]
+        if not opponents:
+            return 0.0
+        if current_map is None:
+            return 0.0
+        for opp in opponents:
+            if current_map.can_see(opp, entity):
+                # In plain sight: the hide attempt would fail outright.
+                return 0.0
+        # Out of every foe's sight line: hiding gives real value
+        # (attacks against us get disadvantage, our next attack has
+        # advantage). Score it above the filler bonus actions but below
+        # ordinary attacks.
+        return 0.6
+
     # Sort actions based on success rate and damage
     def _sort_actions(self, entity, battle, available_actions):
         return [a for a, _ in self._sort_actions_with_scores(entity, battle, available_actions)]
@@ -915,9 +945,23 @@ class GenericController(Controller):
                 sorted_actions.append((action, action.ai_value(battle)))
             elif action.action_type == 'break_free':
                 sorted_actions.append((action, action.ai_value(battle)))
-            elif action.action_type in ('dash', 'disengage', 'dodge', 'hide'):
-                # Mild default value; will be preferred only when other options are poor
-                sorted_actions.append((action, 0.1))
+            elif action.action_type in ('dash', 'disengage', 'dodge', 'hide',
+                                        'dash_bonus', 'disengage_bonus', 'dodge_bonus', 'hide_bonus'):
+                if action.action_type in ('hide', 'hide_bonus'):
+                    # Hide has real combat value (attacks against the hider
+                    # get disadvantage; the hider's next attack has
+                    # advantage), but it auto-fails in the clear sight of a
+                    # foe (2014) or without cover (2024). Score it so
+                    # Cunning Action / Nimble Escape goblins actually hide
+                    # instead of tying at zero with the other bonus options.
+                    score = self._score_hide(entity, battle, current_map, enemy_positions)
+                elif action.action_type in ('dash', 'disengage', 'dodge',
+                                            'dash_bonus', 'disengage_bonus', 'dodge_bonus'):
+                    # Mild default value; will be preferred only when other options are poor
+                    score = 0.1
+                else:
+                    score = 0.0
+                sorted_actions.append((action, score))
             else:
                 sorted_actions.append((action, 0))
 

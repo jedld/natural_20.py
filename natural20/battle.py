@@ -513,7 +513,11 @@ class Battle():
             'group': group,
             'action': 0,
             'bonus_action': 0,
-            'reaction': 0,
+            # SRD: every combatant can take a reaction before its first turn
+            # (only a *surprised* creature can't, and surprise is not
+            # modeled). Opportunity attacks, Shield, and NPC reactions all
+            # work from combat start.
+            'reaction': 1,
             'movement': 0,
             'stealth': 0,
             'statuses': set(),
@@ -815,6 +819,15 @@ class Battle():
         expire_taunts_by(entity, self)
         from natural20.utils.until_next_turn import expire_until_next_turn
         expire_until_next_turn(entity, self)
+        # Sap ("before the start of your next turn") and Slow ("until the
+        # start of your next turn") expire at the start of the wielder's next
+        # turn even when the wielder is down or incapacitated and therefore
+        # never reaches Entity.reset_turn.
+        try:
+            from natural20.weapon_mastery import expire_mastery_start_of_turn
+            expire_mastery_start_of_turn(entity, self)
+        except Exception:
+            pass
         self.trigger_event('start_of_turn', self, { "target" : entity })
         state = self.entity_state_for(entity)
         if state is not None:
@@ -1035,6 +1048,14 @@ class Battle():
             current = self.current_turn()
             if current is None or not current.dead():
                 return current
+            # The dead creature's next turn never starts, so tick its
+            # until-the-start-of-my-next-turn markers here instead of
+            # stranding them on the targets forever.
+            try:
+                from natural20.weapon_mastery import expire_mastery_start_of_turn
+                expire_mastery_start_of_turn(current, self)
+            except Exception:
+                pass
             self._end_of_turn_fired = None
             self._advance_turn_index(max_rounds)
         return self.current_turn()
@@ -1092,7 +1113,7 @@ class Battle():
                     'statuses': list(current.statuses),
                 })
 
-            current.resolve_trigger('end_of_turn')
+            current.resolve_trigger('end_of_turn', {'battle': self})
             self.eval_legendary_action()
             # print("Next turn")
             result = self.next_turn(max_rounds)
@@ -2078,16 +2099,24 @@ class Battle():
     
         # @return [Boolean]
     def ally_within_enemy_melee_range(self, source, target, exclude=None, source_pos=None):
+        """True when an ally of ``source`` stands within 5 feet of ``target``
+        and is not incapacitated (SRD Pack Tactics).
+
+        The rule is about the ally's position, not its reach or weapons: an
+        adjacent ally that only carries a bow counts, and a reach ally 10
+        feet away does not. The ally does not need to be visible to the
+        target, and distance is measured to the ally itself.
+        """
         _map = self.map_for(source)
-        objects_around_me = _map.look(target)
+        if _map is None or not _map.feet_per_grid:
+            return False
 
         if exclude is None:
             exclude = []
 
-        for object, _ in objects_around_me.items():
-            if object in exclude:
-                continue
-            if object == source:
+        max_squares = 5.0 / _map.feet_per_grid
+        for object, _ in list(getattr(_map, 'entities', {}).items()):
+            if object is source or object is target or object in exclude:
                 continue
 
             state = self.entity_state_for(object)
@@ -2095,14 +2124,17 @@ class Battle():
             if not state:
                 continue
 
-            if object.incapacitated():
+            if object.dead() or object.incapacitated():
                 continue
 
-            melee_distance = object.melee_distance() if hasattr(object, 'melee_distance') else None
-            if melee_distance is None or melee_distance <= 0 or _map.feet_per_grid <= 0:
+            if not self.allies(source, object):
                 continue
 
-            if self.allies(source, object) and (_map.distance(target, object, entity_1_pos=source_pos) <= (melee_distance / _map.feet_per_grid)):
+            try:
+                adjacent = _map.distance(target, object) <= max_squares
+            except Exception:
+                continue
+            if adjacent:
                 return True
 
         return False

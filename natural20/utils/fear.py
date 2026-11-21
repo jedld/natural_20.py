@@ -68,7 +68,7 @@ def apply_fear(target, source, save_dc=None, duration=None, ends_on_damage=False
     (Fear spell); AI controllers honour it through ``flee_source``."""
     if target is None or source is None or target.dead():
         return False
-    if hasattr(target, 'immune_to_condition') and target.immune_to_condition(FRIGHTENED_STATUS):
+    if hasattr(target, 'immune_to_condition') and target.immune_to_condition(FRIGHTENED_STATUS, source=source):
         return False
     save_type, dc = None, None
     if save_dc:
@@ -183,6 +183,61 @@ def flee_source(entity):
             if source is not None and not source.dead():
                 return source
     return None
+
+
+def frightened_sources(entity):
+    """Living, resolvable creatures ``entity`` is frightened of."""
+    found = []
+    for uid in active_fear_sources(entity):
+        source = _entity_by_uid(entity, uid)
+        if source is not None and source is not entity and not source.dead():
+            found.append(source)
+    return found
+
+
+def truncate_path_for_fear(entity, moves, battle_map, battle=None):
+    """Frightened (SRD): the creature can't willingly move closer to the
+    source of its fear.
+
+    Truncates a voluntary move path at the first step that would come nearer
+    to a fear source (on the same map) than the step before it. Moving
+    sideways or away stays legal. Forced movement (pushes, drags, teleports
+    and DM ``/move_entity``) never runs through a ``MoveAction`` and so is
+    unaffected, matching "forced movement isn't affected"."""
+    if not moves or len(moves) < 2 or battle_map is None:
+        return moves
+    if not (getattr(entity, 'attributes', None) or {}).get('frightened_by'):
+        return moves
+    sources = []
+    on_map = getattr(battle_map, 'entities', {})
+    for source in frightened_sources(entity):
+        if source not in on_map:
+            continue
+        try:
+            pos = battle_map.position_of(source)
+        except Exception:
+            continue
+        if pos:
+            sources.append((int(pos[0]), int(pos[1])))
+    if not sources:
+        return moves
+
+    def moves_closer(step, prev):
+        for (sx, sy) in sources:
+            d_step = max(abs(int(step[0]) - sx), abs(int(step[1]) - sy))
+            d_prev = max(abs(int(prev[0]) - sx), abs(int(prev[1]) - sy))
+            if d_step < d_prev:
+                return True
+        return False
+
+    kept = [moves[0]]
+    for index in range(1, len(moves)):
+        if moves_closer(moves[index], moves[index - 1]):
+            break
+        kept.append(moves[index])
+    if len(kept) != len(moves):
+        _emit(entity, {'source': entity, 'target': entity, 'event': 'fear_blocks_approach'})
+    return kept
 
 
 def flee_choice(entity, battle, actions):

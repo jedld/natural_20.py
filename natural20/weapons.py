@@ -137,10 +137,12 @@ def damage_modifier(entity, weapon, second_hand=False):
         damage_mod += 2
 
     # Barbarian - Rage (5e SRD): while raging, gain a damage bonus on
-    # melee weapon attacks that use STR.
+    # melee weapon attacks that use STR (rage benefits require not
+    # wearing heavy armor).
     if (
         getattr(entity, 'is_raging', None)
         and entity.is_raging()
+        and not entity.wearing_heavy_armor()
         and weapon.get('type') == 'melee_attack'
         and entity.attack_ability_mod(weapon) == entity.str_mod()
     ):
@@ -151,14 +153,16 @@ def damage_modifier(entity, weapon, second_hand=False):
     return f"{damage_roll}{f'+{damage_mod}' if damage_mod >= 0 else damage_mod}"
 
 
-def target_advantage_condition(session, source, target, weapon, battle=None, source_pos=None, overrides=None, thrown=False):
+def target_advantage_condition(session, source, target, weapon, battle=None, source_pos=None, overrides=None, thrown=False,
+                               consume_masteries=True):
     if overrides is None:
         overrides = {}
     if target is None:
         raise ValueError("target is mandatory")
 
     advantages, disadvantages = compute_advantages_and_disadvantages(session, source, target, weapon,
-                                                                     battle=battle, source_pos=source_pos, overrides=overrides, thrown=thrown)
+                                                                     battle=battle, source_pos=source_pos, overrides=overrides, thrown=thrown,
+                                                                     consume_masteries=consume_masteries)
     advantage_ctr = 0
     advantage_ctr += 1 if advantages else 0
     advantage_ctr -= 1 if disadvantages else 0
@@ -166,7 +170,8 @@ def target_advantage_condition(session, source, target, weapon, battle=None, sou
 
 def compute_advantages_and_disadvantages(session, source, target, weapon,
                                          battle=None, source_pos=None,
-                                         overrides=None, thrown=False):
+                                         overrides=None, thrown=False,
+                                         consume_masteries=True):
     if target is None:
         raise ValueError("target is mandatory")
     if overrides is None:
@@ -195,14 +200,25 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
             disadvantage.append('grappled')
 
     try:
-        from natural20.weapon_mastery import consume_sap_disadvantage, consume_vex_advantage
+        from natural20.weapon_mastery import (
+            consume_sap_disadvantage, consume_vex_advantage,
+            has_sap_disadvantage, has_vex_advantage,
+        )
         # SRD 5.2.1 Sap: "On a hit, the target has disadvantage on its next
         # attack roll before the start of your next turn." The marker lives on
-        # the sapped creature and is consumed when *it* attacks.
-        if consume_sap_disadvantage(source):
-            disadvantage.append('weapon_mastery_sap')
-        if consume_vex_advantage(source, target):
-            advantage.append('weapon_mastery_vex')
+        # the sapped creature and is consumed when *it* attacks. Scoring paths
+        # (AI hit-chance estimates, JEV, UI previews) only READ the marker;
+        # only a real attack roll spends it.
+        if consume_masteries:
+            if consume_sap_disadvantage(source):
+                disadvantage.append('weapon_mastery_sap')
+            if consume_vex_advantage(source, target):
+                advantage.append('weapon_mastery_vex')
+        else:
+            if has_sap_disadvantage(source):
+                disadvantage.append('weapon_mastery_sap')
+            if has_vex_advantage(source, target):
+                advantage.append('weapon_mastery_vex')
     except Exception:
         pass
 

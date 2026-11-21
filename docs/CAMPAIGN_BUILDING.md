@@ -1876,7 +1876,13 @@ auras:                               # YAML auras (class auras are built in)
 - **Frightened** (`natural20/utils/fear.py`): fear is tied to its source.
   While the source is in sight, the creature has disadvantage on attacks and
   ability checks. Fear effects can end on damage or limit the creature to one
-  of action, bonus action, or movement per turn (2024 Abjure Foes).
+  of action, bonus action, or movement per turn (2024 Abjure Foes). A
+  frightened creature also can't *willingly* move closer to the source:
+  `MoveAction.resolve` truncates the path at the first step that comes nearer
+  to a living fear source on the same map (`truncate_path_for_fear`; moving
+  sideways or away stays legal, forced movement — pushes, drags, teleports,
+  DM `/move_entity` — is unaffected). The `fear_blocks_approach` event fires
+  when a path is clipped.
 - **Great Weapon Master**: after a melee critical hit or dropping a creature to
   0 HP on your turn, a bonus-action "Hew" attack with the same weapon is
   offered. Under 2024 rules, heavy weapon hits also add the proficiency bonus

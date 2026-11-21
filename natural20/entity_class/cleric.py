@@ -99,7 +99,10 @@ class Cleric:
         self.wrath_of_the_storm_uses = self.wrath_of_the_storm_max
 
     def max_slots_for_cleric(self, level):
-        return CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1][level - 1] if level < len(CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1]) else 0
+        # Column 0 of the table is the cantrip count, so slot levels index
+        # the row directly (Wizard/Sorcerer/Bard/Druid/Warlock agree).
+        row = CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1]
+        return row[level] if 0 <= level < len(row) else 0
 
     def reset_cleric_spell_slots(self):
         return OrderedDict((index, slots) for index, slots in enumerate(CLERIC_SPELL_SLOT_TABLE[self.cleric_level - 1]))

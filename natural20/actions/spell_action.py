@@ -156,6 +156,11 @@ class SpellAction(Action):
 
         slot_owner = entity.owner if entity.familiar() else entity
 
+        # Barbarian - Rage (5e SRD): "If you are able to cast spells, you
+        # can't cast them or concentrate on them while raging."
+        if getattr(slot_owner, 'is_raging', None) and slot_owner.is_raging():
+            return False
+
         from natural20.utils.action_restrictions import is_restricted
         if is_restricted(entity, 'spell'):
             return False

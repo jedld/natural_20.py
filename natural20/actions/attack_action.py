@@ -569,6 +569,10 @@ class AttackAction(Action):
 
         if battle:
             entity_state = battle.entity_state_for(item['source'])
+            if entity_state:
+                # Reckless Attack gating: "when you make your first attack
+                # on this turn."
+                entity_state['attacks_this_turn'] = int(entity_state.get('attacks_this_turn') or 0) + 1
             if entity_state and item.get('npc_action') and item['npc_action'].get('multiattack_group') and not item.get('as_reaction') and not item.get('as_bonus_action') and not item.get('as_legendary_action') and not item.get('second_hand'):
                 entity_state['multiattack_started'] = True
 
@@ -706,7 +710,9 @@ class AttackAction(Action):
             opts = {}
 
         weapon, _, attack_mod, _, _ = self.get_weapon_info(opts)
-        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, self.target, weapon, battle=battle, thrown=self.thrown)
+        # Scoring/preview path: peek at Sap/Vex markers without spending them.
+        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, self.target, weapon, battle=battle, thrown=self.thrown,
+                                                            consume_masteries=False)
         return advantage_mod, adv_info, attack_mod
 
 

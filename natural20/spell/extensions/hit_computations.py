@@ -34,10 +34,11 @@ class AttackSpell(Spell):
         if target is None:
             return 0.0
         # Estimate analytically: scoring must not roll game dice or run the
-        # full attack pipeline (luck windows, one-shot effects).
+        # full attack pipeline (luck windows, one-shot effects, Sap/Vex).
         from natural20.die_roll import DieRoll
         advantage_mod, adv_info = target_advantage_condition(
-            self.session, self.source, target, self.properties, battle=battle, overrides=opts)
+            self.session, self.source, target, self.properties, battle=battle, overrides=opts,
+            consume_masteries=False)
         caster = self.source
         if getattr(caster, 'familiar', None) and caster.familiar():
             caster = caster.owner
@@ -58,7 +59,8 @@ class AttackSpell(Spell):
         target = self._primary_target()
         if target is None:
             return 0, [[], []], 0
-        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, target, self.properties, battle=battle, overrides=opts)
+        # Preview/AI path: never spends the one-shot Sap/Vex markers.
+        advantage_mod, adv_info = target_advantage_condition(self.session, self.source, target, self.properties, battle=battle, overrides=opts, consume_masteries=False)
         return advantage_mod, adv_info, 0
 
     def avg_damage(self, battle, opts=None):
