@@ -1,0 +1,26 @@
+id: party_vs_breath
+ruleset: 5e-2014
+map: open_field
+max_rounds: 30
+win: wipe
+sides:
+  party:
+    controller: generic
+    policy: generic@1
+    members:
+      - template: fighter
+        name: Fighter
+        count: 3
+        positions: [[1, 2], [1, 4], [1, 6]]
+      - template: wizard
+        name: Wizard
+        count: 1
+        positions: [[2, 4]]
+  monsters:
+    controller: generic
+    policy: generic@1
+    members:
+      - npc: breath_wyrm
+        name: Breath Wyrm
+        count: 1
+        positions: [[9, 4]]

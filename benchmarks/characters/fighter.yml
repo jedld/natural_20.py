@@ -1,0 +1,25 @@
+name: Fighter
+race: human
+classes:
+  fighter: 2
+level: 2
+hit_die: inherit
+max_hp: 20
+ability:
+  str: 16
+  dex: 14
+  con: 14
+  int: 8
+  wis: 12
+  cha: 10
+class_features:
+  - second_wind
+skills:
+  - athletics
+  - perception
+languages:
+  - common
+equipped:
+  - studded_leather
+  - longsword
+  - shield

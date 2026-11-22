@@ -66,6 +66,7 @@ from natural20.generic_controller import GenericController
 from natural20.player_character import PlayerCharacter
 from natural20.session import Session
 from natural20.llm_controller import LlmMcpController
+from natural20.sim.seed import pin_uuid4
 from natural20.utils.escape_plan import has_escaped
 
 CAMPAIGN_ROOT = ROOT / 'user_levels' / 'dragonlance'
@@ -74,24 +75,6 @@ DEFAULT_OUT = ROOT / 'logs' / 'priest_quarters_combat.log'
 
 # Safety cap: a turn should never need more than a handful of actions.
 MAX_ACTION_CYCLES = 20
-
-
-def pin_uuid4(seed):
-    """Make uuid4 deterministic for the process.
-
-    The engine mints uuid4s at load time for entities without a YAML
-    entity_uid, actions, and map tiles. Random per-process uids change set
-    iteration order (and thus tie-breaks in AI decisions), which breaks run
-    reproducibility even with a seeded ``random``. Uids are opaque labels, so
-    deterministic stand-ins are safe.
-    """
-    import uuid
-    rng = random.Random(f'n20-sim-uuid-{seed}')
-
-    def _uuid4():
-        return uuid.UUID(int=rng.getrandbits(128), version=4)
-
-    uuid.uuid4 = _uuid4
 
 
 def setup_jev_provider(log, request_logger=None):

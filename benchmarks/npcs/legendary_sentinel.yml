@@ -1,0 +1,51 @@
+kind: Legendary Sentinel
+description: >
+  Mechanics probe for legendary actions and legendary resistance. This is
+  not a published legendary monster. It exists so the encounter suite can
+  exercise those rules.
+size: medium
+race:
+  - construct
+alignment: lawful_neutral
+default_ac: 15
+max_hp: 85
+hp_die: 10d8+40
+speed: 30
+passive_perception: 12
+darkvision: 60
+token:
+  - S
+color: gray
+ability:
+  str: 18
+  dex: 10
+  con: 18
+  int: 10
+  wis: 12
+  cha: 10
+cr: 5
+xp: 1800
+proficiency_bonus: 3
+legendary_resistance: 3
+actions:
+  - name: Slam
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 8
+    damage_die: 2d6+4
+    damage_type: bludgeoning
+legendary_action_count: 2
+legendary_actions:
+  - name: Move
+    type: move
+    description: Moves up to its speed without provoking opportunity attacks.
+  - name: Slam
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 8
+    damage_die: 2d6+4
+    damage_type: bludgeoning

@@ -1,0 +1,34 @@
+name: Wizard
+race: human
+classes:
+  wizard: 2
+level: 2
+hit_die: inherit
+max_hp: 14
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 16
+  wis: 12
+  cha: 10
+cantrips:
+  - firebolt
+prepared_spells:
+  - burning_hands
+  - magic_missile
+  - shield
+  - mage_armor
+spellbook:
+  - firebolt
+  - burning_hands
+  - magic_missile
+  - shield
+  - mage_armor
+skills:
+  - arcana
+  - investigation
+languages:
+  - common
+equipped:
+  - quarterstaff

@@ -1,0 +1,16 @@
+name: Choke
+description: One-square gap in a wall. Party on the west side, enemies on the east.
+map:
+  illumination: 1.0
+  base:
+    - "............"
+    - ".....H......"
+    - ".....H......"
+    - "............"
+    - ".....H......"
+    - ".....H......"
+    - "............"
+legend:
+  H:
+    name: Stone Wall
+    type: stone_wall

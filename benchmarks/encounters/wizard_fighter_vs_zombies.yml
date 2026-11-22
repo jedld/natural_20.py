@@ -1,0 +1,26 @@
+id: wizard_fighter_vs_zombies
+ruleset: 5e-2014
+map: choke
+max_rounds: 30
+win: wipe
+sides:
+  party:
+    controller: generic
+    policy: generic@1
+    members:
+      - template: fighter
+        name: Fighter
+        count: 1
+        positions: [[1, 3]]
+      - template: wizard
+        name: Wizard
+        count: 1
+        positions: [[2, 2]]
+  monsters:
+    controller: generic
+    policy: generic@1
+    members:
+      - npc: zombie
+        name: Zombie
+        count: 6
+        positions: [[8, 2], [9, 2], [10, 2], [8, 3], [9, 3], [10, 3]]

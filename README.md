@@ -96,6 +96,7 @@ This library is an independent research project for AI research. The developers 
 - **LLM-Powered NPCs**: Multi-provider LLM integration for NPC conversations and combat decisions
 - **Web VTT**: Full-featured virtual tabletop with real-time multiplayer, character builder, and inventory management
 - **Gymnasium Integration**: Ready-to-use reinforcement learning environments
+- **Encounter simulation**: Seeded Monte Carlo reports for a fixed party and monsters (`docs/ENCOUNTER_SIM.md`)
 - **Entity Registry**: Centralized UID-based entity lookup and serialization
 - **Map Stacking**: Multi-level maps with vertical movement and line of sight
 - **Time of Day**: Day/night cycle affecting gameplay

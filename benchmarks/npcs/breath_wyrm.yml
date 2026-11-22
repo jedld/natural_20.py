@@ -1,0 +1,48 @@
+kind: Breath Wyrm
+description: >
+  Mechanics probe for a recharge cone save. This is not a published dragon
+  stat block. It exists so the encounter suite can exercise area_save.
+size: medium
+race:
+  - dragon
+alignment: chaotic_evil
+default_ac: 16
+max_hp: 90
+hp_die: 10d10+30
+speed: 30
+passive_perception: 13
+darkvision: 60
+token:
+  - W
+color: orange
+ability:
+  str: 18
+  dex: 12
+  con: 16
+  int: 10
+  wis: 12
+  cha: 12
+cr: 4
+xp: 1100
+proficiency_bonus: 2
+actions:
+  - name: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 8
+    damage_die: 2d6+4
+    damage_type: piercing
+  - name: Fire Breath
+    label: Fire Breath
+    type: area_save
+    shape: cone
+    range: 15
+    save: dexterity
+    dc: 13
+    damage_die: 4d6
+    damage_type: fire
+    half_on_success: true
+    recharge: 5-6
+    cost: action

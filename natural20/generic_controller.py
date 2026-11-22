@@ -35,6 +35,10 @@ def is_unbuilt_spell(action) -> bool:
 
 
 class GenericController(Controller):
+    # Versioned name for the current heuristic. Benchmarks cite this so a
+    # scoring change can become ``generic@2`` without rewriting old reports.
+    POLICY_ID = "generic@1"
+
     # Consider a broader set so AI can open doors, reposition, or defend
     VALID_AI_MOVE_TYPES = [
         "attack",
@@ -66,6 +70,10 @@ class GenericController(Controller):
         self.session = session
         self.battle_data = {}
         self.valid_moves_types = valid_move_types or self.VALID_AI_MOVE_TYPES
+        # When set, ``_sort_actions_with_scores`` stores the top three choices
+        # on ``last_explanation``. Scoring weights are unchanged.
+        self.explain = False
+        self.last_explanation = None
 
     def to_dict(self):
         # ``battle_data`` is per-battle tactical memory keyed by live Battle /
@@ -268,6 +276,8 @@ class GenericController(Controller):
         return action
 
     def move_for(self, entity: Entity, battle) -> Optional[Action]:
+        if self.explain:
+            self.last_explanation = None
         # Incapacitated creatures can't move either.
         if getattr(entity, 'incapacitated', lambda: False)():
             return None
@@ -967,7 +977,37 @@ class GenericController(Controller):
 
         # Sort by score desc
         sorted_actions.sort(key=lambda a: a[1], reverse=True)
+        if self.explain:
+            self.last_explanation = [
+                _choice_summary(action, score) for action, score in sorted_actions[:3]
+            ]
         # Age investigation markers to decay/boost choices over time
         for k in list(investigate_location.keys()):
             investigate_location[k]['age'] = investigate_location[k].get('age', 0) + 1
         return sorted_actions
+
+
+def _choice_summary(action, score):
+    """One explained alternative: action type, target label, score."""
+    try:
+        numeric = round(float(score), 3)
+    except (TypeError, ValueError):
+        numeric = 0.0
+    return {
+        'action': getattr(action, 'action_type', '') or '',
+        'target': _explain_target(getattr(action, 'target', None)),
+        'score': numeric,
+    }
+
+
+def _explain_target(target) -> str:
+    if target is None:
+        return ''
+    if hasattr(target, 'name'):
+        return str(target.name)
+    if isinstance(target, (list, tuple)):
+        if len(target) == 2 and all(isinstance(v, (int, float)) for v in target):
+            return f"{int(target[0])},{int(target[1])}"
+        names = [_explain_target(item) for item in target]
+        return ",".join(name for name in names if name)
+    return ''

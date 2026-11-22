@@ -1,0 +1,9 @@
+# Small local suite. Pass --trials 1000 for a balance report.
+trials: 2
+seed: 1000
+jobs: 1
+scenarios:
+  - encounters/fighters_vs_goblins.yml
+  - encounters/wizard_fighter_vs_zombies.yml
+  - encounters/party_vs_breath.yml
+  - encounters/party_vs_legendary.yml

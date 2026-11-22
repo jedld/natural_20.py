@@ -1,0 +1,13 @@
+name: Open Field
+description: Small open field. Goblins start inside shortbow range so a trial stays short.
+map:
+  illumination: 1.0
+  base:
+    - "............"
+    - "............"
+    - "............"
+    - "............"
+    - "............"
+    - "............"
+    - "............"
+    - "............"

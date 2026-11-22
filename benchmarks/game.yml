@@ -1,0 +1,12 @@
+name: Encounter Benchmarks
+description: Fixed encounters for seeded combat simulation. Mechanics probes, not a campaign.
+ruleset: 5e-2014
+starting_map: maps/open_field
+maps:
+  open_field: maps/open_field
+  choke: maps/choke
+groups:
+  party:
+    enemies: [monsters]
+  monsters:
+    enemies: [party]
