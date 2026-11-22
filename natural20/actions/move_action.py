@@ -4,6 +4,40 @@ from natural20.utils.movement import compute_actual_moves, retrieve_opportunity_
 from natural20.map_renderer import MapRenderer
 from natural20.action import AsyncReactionHandler
 import pdb
+
+
+def reveal_if_exposed(battle, session, source):
+    """SRD \"Hiding\" (p.183): you can't hide from a creature that can see
+    you, and Hide ends when an enemy finds the creature. When a hidden
+    creature finishes moving, break the hide if any conscious enemy now
+    has unobstructed, unobscured line of sight to its new square — the
+    automatic-discovery threshold the players' guide calls adjudication
+    (issue #6 item 56). Hiding behind a wall, in darkness, or while
+    invisible keeps working: stealth is only lost when the new square is
+    plainly in an enemy's sight."""
+    if battle is None or source is None or not source.hidden():
+        return
+    if not battle.map_for(source):
+        return
+    previous_stealth = source.hidden_stealth
+    # Judge discovery with the hide already broken: can_see() consults the
+    # creature's stealth while it is hidden, which would compare passive
+    # perception against the old bonus instead of asking whether the
+    # square itself is plainly visible.
+    source.break_stealth()
+    exposed = False
+    for observer in list(battle.entities.keys()):
+        if observer is source or observer.dead():
+            continue
+        if not battle.opposing(source, observer):
+            continue
+        if battle.can_see(observer, source):
+            exposed = True
+            break
+    if not exposed and previous_stealth is not None:
+        source.do_hide(previous_stealth)
+
+
 class MoveAction(Action):
     """
     Move action
@@ -294,14 +328,37 @@ class MoveAction(Action):
                 attack_location = original_location[-1]
                 stored_reaction = self.has_async_reaction_for_source(enemy_opportunity['source'], 'opportunity_attack')
 
-                if stored_reaction is not False:
-                    result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location, stored_reaction)
-                else:
-                    result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
-                    if hasattr(result, 'send'):
-                        raise AsyncReactionHandler(enemy_opportunity['source'], result, self, 'opportunity_attack')
+                # SRD: the opportunity attack happens "just before" the
+                # creature leaves your reach — it interrupts the move. The
+                # mover must physically stand on the square it is provoking
+                # from while the attack resolves, or cover, sight, range
+                # and the final board position all react to a stale square
+                # (issue #6 item 58).
+                mover_map = battle.map_for(entity)
+                start_position = list(mover_map.position_of(entity)) \
+                    if mover_map is not None else None
+                if mover_map is not None and list(attack_location) != start_position:
+                    mover_map.move_to(entity, attack_location[0], attack_location[1], battle)
+                try:
+                    if stored_reaction is not False:
+                        result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location, stored_reaction)
+                    else:
+                        result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
+                        if hasattr(result, 'send'):
+                            raise AsyncReactionHandler(enemy_opportunity['source'], result, self, 'opportunity_attack')
+                except (AsyncReactionHandler, GeneratorExit):
+                    # Deferred (player) reaction: the full path re-runs when
+                    # resolve resumes, so snap the mover back for now.
+                    if mover_map is not None and start_position is not None \
+                            and entity in mover_map.entities \
+                            and list(mover_map.entities[entity]) != start_position:
+                        mover_map.move_to(entity, start_position[0], start_position[1], battle)
+                    raise
 
                 if not grappled and not entity.conscious():
+                    # Interrupted: the mover stops on the square where the
+                    # attack caught it (it is already standing there), not
+                    # back at its pre-move position.
                     return original_location
 
                 if entity.prone():
@@ -356,6 +413,13 @@ class MoveAction(Action):
         elif item_type == 'move':
             if item['map'].move_to(item['source'], *item['position'], battle):
                 if battle:
+                    # SRD "Hiding": you can't hide from something that can
+                    # see you. A hidden creature that steps into the clear
+                    # line of sight of a hostile stops being hidden the
+                    # moment it arrives there; the old stealth bonus only
+                    # survives when nobody on the other side sees the new
+                    # square (issue #6 item 56).
+                    reveal_if_exposed(battle, session, item['source'])
                     path_taken = item['path']
                     positions_entered = battle.entity_state_for(item['source'])['positions_entered']
                     for p in path_taken:

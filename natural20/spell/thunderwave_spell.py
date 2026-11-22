@@ -97,6 +97,16 @@ class ThunderwaveSpell(DamageScalingMixin, SaveForHalfMixin, Spell):
             tgt = battle_map.entity_at(x, y)
             # Corpses take no saves, damage or push from area spells.
             if tgt is not None and tgt != entity and not getattr(tgt, 'dead', lambda: False)():
+                # Areas of effect need line of effect: a creature behind a
+                # wall (total cover from the origin) is not in the cube
+                # (SRD "Areas of Effect", issue #6 item 59). The cube
+                # resolver predates the sphere fix from item 19.
+                try:
+                    if battle_map.line_of_sight(src_pos[0], src_pos[1], x, y,
+                                                inclusive=True) is None:
+                        continue
+                except Exception:
+                    pass
                 if tgt not in entity_targets:
                     entity_targets.append(tgt)
         damage_roll = self._damage(battle, opts={'at_level': spell_action.at_level or 1})

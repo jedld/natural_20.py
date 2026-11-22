@@ -148,7 +148,12 @@ def spells_this_turn_issue(entity, battle, spell_level, resource) -> Optional[st
     except Exception:
         model = 'bonus_action_spell'
     if model == 'one_slot_per_turn':
-        if spell_level > 0 and any(int(c.get('level') or 0) > 0 for c in cast):
+        # 2024: "One Spell with a Spell Slot per Turn" counts *slots
+        # expended*. A free/feature cast (Magic Initiate at-will, Mystic
+        # Arcanum, Steps of the Fey) or a scroll does not spend a slot, so
+        # it never blocks a slotted spell later in the same turn.
+        if spell_level > 0 and any(
+                c.get('slot_paid', int(c.get('level') or 0) > 0) for c in cast):
             return 'already spent a spell slot this turn'
         return None
     if resource == 'bonus_action':

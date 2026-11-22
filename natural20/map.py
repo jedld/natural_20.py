@@ -2209,6 +2209,14 @@ class Map(SerializableObject):
     def _entities_can_share_space(entity, occupant):
         if occupant is None or entity is occupant:
             return entity is occupant
+        # A dead creature is no longer a creature: its body is an
+        # obstruction you can stand on (the game treats ordinary corpses as
+        # terrain-sized objects). A corpse must never hold a square.
+        try:
+            if occupant.dead():
+                return True
+        except Exception:
+            pass
         can_share = getattr(entity, 'class_feature', None)
         if callable(can_share) and can_share('swarm'):
             return True
@@ -2217,7 +2225,17 @@ class Map(SerializableObject):
             return True
         return False
     
-    def placeable(self, entity, pos_x, pos_y, battle=None, squeeze=True):
+    def placeable(self, entity, pos_x, pos_y, battle=None, squeeze=True,
+                  ignore_creature_occupants=False):
+        """Can ``entity`` END here?
+
+        ``ignore_creature_occupants=True`` asks only about terrain and
+        objects ("is this square open?"), ignoring creature tokens. The SRD
+        lets you move *through* any creature's square (you just can't end
+        there), and creatures are not walls: a corner-cut or pass-through
+        test must not fail because an ally, a downed ally or a body stands
+        in the square (issue #6 items 47/50).
+        """
         if not self.passable(entity, pos_x, pos_y, battle, squeeze):
             return False
 
@@ -2227,9 +2245,12 @@ class Map(SerializableObject):
                 continue
             if self.tokens[p_x][p_y]:
                 occupant = self.tokens[p_x][p_y]['entity']
-                if self._entities_can_share_space(entity, occupant):
+                if ignore_creature_occupants:
+                    pass
+                elif self._entities_can_share_space(entity, occupant):
                     continue
-                return False
+                else:
+                    return False
             if self.object_at(p_x, p_y) and not self.object_at(p_x, p_y).passable():
                 return False
             if self.object_at(p_x, p_y):
@@ -2240,6 +2261,15 @@ class Map(SerializableObject):
                     return False
 
         return True
+
+    def passable_through(self, entity, pos_x, pos_y, battle=None):
+        """Can ``entity`` move THROUGH this square (SRD: you can enter any
+        creature's square, you just can't end your move in a live one)?
+
+        Terrain passability and objects still apply; creature tokens do not.
+        """
+        return self.placeable(entity, pos_x, pos_y, battle, squeeze=False,
+                              ignore_creature_occupants=True)
 
     def entity_or_object_pos(self, thing):
         if isinstance(thing, Object):
@@ -2343,13 +2373,40 @@ class Map(SerializableObject):
         if [pos1_x, pos1_y] == [pos2_x, pos2_y]:
             return [(pos1_x, pos1_y)] if inclusive else []
 
-        arrs = bresenham_line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y)
+        # Bresenham breaks ties towards its start square, so A->B and B->A
+        # can clip different corners (issue #6 item 55: one-directional
+        # line-of-sight through a wall corner handed the "unseen attacker"
+        # advantage to whoever approached from the "lucky" direction).
+        # Rasterize from a canonical endpoint so visibility is symmetric,
+        # then restore the caller's start->end orientation. Skip the
+        # canonicalization when a distance cutoff is requested: that limit
+        # counts from the caller's own start square.
+        swapped = False
+        if distance is None and (pos2_x, pos2_y) < (pos1_x, pos1_y):
+            cx1, cy1, cx2, cy2 = pos2_x, pos2_y, pos1_x, pos1_y
+            swapped = True
+        else:
+            cx1, cy1, cx2, cy2 = pos1_x, pos1_y, pos2_x, pos2_y
 
-        if inclusive and arrs[-1] != (pos2_x, pos2_y):
-            arrs.append((pos2_x, pos2_y))
-        
-        if not inclusive and arrs[-1] == (pos2_x, pos2_y):
-            arrs.pop()
+        arrs = bresenham_line_of_sight(cx1, cy1, cx2, cy2)
+
+        # Endpoint contract (unchanged from the pre-issue-55 behavior):
+        # the caller's START square is always present; the caller's END
+        # square is present only when inclusive. bresenham_line_of_sight
+        # always includes its own raster start and may omit its end, so
+        # fix the canonical end for the caller's start first, then the
+        # canonical start for the caller's end, then restore orientation.
+        if swapped:
+            if arrs[-1] != (cx2, cy2):
+                arrs.append((cx2, cy2))
+            if not inclusive and arrs[0] == (cx1, cy1):
+                arrs.pop(0)
+            arrs = list(reversed(arrs))
+        else:
+            if inclusive and arrs[-1] != (cx2, cy2):
+                arrs.append((cx2, cy2))
+            if not inclusive and arrs[-1] == (cx2, cy2):
+                arrs.pop()
 
         return remove_duplicates(arrs)
 
@@ -2504,12 +2561,16 @@ class Map(SerializableObject):
         entity_1_sq = self.entity_squares_at_pos(entity1, *entity_1_pos) if entity_1_pos else self.entity_squares(entity1)
         entity_2_sq = self.entity_squares_at_pos(entity2, *entity_2_pos) if entity_2_pos else self.entity_squares(entity2)
 
+        # SRD 5.2.1 "Playing on a Grid" (p.13): a diagonal square counts
+        # the same as an orthogonal one, so grid distance is the number of
+        # squares travelled (Chebyshev), not the rounded-down Euclidean
+        # length. (11,2)->(5,7) is six squares = 30 ft, not 35.
         distances = []
         for ent1_pos in entity_1_sq:
             for ent2_pos in entity_2_sq:
                 pos1_x, pos1_y = ent1_pos
                 pos2_x, pos2_y = ent2_pos
-                distances.append(int(((pos1_x - pos2_x) ** 2 + (pos1_y - pos2_y) ** 2) ** 0.5))
+                distances.append(max(abs(pos1_x - pos2_x), abs(pos1_y - pos2_y)))
 
         return min(distances)
 
@@ -2518,7 +2579,7 @@ class Map(SerializableObject):
         distances = []
         for entity_square in entity_squares:
             pos1_x, pos1_y = entity_square
-            distances.append(int(((pos1_x - pos_x) ** 2 + (pos1_y - pos_y) ** 2) ** 0.5))
+            distances.append(max(abs(pos1_x - pos_x), abs(pos1_y - pos_y)))
         return min(distances)
 
 

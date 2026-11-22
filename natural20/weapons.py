@@ -268,9 +268,15 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
             disadvantage.append('target_is_prone_range')
 
     if battle:
-        if target.dodge(battle):
+        # SRD Dodge: "attack rolls against that creature have disadvantage"
+        # only while the dodger can SEE the attacker. A hidden archer in the
+        # dark takes no penalty from a defender who cannot perceive them at
+        # all (issue #6 item 60). Compute the dodger's sight once and reuse
+        # it for both modifiers.
+        target_sees_source = battle.can_see(target, source, entity_2_pos=source_pos)
+        if target.dodge(battle) and target_sees_source:
             disadvantage.append('target_dodge')
-        if not battle.can_see(target, source, entity_2_pos=source_pos):
+        if not target_sees_source:
             advantage.append('unseen_attacker')
 
         if not battle.can_see(source, target, entity_1_pos=source_pos):

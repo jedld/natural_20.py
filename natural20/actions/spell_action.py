@@ -56,6 +56,8 @@ class SpellAction(Action):
         # Resource pool paying for this cast instead of a spell slot
         # (class YAML ``free_casts``).
         self.free_cast_pool = None
+        # Player opt to pay a spell slot and save the free (feature) use.
+        self.use_slot = False
 
     def __str__(self):
         name = "SpellAction: unknown"
@@ -81,6 +83,7 @@ class SpellAction(Action):
             'casting_time': self.casting_time,
             'spellcasting_class': self.spellcasting_class,
             'free_cast_pool': self.free_cast_pool,
+            'use_slot': self.use_slot,
         }
         if self.target:
             hash['target'] = SpellAction._serialize_target(self.target)
@@ -107,6 +110,7 @@ class SpellAction(Action):
         action.target = data['target']
         action.spellcasting_class = data.get('spellcasting_class')
         action.free_cast_pool = data.get('free_cast_pool')
+        action.use_slot = bool(data.get('use_slot', False))
         if data.get('using'):
             action.using = data['using']
         return action
@@ -288,8 +292,13 @@ class SpellAction(Action):
             slot_owner = action.source.owner if action.source.familiar() else action.source
             # A cast at the spell's own level uses a free cast (Steps of the Fey,
             # Mystic Arcanum, ...) before a slot, which for Pact Magic would
-            # otherwise be bumped to the pact slot level.
-            if action.at_level == action.level and action.level > 0:
+            # otherwise be bumped to the pact slot level. The player can opt to
+            # save the free use and pay with a slot instead: set the
+            # `use_slot` attribute on the SpellAction before building it (the
+            # web layer passes it through once wired). The AI keeps the
+            # free-cast-first default (issue #6 item 62).
+            prefer_slot = bool(getattr(self, 'use_slot', False))
+            if not prefer_slot and action.at_level == action.level and action.level > 0:
                 from natural20.utils.class_mechanics import free_cast_pool_for
                 action.free_cast_pool = free_cast_pool_for(slot_owner, spell_slug)
             if (not action.free_cast_pool and action.at_level > 0
@@ -319,6 +328,7 @@ class SpellAction(Action):
         spell_action.target = self.target
         spell_action.spellcasting_class = self.spellcasting_class
         spell_action.free_cast_pool = getattr(self, 'free_cast_pool', None)
+        spell_action.use_slot = getattr(self, 'use_slot', False)
         spell_action.skip_consume_at_resolve = getattr(self, 'skip_consume_at_resolve', False)
         spell_action.spell_rider = getattr(self, 'spell_rider', None)
         spell_action.summon_variant = getattr(self, 'summon_variant', None)

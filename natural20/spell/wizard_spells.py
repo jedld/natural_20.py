@@ -349,13 +349,100 @@ class ScorchingRaySpell(AttackSpell):
                                'damage_type': self.properties.get('damage_type'), 'attack_roll': attack_roll,
                                'damage_roll': damage_roll, 'advantage_mod': advantage_mod, 'adv_info': adv_info,
                                'damage': damage_roll, 'cover_ac': cover_ac, 'type': 'spell_damage',
+                               'ray_index': index,
                                'spell': self.properties})
             else:
                 events.append({'source': entity, 'target': target, 'attack_name': 'scorching_ray',
                                'damage_type': self.properties.get('damage_type'), 'attack_roll': attack_roll,
                                'advantage_mod': advantage_mod, 'adv_info': adv_info, 'cover_ac': cover_ac,
+                               'ray_index': index,
                                'type': 'spell_miss', 'spell': self.properties})
         return events
+
+    @staticmethod
+    def apply(battle, item, session=None):
+        """Issue #6 item 54: every ray is a separate attack. The UI locks
+        the target list when the spell is cast, but when an earlier ray (or
+        an interrupting reaction) kills a target before a later ray lands,
+        that ray should not be wasted on a corpse. It re-aims at the
+        nearest living enemy the caster can see within range and makes a
+        fresh attack roll; the retarget is logged so the DM can follow
+        it."""
+        if battle is None:
+            return None
+        if session is None:
+            session = getattr(battle, 'session', None)
+        if session is None:
+            return None
+        if item.get('type') not in ('spell_damage', 'spell_miss'):
+            return None
+        if item.get('ray_index') is None or item.get('_ray_retargeted'):
+            return None
+        caster = item.get('source')
+        old_target = item.get('target')
+        if caster is None or old_target is None or caster.dead():
+            return None
+        if not (hasattr(old_target, 'dead') and old_target.dead()):
+            return None
+        if not battle or caster not in getattr(battle, 'entities', {}):
+            return None
+        battle_map = battle.map_for(caster)
+        if battle_map is None:
+            return None
+        props = item.get('spell') or {}
+        rng = props.get('range', 120)
+        candidates = []
+        for other in list(battle.entities.keys()):
+            if other is caster or other is old_target:
+                continue
+            if other.dead() or (hasattr(other, 'passive') and other.passive()):
+                continue
+            if not battle.opposing(caster, other):
+                continue
+            if battle_map.distance(caster, other) * battle_map.feet_per_grid > rng:
+                continue
+            if battle_map.has_total_cover_between(caster, other):
+                continue
+            if not battle.can_see(caster, other):
+                continue
+            candidates.append(other)
+        if not candidates:
+            return None
+        candidates.sort(key=lambda e: (battle_map.distance(caster, e),
+                                       getattr(e, 'entity_uid', '')))
+        new_target = candidates[0]
+        # Fresh attack roll for the new target: a distinct attack_index
+        # (ray + 1000) so the original cast's roll cache is never reused.
+        hit, attack_roll, advantage_mod, cover_ac, adv_info, hook_events = evaluate_spell_attack(
+            session, caster, new_target, props, battle=battle,
+            opts={'attack_index': int(item['ray_index']) + 1000})
+        item['_ray_retargeted'] = True
+        session.event_manager.received_event({
+            'event': 'spell_ray_retarget',
+            'source': caster,
+            'target': new_target,
+            'attack_name': item.get('attack_name'),
+            'from_target_name': getattr(old_target, 'name', None),
+            'roll': attack_roll,
+        })
+        item['target'] = new_target
+        item['attack_roll'] = attack_roll
+        item['advantage_mod'] = advantage_mod
+        item['adv_info'] = adv_info
+        item['cover_ac'] = cover_ac
+        if hit:
+            damage_roll = DieRoll.roll(
+                '2d6', crit=spell_attack_is_critical(attack_roll, caster, new_target, battle),
+                battle=battle, entity=caster,
+                description='dice_roll.spells.scorching_ray')
+            item['type'] = 'spell_damage'
+            item['damage'] = damage_roll
+            item['damage_roll'] = damage_roll
+        else:
+            item['type'] = 'spell_miss'
+            item.pop('damage', None)
+            item.pop('damage_roll', None)
+        return list(hook_events) if hook_events else None
 
 
 class ChainLightningSpell(Spell):

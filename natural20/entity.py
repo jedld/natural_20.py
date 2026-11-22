@@ -4363,26 +4363,23 @@ class Entity(EntityStateEvaluator, Notable):
                 if self.concentration and not self.class_feature('focused_casting'):
                     # make a concentration check
                     # Concentration DC is based on damage actually taken.
-                    diffculty_class = max([10, total_damage // 2])
-                    concentration_check = self.save_throw('constitution', battle, {
-                        'dc': diffculty_class, 'concentration': self.concentration})
-                    if concentration_check.result() < diffculty_class:
-                        session.event_manager.received_event({'source': self,
-                                                           'event': 'concentration_check',
-                                                           'result': 'failure',
-                                                           'effect' : self.concentration,
-                                                           'roll': concentration_check,
-                                                           'dc': diffculty_class
-                                            })
-                        self.dismiss_effect(self.concentration)
+                    if hit_state is not None:
+                        # One attack that splits damage across several items
+                        # (weapon hit + ``additional_damage`` rider, multiple
+                        # riders) is a SINGLE damage instance for
+                        # concentration: pool the totals through the shared
+                        # _hit_state and roll one save when the attack
+                        # finishes committing (issue #6 item 57).
+                        hit_state['concentration_damage'] = (
+                            int(hit_state.get('concentration_damage', 0) or 0)
+                            + total_damage)
+                        pending = getattr(battle, '_pending_concentration_checks', None)
+                        if pending is None:
+                            pending = battle._pending_concentration_checks = []
+                        if not any(state is hit_state for (state, _e) in pending):
+                            pending.append((hit_state, self))
                     else:
-                        session.event_manager.received_event({'source': self,
-                                                           'event': 'concentration_check',
-                                                           'result': 'success',
-                                                           'effect' : self.concentration,
-                                                           'roll': concentration_check,
-                                                           'dc': diffculty_class
-                                            })
+                        self._concentration_damage_check(total_damage, battle, session)
 
             if self.hp() <= 0:
                 self.attributes["hp"] = 0
@@ -4420,6 +4417,36 @@ class Entity(EntityStateEvaluator, Notable):
         controller = battle.controller_for(self)
         if controller and hasattr(controller, 'attack_listener'):
             controller.attack_listener(battle, self)
+
+    def _concentration_damage_check(self, total_damage, battle, session=None):
+        """One Constitution save against maintaining concentration after
+        taking ``total_damage``. Shared by the per-damage path and the
+        deferred grouped-hit path (issue #6 item 57)."""
+        if session is None:
+            session = self.session
+        if total_damage <= 0:
+            return
+        # Concentration DC is based on damage actually taken.
+        diffculty_class = max([10, total_damage // 2])
+        concentration_check = self.save_throw('constitution', battle, {
+            'dc': diffculty_class, 'concentration': self.concentration})
+        if concentration_check.result() < diffculty_class:
+            session.event_manager.received_event({'source': self,
+                                               'event': 'concentration_check',
+                                               'result': 'failure',
+                                               'effect' : self.concentration,
+                                               'roll': concentration_check,
+                                               'dc': diffculty_class
+                                                })
+            self.dismiss_effect(self.concentration)
+        else:
+            session.event_manager.received_event({'source': self,
+                                               'event': 'concentration_check',
+                                               'result': 'success',
+                                               'effect' : self.concentration,
+                                               'roll': concentration_check,
+                                               'dc': diffculty_class
+                                                })
 
     def current_effects(self):
         active_effects = []
@@ -4609,6 +4636,14 @@ class Entity(EntityStateEvaluator, Notable):
             advantage=bool(advantages) and not disadvantages,
             disadvantage=bool(disadvantages) and not advantages,
         )
+        # Bless/Bane apply to any saving throw, death saving throws included
+        # (SRD p.183/195). The d4 joins the d20 in a DieRolls sum, so
+        # nat_20()/nat_1() below still read the d20 face only.
+        if self.has_effect('bless'):
+            roll += DieRoll.roll("1d4", description="bless", entity=self, battle=battle)
+        if self.has_effect('bane'):
+            bane_pen = DieRoll.roll("1d4", description="bane", entity=self, battle=battle)
+            roll += DieRoll.roll("-" + str(bane_pen.result()), entity=self, battle=battle)
         if battle is not None:
             from natural20.utils.luck_points import luck_on_own_roll
             roll = luck_on_own_roll(self, roll, 10, battle=battle, roll_kind='death_saving_throw')

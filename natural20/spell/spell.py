@@ -50,8 +50,15 @@ def consume_resource(battle, source, item, as_scroll=False, cast_level=None, cas
             state = battle.entity_state_for(source)
             if spell_level > 0:
                 state['casted_level_spells'].append(item)
+            # slot_paid: did THIS cast actually expend a spell slot? Free
+            # casts (Magic Initiate, Mystic Arcanum, Steps of the Fey) and
+            # scrolls pay with a feature charge, not a slot, so the 2024
+            # "One Spell with a Spell Slot per Turn" limit does not see
+            # them (SRD 5.2.1 p.105). 2014's bonus-action-cantrip rule
+            # still counts the spell's level either way.
             state.setdefault('casted_spells', []).append(
-                {'level': int(spell_level or 0), 'resource': resource})
+                {'level': int(spell_level or 0), 'resource': resource,
+                 'slot_paid': bool(spell_level > 0 and not as_scroll)})
 
     # scrolls do not consume spell slots
     if not as_scroll:

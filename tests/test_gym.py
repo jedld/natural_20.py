@@ -180,6 +180,11 @@ class TestGym(unittest.TestCase):
         
         # sample a move from info
         render = env.render()
+        # Field of view from (5,0). Since issue #6 item 55 rasterizes the
+        # sight ray from a canonical endpoint, the square just south of
+        # the wall tip ((3,4)) is consistently visible through the open
+        # (4,2)/(4,3) column — the old render clipped different corners
+        # depending on ray direction.
         expected = """____________
 ____________
 ____________
@@ -190,7 +195,7 @@ _·····P_____
 _······_____
 _······_____
 _··##··_____
-_·   ··_____
+_·  ···_____
 _   ···_____"""
         assert render==expected, f"render: {render}"
 

@@ -174,9 +174,13 @@ class TestHoldPersonEffect(HoldPersonSpellTestCase):
         self.assertTrue(goblin_two.paralyzed())
 
     def test_upcast_rejects_targets_more_than_30_feet_apart(self):
-        self.battle_map.move_to(self.humanoid, 0, 0, self.battle)
+        # Grid (square-counting) distance: the 6x7 battle_sim map's far
+        # corners are exactly 30 ft apart, so the "too far apart" case
+        # needs the larger map (issue #6 item 48 changed the metric).
+        big_map = Map(self.session, 'large_map')
+        big_map.place((2, 5), self.humanoid, 'H')
         goblin_far = self.session.npc('goblin', {'name': 'Goblin Far'})
-        self.battle_map.add(goblin_far, 5, 6)
+        big_map.place((9, 5), goblin_far, 'G')
         self.battle.add(goblin_far, 'b', add_to_initiative=True)
 
         props = self.session.load_spell('hold_person')
@@ -185,7 +189,7 @@ class TestHoldPersonEffect(HoldPersonSpellTestCase):
             self.caster,
             self.battle,
             SimpleNamespace(target=[self.humanoid, goblin_far]),
-            self.battle_map,
+            big_map,
         )
         self.assertEqual(results[0]['message'], 'targets_too_far_apart')
 

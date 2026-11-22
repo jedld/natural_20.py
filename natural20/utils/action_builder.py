@@ -433,6 +433,24 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                         if len(shortest_path) > 1:
                             # The second element ([]) might be for additional param data
                             selected_movement_options.append([shortest_path, []])
+                    elif (abs(dx) + abs(dy) == 1
+                            and map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
+                            and map.passable_through(entity, new_x, new_y, battle)):
+                        # Straight step blocked only by a creature in the
+                        # square (corpse, ally, downed foe): the SRD lets
+                        # you pass through any creature's square, so offer
+                        # the two-square path that ends beyond it instead
+                        # of stranding the mover (issue #6 item 50).
+                        beyond_x, beyond_y = cur_x + 2 * dx, cur_y + 2 * dy
+                        if (not _match or [beyond_x, beyond_y] in _match) and \
+                           map.bidirectionally_passable(entity, beyond_x, beyond_y, (new_x, new_y), battle, allow_squeeze=False) and \
+                           map.placeable(entity, beyond_x, beyond_y, battle, squeeze=False):
+                            through_path = [[cur_x, cur_y], [new_x, new_y], [beyond_x, beyond_y]]
+                            movement_result = compute_actual_moves(
+                                entity, through_path, map, battle,
+                                entity.available_movement(battle) // 5)
+                            if len(movement_result.movement) > 1:
+                                selected_movement_options.append([movement_result.movement, []])
 
             params_list.append(selected_movement_options)
 

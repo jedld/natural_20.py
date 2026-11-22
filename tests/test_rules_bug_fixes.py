@@ -16,6 +16,8 @@ import yaml
 
 from natural20.actions.attack_action import AttackAction
 from natural20.actions.hide_action import HideAction
+from natural20.actions.move_action import MoveAction
+from natural20.actions.spell_action import SpellAction
 from natural20.battle import Battle
 from natural20.die_roll import DieRoll
 from natural20.event_manager import EventManager
@@ -36,6 +38,7 @@ from natural20.utils.spell_attack_util import spell_attack_is_critical
 def _session(events=None):
     em = EventManager()
     em.standard_cli()
+    session = Session(root_path='tests/fixtures', event_manager=em)
     if events is not None:
         original = em.received_event
 
@@ -43,7 +46,7 @@ def _session(events=None):
             events.append(event)
             return original(event)
         em.received_event = record
-    return Session(root_path='tests/fixtures')
+    return session
 
 
 class DieParsingTest(unittest.TestCase):
@@ -1608,6 +1611,538 @@ class WizardCantripListTest(unittest.TestCase):
         spell_list = data['spell_list']
         self.assertNotIn('burning_hands', spell_list['cantrip'])
         self.assertIn('burning_hands', spell_list['level_1'])
+
+
+# ---------------------------------------------------------------------------
+# Third batch (items 45-62), reported by the "Forests and Faeries" Rust-port
+# team after ~1,000 AI-played games (issue #6, comment 7077995386).
+# ---------------------------------------------------------------------------
+
+class SpellSlotPaymentTest(unittest.TestCase):
+    """Issue 45: the 2024 'One Spell with a Spell Slot per Turn' limit counts
+    slots *expended*; free/feature casts and scrolls pay no slot."""
+
+    def _entity(self, model):
+        ruleset = SimpleNamespace(spells_per_turn_model=lambda: model)
+        return SimpleNamespace(session=SimpleNamespace(ruleset=ruleset))
+
+    def _battle(self, cast):
+        return SimpleNamespace(entity_state_for=lambda e: {'casted_spells': cast})
+
+    def test_free_cast_does_not_block_slotted_cast(self):
+        from natural20.utils.spell_requirements import spells_this_turn_issue
+        entity = self._entity('one_slot_per_turn')
+        battle = self._battle([{'level': 1, 'resource': 'action', 'slot_paid': False}])
+        self.assertIsNone(spells_this_turn_issue(entity, battle, 1, 'action'))
+
+    def test_paid_slot_blocks_second_slotted_cast(self):
+        from natural20.utils.spell_requirements import spells_this_turn_issue
+        entity = self._entity('one_slot_per_turn')
+        battle = self._battle([{'level': 1, 'resource': 'action', 'slot_paid': True}])
+        self.assertIsNotNone(spells_this_turn_issue(entity, battle, 1, 'action'))
+
+    def test_legacy_entries_treat_level_as_payment(self):
+        from natural20.utils.spell_requirements import spells_this_turn_issue
+        entity = self._entity('one_slot_per_turn')
+        battle = self._battle([{'level': 1, 'resource': 'action'}])
+        self.assertIsNotNone(spells_this_turn_issue(entity, battle, 2, 'action'))
+
+    def test_2014_bonus_action_rule_still_counts_level(self):
+        from natural20.utils.spell_requirements import spells_this_turn_issue
+        entity = self._entity('bonus_action_spell')
+        battle = self._battle([{'level': 1, 'resource': 'action', 'slot_paid': False}])
+        # A non-cantrip action cast (even a free one) still blocks bonus-
+        # action spells under the 2014 rule.
+        self.assertIsNotNone(spells_this_turn_issue(entity, battle, 0, 'bonus_action'))
+
+
+class UseSlotFreeCastChoiceTest(unittest.TestCase):
+    """Issue 62: the caster can opt to spend a spell slot and keep the free
+    (feature) use for later (`use_slot`)."""
+
+    def _built_pool(self, use_slot):
+        from unittest import mock
+        session = _session()
+        mage = PlayerCharacter.load(session, 'high_elf_mage.yml')
+        captured = {}
+        original_clone = SpellAction.clone
+
+        def spy_clone(self):
+            action = original_clone(self)
+            captured['action'] = action
+            return action
+
+        action = SpellAction(session, mage, 'spell')
+        action.use_slot = use_slot
+        with mock.patch.object(SpellAction, 'clone', spy_clone), \
+                mock.patch('natural20.utils.class_mechanics.free_cast_pool_for',
+                           return_value='magic_initiate:healing_word'):
+            action.build_map()['next'](('healing_word', 1))
+        return captured['action'].free_cast_pool
+
+    def test_default_prefers_free_cast(self):
+        self.assertEqual(self._built_pool(False), 'magic_initiate:healing_word')
+
+    def test_use_slot_saves_the_free_use(self):
+        self.assertIsNone(self._built_pool(True))
+
+
+class DodgeExpiryTest(unittest.TestCase):
+    """Issue 52: Dodge/Disengage end at the start of the creature's next
+    turn even when it never acts (unconscious) or never gets one (dead)."""
+
+    def _battle_with(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc = session.npc('goblin', {'name': 'g'})
+        battle.add(fighter, 'a', position=[0, 5])
+        battle.add(npc, 'b', position=[1, 5])
+        battle.start()
+        return battle, fighter
+
+    def test_dodge_ends_when_unconscious_turn_starts(self):
+        battle, fighter = self._battle_with()
+        fighter.do_dodge(battle)
+        self.assertTrue(fighter.dodge(battle))
+        fighter.make_unconscious()
+        fighter.death_saving_throw = lambda battle=None: None
+        battle.set_current_turn(fighter)
+        battle.start_turn()
+        self.assertFalse(fighter.dodge(battle))
+
+    def test_disengage_ends_when_dead_turn_is_skipped(self):
+        battle, fighter = self._battle_with()
+        state = battle.entity_state_for(fighter)
+        state['statuses'].add('disengage')
+        fighter.make_dead(battle=battle)
+        battle.set_current_turn(fighter)
+        battle.skip_dead_turns()
+        self.assertNotIn('disengage', battle.entity_state_for(fighter)['statuses'])
+
+
+class GridDistanceTest(unittest.TestCase):
+    """Issue 48: on a grid every step (orthogonal or diagonal) counts as
+    one square of distance (SRD 5.2.1 'Playing on a Grid')."""
+
+    def test_diagonal_counts_the_same_as_a_straight_line(self):
+        session = _session()
+        map_ = Map(session, 'large_map')
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        map_.place((11, 2), fighter, 'A')
+        self.assertEqual(map_.distance_to_square(fighter, 5, 7), 6)
+        self.assertEqual(map_.distance_to_square(fighter, 11 + 3, 2 + 3), 3)
+        self.assertEqual(map_.distance_to_square(fighter, 11 + 1, 2 + 1), 1)
+
+
+class CreatureIsNotWallTest(unittest.TestCase):
+    """Issues 47/50/51: creatures (living allies, downed allies, corpses)
+    are not walls: corner-cutting keeps its diagonal, straight corridors
+    can be passed through, and a dead creature never holds a square."""
+
+    def setUp(self):
+        self.session = _session()
+        self.map = Map(self.session, 'large_map')
+        self.battle = Battle(self.session, self.map)
+        self.fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.ally = PlayerCharacter.load(self.session, 'human_fighter.yml')
+        self.battle.add(self.fighter, 'a', position=[5, 5])
+        self.battle.add(self.ally, 'a', position=[6, 5])
+        self.battle.start()
+        self.battle.set_current_turn(self.fighter)
+        self.fighter.reset_turn(self.battle)
+
+    def test_diagonal_offered_with_ally_on_the_flank(self):
+        actions = self.fighter.available_actions(self.session, self.battle,
+                                                 auto_target=True, map=self.map)
+        paths = {tuple(map(tuple, a.move_path)) for a in actions
+                 if isinstance(a, MoveAction)}
+        self.assertIn(((5, 5), (6, 6)), paths)
+
+    def test_move_through_ally_offered_and_executed(self):
+        actions = self.fighter.available_actions(self.session, self.battle,
+                                                 auto_target=True, map=self.map)
+        through = [a for a in actions if isinstance(a, MoveAction)
+                   and tuple(map(tuple, a.move_path)) == ((5, 5), (6, 5), (7, 5))]
+        self.assertTrue(through, '2-square pass-through option missing')
+        action = through[0]
+        action.resolve(self.session, self.map, {'battle': self.battle})
+        self.battle.commit(action)
+        self.assertEqual([7, 5], list(self.map.position_of(self.fighter)))
+
+    def test_dead_creature_does_not_hold_its_square(self):
+        npc = self.session.npc('goblin', {'name': 'corpse'})
+        self.battle.add(npc, 'b', position=[8, 5])
+        npc.make_dead(battle=self.battle)
+        self.assertTrue(self.map.placeable(self.fighter, 8, 5, self.battle))
+
+    def test_placeable_ignore_creature_occupants_for_path_checks(self):
+        # ally occupies (6,5): normal placement refuses, path checks allow
+        self.assertFalse(self.map.placeable(self.fighter, 6, 5, self.battle,
+                                            squeeze=False))
+        self.assertTrue(self.map.placeable(self.fighter, 6, 5, self.battle,
+                                           squeeze=False,
+                                           ignore_creature_occupants=True))
+        self.assertTrue(self.map.passable_through(self.fighter, 6, 5, self.battle))
+
+
+class LineOfSightSymmetryTest(unittest.TestCase):
+    """Issue 55: Bresenham tie-breaking made A->B and B->A clip different
+    wall corners, so a wall granted the unseen-attacker bonus in only one
+    direction."""
+
+    def test_paths_are_mutually_symmetric(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        pairs = [((1, 1), (6, 4)), ((0, 6), (6, 0)), ((2, 2), (7, 5)),
+                 ((3, 0), (5, 7)), ((0, 0), (7, 7))]
+        for a, b in pairs:
+            forward = map_.squares_in_path(a[0], a[1], b[0], b[1])
+            backward = map_.squares_in_path(b[0], b[1], a[0], a[1])
+            self.assertEqual(forward, list(reversed(backward)),
+                             f'{a}->{b} asymmetric')
+
+    def test_sight_agrees_in_both_directions_through_a_corner(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        fighter_a = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        fighter_b = PlayerCharacter.load(session, 'human_fighter.yml')
+        map_.place((1, 6), fighter_a, 'A')
+        map_.place((6, 7), fighter_b, 'B')
+        self.assertEqual(map_.line_of_sight(1, 6, 6, 7) is not None,
+                         map_.line_of_sight(6, 7, 1, 6) is not None)
+
+
+class DodgeRequiresSightTest(unittest.TestCase):
+    """Issue 60: Dodge's disadvantage only applies against attackers the
+    dodger can see; a hidden striker in the dark is not penalized."""
+
+    def test_dodge_does_not_penalize_unseen_attacker(self):
+        from natural20.weapons import compute_advantages_and_disadvantages
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        dodger = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        striker = session.npc('goblin', {'name': 'sneak'})
+        battle.add(dodger, 'a', position=[5, 5])
+        battle.add(striker, 'b', position=[10, 5])
+        battle.start()
+        dodger.do_dodge(battle)
+        self.assertTrue(dodger.dodge(battle))
+
+        advantages, disadvantages = compute_advantages_and_disadvantages(
+            session, striker, dodger, None, battle=battle,
+            consume_masteries=False)
+        self.assertIn('target_dodge', disadvantages)
+        self.assertNotIn('unseen_attacker', advantages)
+
+        striker.statuses.append('invisible')
+        advantages, disadvantages = compute_advantages_and_disadvantages(
+            session, striker, dodger, None, battle=battle,
+            consume_masteries=False)
+        self.assertNotIn('target_dodge', disadvantages)
+        self.assertIn('unseen_attacker', advantages)
+
+
+class ThunderwaveLineOfEffectTest(unittest.TestCase):
+    """Issue 59: the directional cube picked up creatures behind a wall;
+    areas of effect need line of effect from the origin."""
+
+    def test_cube_skips_targets_behind_a_wall(self):
+        session = _session()
+        map_ = Map(session, 'large_map')
+        # Wall column at x=12 (except the near goblin's square stays open)
+        for y in (3, 4, 6, 7):
+            map_.base_map[12][y] = '#'
+        map_.base_map[12][5] = '#'
+        battle = Battle(session, map_)
+        caster = PlayerCharacter.load(session, 'high_elf_mage.yml')
+        near = session.npc('goblin', {'name': 'near'})
+        far = session.npc('goblin', {'name': 'far'})
+        battle.add(caster, 'a', position=[10, 5])
+        battle.add(near, 'b', position=[11, 5])   # open cube square, seen
+        battle.add(far, 'b', position=[13, 5])    # behind the wall (total cover)
+        battle.start()
+        caster.reset_turn(battle)
+
+        from natural20.spell.thunderwave_spell import ThunderwaveSpell
+        props = session.load_spell('thunderwave')
+        spell = ThunderwaveSpell(session, caster, 'ThunderwaveSpell', props)
+        fake_action = SimpleNamespace(target=[13, 5], at_level=1, level=1)
+        events = spell.resolve(caster, battle, fake_action, map_)
+        targets = {id(e['target']) for e in events if e.get('target') is not None}
+        self.assertIn(id(near), targets)
+        self.assertNotIn(id(far), targets)
+
+
+class BlessDeathSaveTest(unittest.TestCase):
+    """Issue 53: Bless/Bane dice apply to death saving throws like any
+    other saving throw."""
+
+    def test_bless_dice_join_the_death_save(self):
+        from unittest import mock
+        session = _session()
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        fighter.attributes['hp'] = 0
+        fighter.make_unconscious()
+        original_has_effect = fighter.has_effect
+        fighter.has_effect = lambda name: (name == 'bless' or
+                                           original_has_effect(name))
+        # Deterministic d20 stand-in that supports the DieRolls sum.
+        with mock.patch('natural20.die_roll.DieRoll.roll_with_lucky',
+                        classmethod(lambda cls, *a, **k: DieRoll.roll('1d4'))):
+            fighter.death_saving_throw()
+        # d4 + bless d4 is always < 10, so the save fails at least once.
+        self.assertEqual(fighter.death_fails, 1)
+        self.assertEqual(fighter.death_saves, 0)
+
+
+class GroupedConcentrationSaveTest(unittest.TestCase):
+    """Issue 57: one hit whose damage is split across items (weapon hit +
+    riders) is a single damage instance: ONE pooled concentration save."""
+
+    def test_one_save_for_split_damage(self):
+        events = []
+        session = _session(events)
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc = session.npc('goblin', {'name': 'g'})
+        battle.add(fighter, 'a', position=[5, 5])
+        battle.add(npc, 'b', position=[6, 5])
+        battle.start()
+        fighter.concentration = 'spirit_guardians_effect'
+        fighter.save_throw = lambda save_type, battle=None, opts=None: \
+            DieRoll.roll('50')
+
+        hit_state = {}
+        fighter.take_damage(3, battle=battle, damage_type='piercing',
+                            item={'type': 'damage', 'source': npc,
+                                  '_hit_state': hit_state})
+        fighter.take_damage(6, battle=battle, damage_type='necrotic',
+                            item={'type': 'additional_damage', 'source': npc,
+                                  '_hit_state': hit_state})
+        checks = [e for e in events if e.get('event') == 'concentration_check']
+        self.assertEqual([], checks, 'save fired before the hit finished')
+
+        from natural20.action import Action
+        flusher = Action(session, fighter, 'test_flush')
+        flusher.result = []
+        battle.commit(flusher)
+        checks = [e for e in events if e.get('event') == 'concentration_check']
+        self.assertEqual(1, len(checks))
+        # DC uses the POOLED damage: max(10, 9//2) = 10, and both earlier
+        # DCs would also have been 10 -- but exactly one roll must happen.
+        self.assertEqual(10, checks[0]['dc'])
+
+    def test_split_damage_above_ten_uses_pooled_dc(self):
+        events = []
+        session = _session(events)
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc = session.npc('goblin', {'name': 'g'})
+        battle.add(fighter, 'a', position=[5, 5])
+        battle.add(npc, 'b', position=[6, 5])
+        battle.start()
+        # Report scenario: a well-fed caster survives the hit and just has
+        # to make the one save.
+        fighter.attributes['max_hp'] = 100
+        fighter.attributes['hp'] = 100
+        fighter.concentration = 'spirit_guardians_effect'
+        fighter.save_throw = lambda save_type, battle=None, opts=None: \
+            DieRoll.roll('50')
+        hit_state = {}
+        fighter.take_damage(11, battle=battle, damage_type='piercing',
+                            item={'type': 'damage', 'source': npc,
+                                  '_hit_state': hit_state})
+        fighter.take_damage(13, battle=battle, damage_type='necrotic',
+                            item={'type': 'additional_damage', 'source': npc,
+                                  '_hit_state': hit_state})
+        from natural20.action import Action
+        flusher = Action(session, fighter, 'test_flush')
+        flusher.result = []
+        battle.commit(flusher)
+        checks = [e for e in events if e.get('event') == 'concentration_check']
+        self.assertEqual(1, len(checks))
+        # 24 pooled damage -> DC max(10, 24//2) = 12, not two saves at DC 11
+        # and DC 12.
+        self.assertEqual(12, checks[0]['dc'])
+
+
+class InterruptedMovementTest(unittest.TestCase):
+    """Issue 58: the opportunity attack interrupts the move: it resolves
+    while the mover stands on the square it is provoking from, and an
+    interrupted mover ends its move there."""
+
+    def test_mover_ends_on_the_square_the_attack_interrupted(self):
+        from unittest import mock
+        from natural20.actions.move_action import MoveAction
+        from natural20.generic_controller import GenericController
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        brute = session.npc('legendary_brute', {'name': 'boss'})
+        battle.add(fighter, 'a', position=[16, 15])
+        controller = GenericController(session)
+        battle.add(brute, 'b', position=[15, 13], token='2')
+        controller.register_handlers_on(brute)
+        battle.start()
+        fighter.reset_turn(battle)
+        brute.reset_turn(battle)
+        fighter.attributes['hp'] = 1
+
+        # Walk the flank of the brute's 5 ft reach: it may retaliate when
+        # the fighter leaves the adjacent square (16, 12) for (16, 11).
+        move = MoveAction(session, fighter, 'move')
+        move.move_path = [[16, 15], [16, 14], [16, 13], [16, 12], [16, 11]]
+        # Deterministic brute attack roll so the interruption is certain.
+        with mock.patch('natural20.die_roll.DieRoll.roll_with_lucky',
+                        classmethod(lambda cls, *a, **k: DieRoll.roll('30'))):
+            resolved = move.resolve(session, map_, {'battle': battle})
+            battle.commit(resolved)
+
+        self.assertFalse(fighter.conscious(),
+                         'the opportunity attack should have dropped the mover')
+        # The mover stopped where the attack caught it: it is no longer at
+        # its start square, and it never finished the move.
+        self.assertEqual([16, 12], list(map_.position_of(fighter)))
+
+
+class ScorchingRayRetargetTest(unittest.TestCase):
+    """Issue 54: rays are separate attacks; a ray aimed at a target that
+    already died to an earlier ray re-aims at a living enemy instead of
+    being wasted on the corpse."""
+
+    def test_later_ray_retargets_after_the_first_kills(self):
+        from unittest import mock
+        events = []
+        session = _session(events)
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        wizard = PlayerCharacter.load(session, 'high_elf_mage.yml')
+        first = session.npc('goblin', {'name': 'first'})
+        second = session.npc('ogre', {'name': 'second'})
+        battle.add(wizard, 'a', position=[2, 5])
+        battle.add(first, 'b', position=[4, 5])
+        battle.add(second, 'b', position=[5, 5])
+        battle.start()
+        wizard.reset_turn(battle)
+        first.attributes['hp'] = 1
+        before = second.hp()
+
+        from natural20.spell.wizard_spells import ScorchingRaySpell
+        from natural20.action import Action
+        props = session.load_spell('scorching_ray')
+        spell = ScorchingRaySpell(session, wizard, 'ScorchingRaySpell', props)
+        fake_action = SimpleNamespace(target=[first, first, second], at_level=2,
+                                      level=2)
+        with mock.patch.object(type(wizard), 'ranged_spell_attack',
+                               lambda self, battle=None, props=None,
+                               advantage=False, disadvantage=False:
+                               DieRoll.roll('30')):
+            results = spell.resolve(wizard, battle, fake_action, map_)
+            wrapper = Action(session, wizard, 'spell')
+            wrapper.result = list(results)
+            battle.commit(wrapper)
+
+        self.assertTrue(first.dead())
+        self.assertLess(second.hp(), before,
+                        'the ray that lost its target should have re-aimed')
+        retargets = [e for e in events if e.get('event') == 'spell_ray_retarget']
+        self.assertEqual(1, len(retargets))
+        self.assertEqual('first', retargets[0].get('from_target_name'))
+
+
+class HiddenMovesIntoViewTest(unittest.TestCase):
+    """Issue 56: hiding ends when the hider walks into an enemy's clear
+    line of sight."""
+
+    def test_moving_into_clear_view_breaks_the_hide(self):
+        from natural20.actions.move_action import MoveAction
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        rogue = PlayerCharacter.load(session, 'halfling_rogue.yml')
+        watcher = session.npc('goblin', {'name': 'watcher'})
+        battle.add(rogue, 'a', position=[2, 5])
+        battle.add(watcher, 'b', position=[8, 5])
+        battle.start()
+        rogue.reset_turn(battle)
+        rogue.do_hide(15)
+        self.assertTrue(rogue.hidden())
+
+        move = MoveAction(session, rogue, 'move')
+        move.move_path = [[2, 5], [3, 5], [4, 5]]
+        move.resolve(session, map_, {'battle': battle})
+        battle.commit(move)
+        self.assertFalse(rogue.hidden(),
+                         'the goblin plainly sees the new square')
+
+    def test_hide_survives_when_still_unseen(self):
+        from natural20.actions.move_action import MoveAction
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        rogue = PlayerCharacter.load(session, 'halfling_rogue.yml')
+        watcher = session.npc('goblin', {'name': 'watcher'})
+        battle.add(rogue, 'a', position=[2, 5])
+        battle.add(watcher, 'b', position=[20, 5])  # too far for passive sight? no: LOS is unlimited
+        battle.start()
+        rogue.reset_turn(battle)
+        rogue.statuses.append('invisible')
+        rogue.do_hide(15)
+        move = MoveAction(session, rogue, 'move')
+        move.move_path = [[2, 5], [3, 5]]
+        move.resolve(session, map_, {'battle': battle})
+        battle.commit(move)
+        self.assertTrue(rogue.hidden(),
+                        'an invisible hider moving in open ground is still hidden')
+
+
+class FontOfMagicSlotConversionTest(unittest.TestCase):
+    """Issue 61: Font of Magic offers the Sorcery Point -> spell slot
+    conversion as a bonus action (SRD p.66)."""
+
+    def _sorcerer_battle(self):
+        session = _session()
+        pc = PlayerCharacter.load(session, 'human_sorcerer.yml')
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        battle.add(pc, 'a', position=[5, 5])
+        battle.start()
+        battle.set_current_turn(pc)
+        pc.reset_turn(battle)
+        return session, pc, map_, battle
+
+    def test_conversion_offered_and_applied(self):
+        session, pc, map_, battle = self._sorcerer_battle()
+        self.assertTrue(pc.class_feature('font_of_magic'))
+        self.assertEqual(5, getattr(pc, 'sorcery_points', None))
+        before_slots = pc.spell_slots['sorcerer'][1]
+        actions = pc.available_actions(session, battle, auto_target=False)
+        create = [a for a in actions if a.action_type == 'create_spell_slot']
+        self.assertTrue(create, 'no slot conversion in the action menu')
+        built = create[0].build_map()['next'](1)
+        built.resolve(session, map_, {'battle': battle})
+        battle.commit(built)
+        self.assertEqual(3, pc.sorcery_points)
+        self.assertEqual(before_slots + 1, pc.spell_slots['sorcerer'][1])
+        self.assertEqual(0, battle.entity_state_for(pc)['bonus_action'])
+
+    def test_hidden_when_no_points_or_bonus_action(self):
+        session, pc, map_, battle = self._sorcerer_battle()
+        pc.sorcery_points = 1
+        self.assertNotIn('create_spell_slot',
+                         [a.action_type for a in
+                          pc.available_actions(session, battle, auto_target=False)])
+        pc.sorcery_points = 5
+        battle.consume(pc, 'bonus_action')
+        self.assertNotIn('create_spell_slot',
+                         [a.action_type for a in
+                          pc.available_actions(session, battle, auto_target=False)])
 
 
 if __name__ == '__main__':

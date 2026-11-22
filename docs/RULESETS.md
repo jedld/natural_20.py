@@ -394,6 +394,87 @@ tests live in [`tests/test_rules_bug_fixes.py`](../tests/test_rules_bug_fixes.py
   [`templates/items/weapons.yml`](../templates/items/weapons.yml); the 2024
   mastery overlay already referenced them.
 
+### Core SRD grid, vision and resource rules (issue #6, third batch)
+
+Reported by the "Forests and Faeries" Rust-port team after ~1,000 AI-played
+games; fixed on `master` with regression tests in
+[`tests/test_rules_bug_fixes.py`](../tests/test_rules_bug_fixes.py).
+
+- **Grid distance is square-counting** (`Map.distance`,
+  `Map.distance_to_square`): per "Playing on a Grid" (SRD 5.2.1 p.13) a
+  diagonal step counts the same as an orthogonal one, so distance is the
+  Chebyshev (chessboard) square count, not floored Euclidean.
+  (11,2)→(5,7) is 6 squares = 30 ft.
+- **Creatures are not walls** ("Moving Around Other Creatures"):
+  - Diagonal corner-cutting checks (`PlayerCharacter` move menu) only
+    require the two flanking squares to be open *terrain* — an ally, a
+    downed ally or a body beside a diagonal no longer removes the option
+    (`Map.placeable(..., ignore_creature_occupants=True)`).
+  - When a straight one-step option is blocked only by a creature token,
+    both the PC menu and `autobuild` offer the two-square path that
+    *passes through* the occupied square and ends beyond it
+    (`Map.passable_through`).
+  - A dead creature never holds its square: `Map._entities_can_share_space`
+    treats any dead occupant as shareable, so corpses are standable
+    terrain-sized obstructions.
+- **Line of sight is symmetric** (`Map.squares_in_path`): the Bresenham
+  rasterizer now always runs from a canonical endpoint (and the result is
+  flipped back to the caller's orientation), so `A→B` and `B→A` clip the
+  same wall corners. A wall can no longer grant the unseen-attacker bonus
+  in only one direction.
+- **Areas of effect need line of effect**: the Thunderwave directional-cube
+  resolver skips creatures with no `line_of_sight` from the origin
+  (total cover), matching the sphere/line AoE fixes from the second batch.
+- **Dodge needs sight** (`natural20/weapons.py`): the "attack rolls have
+  disadvantage" penalty only applies while the dodging creature can see
+  the attacker; a hidden or invisible striker in the dark is not
+  penalized by Dodge.
+- **Dodge/Disengage end at the start of your next turn** even when that
+  turn is skipped or never arrives: `Battle.start_turn` and the
+  dead-turn skip in `skip_dead_turns` clear the `dodge`/`disengage`
+  status flags for unconscious / incapacitated / dead creatures (the
+  `Entity.reset_turn` clear only runs on a normal turn).
+- **Hiding ends on moving into clear view** (`MoveAction.apply` →
+  `reveal_if_exposed`): after a hidden creature's move commits, the hide
+  is broken if any conscious enemy has plain (light + line of sight)
+  vision of the new square; otherwise the previous stealth value is
+  restored. Hiding behind walls, in darkness or while invisible still
+  works.
+- **Opportunity attacks interrupt the move**
+  (`MoveAction.check_opportunity_attacks`): the mover is physically placed
+  on the square it is provoking from *before* the reaction resolves, so
+  cover, sight and range use the real board position, and a mover knocked
+  unconscious or knocked down ends its move on that square instead of
+  snapping back to its starting square.
+- **One concentration save per hit** (`Entity.take_damage` +
+  `Battle.commit`): an attack whose damage lands as several items
+  (weapon hit plus `additional_damage` riders) pools the damage through
+  the shared `_hit_state['concentration_damage']` and rolls a single
+  Constitution save at the pooled DC after the whole hit is committed
+  (`Entity._concentration_damage_check`,
+  `Battle._pending_concentration_checks`).
+- **Bless/Bane on death saving throws** (`Entity.death_saving_throw`):
+  death saves are saving throws, so the d4 riders join the d20 (the
+  `DieRolls` sum keeps `nat_20()`/`nat_1()` reading the d20 face).
+- **Scorching Ray re-aims lost rays** (`ScorchingRaySpell.apply`): each
+  ray is tagged `ray_index` at resolve; when a ray's target is already
+  dead by the time the ray lands, it re-aims at the nearest living enemy
+  the caster can see within range and makes a fresh attack roll (logged
+  as a `spell_ray_retarget` event).
+- **Free casts don't spend slots** (`Spell.consume` +
+  `spell_requirements.spells_this_turn_issue`): every `casted_spells`
+  entry now carries `slot_paid`; the 2024 "One Spell with a Spell Slot
+  per Turn" limit only counts casts that actually paid a slot, while the
+  2014 bonus-action-cantrip rule keeps using the spell level. Players can
+  also opt to pay a slot and save a free/feature use via
+  `SpellAction.use_slot` (AI keeps the free-cast-first default).
+- **Font of Magic conversion** (`natural20/actions/create_spell_slot_action.py`):
+  `CreateSpellSlotAction` (`action_type: create_spell_slot`, bonus
+  action) turns Sorcery Points into a level 1-5 spell slot at the SRD
+  costs 2/3/5/6/7; it is offered to any creature with the
+  `font_of_magic` class feature and appears in `available_actions`.
+  Sorcery points persist through `properties['sorcery_points']` as before.
+
 ## Changing edition mid-campaign
 
 Edit `game.yml` only. Treat it as a **migration**: rebuild or re-check PCs

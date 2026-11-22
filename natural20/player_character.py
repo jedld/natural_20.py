@@ -18,6 +18,7 @@ from natural20.actions import craft_item_action  # noqa: F401
 from natural20.actions import class_feature_action  # noqa: F401
 from natural20.actions.extinguish_flames_action import ExtinguishFlamesAction
 from natural20.actions.action_surge_action import ActionSurgeAction
+from natural20.actions.create_spell_slot_action import CreateSpellSlotAction
 from natural20.actions.rage_action import RageAction, RecklessAttackAction, EndRageAction
 from natural20.actions.flurry_of_blows_action import FlurryOfBlowsAction
 from natural20.actions.patient_defense_action import PatientDefenseAction
@@ -127,6 +128,7 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     DropGrappleAction,
     EscapeGrappleAction,
     ActionSurgeAction,
+    CreateSpellSlotAction,
     ShoveAction,
     FirstAidAction,
     UseItemAction,
@@ -932,6 +934,8 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
           action_list.append(action)
         elif action_type == RecklessAttackAction:
           action_list.append(RecklessAttackAction(session, self, 'reckless_attack'))
+        elif action_type == CreateSpellSlotAction:
+          action_list.append(CreateSpellSlotAction(session, self, 'create_spell_slot'))
         elif action_type == StepOfTheWindAction:
           action_list.append(StepOfTheWindAction(session, self, 'step_of_the_wind', { 'mode': 'disengage' }))
           action_list.append(StepOfTheWindAction(session, self, 'step_of_the_wind', { 'mode': 'dash' }))
@@ -970,12 +974,17 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
             for y_pos in range(-1, 2):
               if x_pos == 0 and y_pos == 0:
                 continue
-              # Prevent corner cutting on diagonals: both adjacent orthogonals must be free
+              # Prevent corner cutting on diagonals: both adjacent
+              # orthogonals must be open. "Open" means terrain and objects
+              # (walls); creatures are NOT walls — the SRD lets you pass
+              # through any creature's square, so an ally, a downed ally or
+              # a body beside a diagonal must not remove the option (issue
+              # #6 item 47).
               if abs(x_pos) == 1 and abs(y_pos) == 1:
                 adj1_ok = map.bidirectionally_passable(self, cur_x + x_pos, cur_y, (cur_x, cur_y), battle, allow_squeeze=False) and \
-                          map.placeable(self, cur_x + x_pos, cur_y, battle, squeeze=False)
+                          map.placeable(self, cur_x + x_pos, cur_y, battle, squeeze=False, ignore_creature_occupants=True)
                 adj2_ok = map.bidirectionally_passable(self, cur_x, cur_y + y_pos, (cur_x, cur_y), battle, allow_squeeze=False) and \
-                          map.placeable(self, cur_x, cur_y + y_pos, battle, squeeze=False)
+                          map.placeable(self, cur_x, cur_y + y_pos, battle, squeeze=False, ignore_creature_occupants=True)
                 if not (adj1_ok and adj2_ok):
                   continue
               if map.bidirectionally_passable(self, cur_x + x_pos, cur_y + y_pos, (cur_x, cur_y), battle, allow_squeeze=False) and map.placeable(self, cur_x + x_pos, cur_y + y_pos, battle, squeeze=False):
@@ -986,6 +995,23 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
                   move_action = MoveAction(session, self, 'move')
                   move_action.move_path = actual_movement.movement
                   action_list.append(move_action)
+              elif (abs(x_pos) + abs(y_pos) == 1):
+                # Straight step blocked only by a creature standing in a
+                # one-square corridor: offer the two-square path that
+                # passes through the occupied square and ends beyond it
+                # (SRD "Move Around Other Creatures", issue #6 item 50).
+                mid_x, mid_y = cur_x + x_pos, cur_y + y_pos
+                beyond_x, beyond_y = cur_x + 2 * x_pos, cur_y + 2 * y_pos
+                if map.bidirectionally_passable(self, mid_x, mid_y, (cur_x, cur_y), battle, allow_squeeze=False) and \
+                   map.passable_through(self, mid_x, mid_y, battle) and \
+                   map.bidirectionally_passable(self, beyond_x, beyond_y, (mid_x, mid_y), battle, allow_squeeze=False) and \
+                   map.placeable(self, beyond_x, beyond_y, battle, squeeze=False):
+                  through_path = [[cur_x, cur_y], [mid_x, mid_y], [beyond_x, beyond_y]]
+                  actual_movement = compute_actual_moves(self, through_path, map, battle, self.available_movement(battle) // 5)
+                  if len(actual_movement.movement) > 1 and actual_movement.impediment is None:
+                    move_action = MoveAction(session, self, 'move')
+                    move_action.move_path = actual_movement.movement
+                    action_list.append(move_action)
         elif action_type == ProneAction:
           action = ProneAction(session, self, 'prone')
           action_list.append(action)

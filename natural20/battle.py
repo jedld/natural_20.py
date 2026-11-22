@@ -418,6 +418,10 @@ class Battle():
         self.groups = {}
         self.late_comers = []
         self.battle_log = []
+        # (hit_state, entity) pairs whose grouped-hit concentration save is
+        # deferred until the whole attack's damage items are applied
+        # (issue #6 item 57); flushed at the end of Battle.commit.
+        self._pending_concentration_checks = []
         # UID of the creature whose manual legendary action window is open,
         # plus UIDs still waiting for theirs after the current turn ended.
         self.legendary_phase = None
@@ -828,6 +832,16 @@ class Battle():
             expire_mastery_start_of_turn(entity, self)
         except Exception:
             pass
+        # Dodge/Disengage also run "until the start of your next turn": they
+        # must end even when that turn is skipped or the creature never
+        # acts (unconscious, incapacitated, dead). Entity.reset_turn clears
+        # them on a normal turn; do it here too so the flags never persist
+        # past the start of the creature's next turn.
+        start_state = self.entity_state_for(entity)
+        if start_state is not None:
+            for _status in ('dodge', 'disengage'):
+                if _status in start_state.get('statuses', ()):
+                    start_state['statuses'].remove(_status)
         self.trigger_event('start_of_turn', self, { "target" : entity })
         state = self.entity_state_for(entity)
         if state is not None:
@@ -1056,6 +1070,11 @@ class Battle():
                 expire_mastery_start_of_turn(current, self)
             except Exception:
                 pass
+            dead_state = self.entity_state_for(current)
+            if dead_state is not None:
+                for _status in ('dodge', 'disengage'):
+                    if _status in dead_state.get('statuses', ()):
+                        dead_state['statuses'].remove(_status)
             self._end_of_turn_fired = None
             self._advance_turn_index(max_rounds)
         return self.current_turn()
@@ -1319,6 +1338,18 @@ class Battle():
                         ),
                     })
             index += 1
+        # Grouped-hit concentration saves deferred by Entity.take_damage:
+        # one attack whose damage landed as several items (hit + riders)
+        # gets ONE pooled Constitution save now that the whole hit is in
+        # (issue #6 item 57).
+        pending = getattr(self, '_pending_concentration_checks', None)
+        if pending:
+            self._pending_concentration_checks = []
+            for hit_state, entity in pending:
+                pooled = int(hit_state.get('concentration_damage', 0) or 0)
+                if (pooled > 0 and entity.hp() > 0 and entity.concentration
+                        and not entity.class_feature('focused_casting')):
+                    entity._concentration_damage_check(pooled, self, self.session)
         enforce_action_limit(self, getattr(action, 'source', None), fear_snapshot)
         if action.action_type == 'move':
             self.trigger_event('movement', action.source, { 'move_path': action.move_path})
