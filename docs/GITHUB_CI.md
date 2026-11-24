@@ -22,6 +22,35 @@ A single account-wide key is deliberately not used (read-only blast radius per r
 `user_levels` additionally runs `git lfs install && git -C user_levels lfs pull`
 (campaign audio).
 
+## Standalone `n20-webapp` repo CI
+
+The `n20-webapp` repo runs its own `python-tests.yml` / `js-tests.yml`
+(the engine repo's `webapp` job above is the same suite from the monorepo
+side). Its Python workflow checks out:
+
+- the **public engine** (`jedld/natural_20.py`, default token; override via
+  the `NATURAL20_ENGINE_REPO` Actions variable) into `natural_20.py/`, and
+- the **private campaigns repo** into `user_levels/` via its own read-only
+  deploy key secret `N20_CAMPAIGNS_SSH_KEY` (a *separate* key from the
+  engine repo's secret of the same name; LFS enabled).
+
+A follow-up step symlinks `user_levels` next to the workspace because
+`tests/webapp` modules resolve campaigns two different ways: cwd-relative
+(`Session(root_path='user_levels/wild_sheep_chase')`) **and**
+`dirname(tests/webapp/x.py)/../../..` (the parent of the webapp root, which
+in a monorepo checkout is the engine root). If the campaigns checkout is
+missing, `test_entity_rag_handler`, `test_stack_path_resolution`,
+`test_legendary_phase` and friends fail (only `test_approach_through_door`
+and `test_campaign_config` guard with skips).
+
+Note: Actions minutes on the **private** `n20-webapp` repo draw on the
+account's paid/spending-limit plan. If payments fail or the spending limit
+is hit, jobs fail in seconds with **zero steps** and the annotation
+"The job was not started because recent account payments have failed or
+your spending limit needs to be increased" — that is a billing condition
+(*Settings → Billing and plans*), not a workflow bug. The public engine
+repo's `webapp` job still covers the same test suite on free public minutes.
+
 ## Engine job sizing
 
 The engine suite is wide (~2700 tests, no single test over ~60 s) and GitHub
