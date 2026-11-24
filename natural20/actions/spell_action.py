@@ -207,8 +207,23 @@ class SpellAction(Action):
             return False
 
         from natural20.utils.spell_requirements import spells_this_turn_issue
+        # Does this cast actually expend a spell slot? Cantrips and scrolls
+        # never do; at the spell's own level a free/feature pool (Magic
+        # Initiate at-will, Mystic Arcanum, ...) is used before slots by the
+        # default builder, so the cast pays nothing (the `use_slot` opt-in
+        # reverses that, but the static gate keeps the free-cast-first
+        # assumption; Nov-23 report item 2).
+        pays_slot = True
+        if as_scroll or int(at_level or 0) == 0:
+            pays_slot = False
+        elif int(at_level) == int(spell_details['level']):
+            from natural20.utils.class_mechanics import free_cast_pool_for
+            if free_cast_pool_for(
+                    slot_owner, spell_details.get('id') or spell) is not None:
+                pays_slot = False
         if spells_this_turn_issue(entity.owner if entity.familiar() else entity,
-                                  battle, at_level, resource):
+                                  battle, at_level, resource,
+                                  pays_slot=pays_slot):
             return False
 
         if resource == "action" and entity.total_actions(battle) == 0:

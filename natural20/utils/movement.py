@@ -93,6 +93,53 @@ def requires_squeeze(entity: Entity, pos_x, pos_y, map, battle=None):
     return not map.passable(entity, pos_x, pos_y, battle, False) and map.passable(entity, pos_x, pos_y, battle, True)
 
 
+def pass_through_creature_run(entity, map, battle, cur_x, cur_y, dx, dy, max_steps):
+    """Walk the ray from (cur_x, cur_y) in direction (dx, dy) across a run
+    of consecutive squares blocked ONLY by creatures you may move through
+    (allies, downed or dead creatures, corpses), and return the square just
+    beyond the run — or None when the ray does not open onto a placeable
+    square within *max_steps*.
+
+    SRD "Move Around Other Creatures": you can move through a nonhostile
+    creature's square, and a hostile square only when it is prone or
+    incapacitated — you just can't END the move in a live creature's
+    square. One creature in the way used to be handled, but two allies in a
+    row (or a diagonal line of bodies) still stranded the mover (Nov-23
+    report item 6). Diagonal steps keep the corner rule for terrain
+    (creatures are not walls, issue #6 item 47).
+    """
+    x, y = cur_x, cur_y
+    steps = 0
+    while steps < max_steps:
+        nx, ny = x + dx, y + dy
+        if nx < 0 or ny < 0 or nx >= map.size[0] or ny >= map.size[1]:
+            return None
+        if dx != 0 and dy != 0:
+            # Corner rule for this diagonal step: terrain (and objects) on
+            # both flanks must be open. Occupying creatures do not count.
+            blocked = False
+            for fx, fy in ((x + dx, y), (x, y + dy)):
+                if not map.placeable(entity, fx, fy, battle, squeeze=False,
+                                     ignore_creature_occupants=True):
+                    blocked = True
+                    break
+            if blocked:
+                return None
+        if not map.bidirectionally_passable(entity, nx, ny, (x, y), battle,
+                                            allow_squeeze=False):
+            return None
+        if map.placeable(entity, nx, ny, battle, squeeze=False):
+            # Only useful when at least one creature-blocked square was
+            # crossed; otherwise this is the ordinary one-step option.
+            return (nx, ny) if steps >= 1 else None
+        if not map.passable_through(entity, nx, ny, battle):
+            # Terrain/object (or a hostile living body): cannot pass.
+            return None
+        x, y = nx, ny
+        steps += 1
+    return None
+
+
 def compute_actual_moves(entity: Entity, current_moves, map, battle, movement_budget, fixed_movement=False, test_placement=True, manual_jump=None, phb_2024_rules=None):
     if phb_2024_rules is None:
         session = getattr(entity, "session", None)

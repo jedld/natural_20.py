@@ -126,12 +126,19 @@ def environment_issue(entity, spell_details, battle=None, battle_map=None) -> Op
     return None
 
 
-def spells_this_turn_issue(entity, battle, spell_level, resource) -> Optional[str]:
+def spells_this_turn_issue(entity, battle, spell_level, resource,
+                           pays_slot=None) -> Optional[str]:
     """Why another action/bonus-action spell can't be cast this turn, or None.
 
     2014 (``bonus_action_spell``): once a bonus-action spell is cast, the only
     other spell allowed is a 1-action cantrip, in either order. 2024
     (``one_slot_per_turn``): only one spell slot may be spent per turn.
+
+    ``pays_slot`` says whether THIS cast will actually expend a spell slot
+    (False for free/feature casts and scrolls). Under the 2024 model a cast
+    that spends no slot never conflicts, even after a slotted spell already
+    used the turn's slot (Nov-23 report item 2: the reverse order was still
+    refused). When unknown, the spell level is treated as payment as before.
     """
     if battle is None or resource not in ('action', 'bonus_action'):
         return None
@@ -151,7 +158,11 @@ def spells_this_turn_issue(entity, battle, spell_level, resource) -> Optional[st
         # 2024: "One Spell with a Spell Slot per Turn" counts *slots
         # expended*. A free/feature cast (Magic Initiate at-will, Mystic
         # Arcanum, Steps of the Fey) or a scroll does not spend a slot, so
-        # it never blocks a slotted spell later in the same turn.
+        # it never blocks a slotted spell later in the same turn — and a
+        # slotted spell earlier in the turn never blocks a later free
+        # cast either (Nov-23 report item 2).
+        if pays_slot is False:
+            return None
         if spell_level > 0 and any(
                 c.get('slot_paid', int(c.get('level') or 0) > 0) for c in cast):
             return 'already spent a spell slot this turn'

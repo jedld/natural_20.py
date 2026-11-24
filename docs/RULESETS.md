@@ -474,6 +474,58 @@ games; fixed on `master` with regression tests in
   costs 2/3/5/6/7; it is offered to any creature with the
   `font_of_magic` class feature and appears in `available_actions`.
   Sorcery points persist through `properties['sorcery_points']` as before.
+  See the fourth batch below for the level gate and the reverse direction.
+
+### Rules follow-ups (issue #6, fourth batch: Nov-23 note + Nov-24 report)
+
+The same team compared `5187e276` with their Rust port and reported a few
+behaviours where the two engines diverge (Nov-23 note), plus one fresh
+replay bug (Nov-24). Regression tests are in the same
+[`tests/test_rules_bug_fixes.py`](../tests/test_rules_bug_fixes.py) file.
+
+- **Unconscious enemies can't spot a hider** (`MoveAction.reveal_if_exposed`):
+  the observer loop skips any creature that is not conscious, not just
+  dead ones, so a 0-HP goblin no longer breaks a Hide. (Checking every
+  square of the path and re-checking stationary hiders when an enemy
+  moves are deliberate design choices on our side, not bugs.)
+- **The 2024 one-slot limit looks at the *incoming* cast too**
+  (`spell_requirements.spells_this_turn_issue(pays_slot=...)`): a cast
+  that spends no slot — free/feature at-will, Mystic Arcanum, scroll,
+  cantrip — never conflicts, in either order. `SpellAction.can_cast`
+  derives `pays_slot` from `as_scroll`, level 0, or a
+  `class_mechanics.free_cast_pool_for` hit at the spell's own level
+  (the default builder uses the free pool first).
+- **Dodge ends early on incapacity** (`Entity.end_dodge`): SRD Dodge says
+  the benefit ends early if you become incapacitated. `make_unconscious`
+  clears the `dodge` status immediately (like Rage), and `Entity.dodge`
+  re-checks `incapacitated()` on read, so healing the dodger before its
+  next turn does not restore the Dodge.
+- **Flexible Casting is level-gated and two-way**
+  (`CreateSpellSlotAction`): the SRD table gates the highest *creatable*
+  slot by sorcerer level (`MIN_CREATOR_LEVELS`: level 2/3/5/7/9 create
+  slots 1-5), so a level-2 sorcerer only ever sees level-1 slots; the
+  reverse conversion (slot -> 2/3/5/6/7 points, `convert_slot_to_points`
+  action item, `Sorcerer.recover_sorcery_points`) is offered when a slot
+  exists and the gain stays within the Font of Magic pool maximum.
+- **Blind attacks respect legend-defined walls** (`unseen_targets.blind_attack_issue`,
+  Nov-24 report): the total-cover test was the literal `'#'` glyph in
+  `base_map`, so a creature heard standing *inside* an `H` Stone Wall
+  (legend-defined) could be hit through it. It now calls
+  `Map.wall(x, y)`, which also covers legend glyphs and wall objects.
+- **Move through a run of creatures, straight or diagonal**
+  (`natural20/utils/movement.py:pass_through_creature_run`): the batch-3
+  "pass through the one creature blocking the corridor" option could not
+  cross two allies in a row or a diagonal line of bodies. The PC menu and
+  `autobuild` now walk the whole ray of creature-blocked squares (keeping
+  the terrain corner rule for diagonals) and offer the path ending just
+  beyond the run.
+- **An opportunity attack only stops the mover if it knocked it down**
+  (`MoveAction.check_opportunity_attacks`): the knock-down check recorded
+  "the mover is prone after the attack", which also caught a creature
+  that was *already* prone and crawling. A crawling creature that
+  survives the reaction now finishes its path; only a knock-down from
+  this very attack cuts the move short (it still ends on the provoking
+  square).
 
 ## Changing edition mid-campaign
 

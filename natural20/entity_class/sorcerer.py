@@ -89,6 +89,20 @@ class Sorcerer:
         self.properties['sorcery_points'] = self.sorcery_points
         return True
 
+    def recover_sorcery_points(self, qty):
+        """Gain sorcery points up to the class maximum (Flexible Casting:
+        spell slots convert into points, but the pool can never exceed the
+        points Font of Magic grants). Returns the number actually gained."""
+        qty = int(qty)
+        if qty <= 0:
+            return 0
+        max_points = self.max_sorcery_points()
+        gained = min(qty, max(0, max_points - int(getattr(self, 'sorcery_points', 0) or 0)))
+        if gained:
+            self.sorcery_points = int(getattr(self, 'sorcery_points', 0) or 0) + gained
+            self.properties['sorcery_points'] = self.sorcery_points
+        return gained
+
     def reset_sorcerer_spell_slots(self):
         return OrderedDict(
             (index, slots)

@@ -27,7 +27,9 @@ def reveal_if_exposed(battle, session, source):
     source.break_stealth()
     exposed = False
     for observer in list(battle.entities.keys()):
-        if observer is source or observer.dead():
+        if observer is source or not observer.conscious():
+            # A dead *or unconscious* creature cannot be the observer that
+            # finds the hider (a 0-HP enemy does not break Hide).
             continue
         if not battle.opposing(source, observer):
             continue
@@ -339,6 +341,12 @@ class MoveAction(Action):
                     if mover_map is not None else None
                 if mover_map is not None and list(attack_location) != start_position:
                     mover_map.move_to(entity, attack_location[0], attack_location[1], battle)
+                # Only a knock-down from THIS attack stops the move. A
+                # creature that was already prone (crawling) before the
+                # attack may keep crawling afterwards (SRD: the attack
+                # interrupts the move, it does not end it; Nov-23 report
+                # item 7).
+                was_prone = entity.prone()
                 try:
                     if stored_reaction is not False:
                         result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location, stored_reaction)
@@ -361,7 +369,10 @@ class MoveAction(Action):
                     # back at its pre-move position.
                     return original_location
 
-                if entity.prone():
+                if entity.prone() and not was_prone:
+                    # This attack knocked the mover prone: standing up costs
+                    # movement, so the rest of the path is not free. (An
+                    # already-prone crawler keeps moving.)
                     return original_location
 
         return move_list

@@ -325,7 +325,11 @@ def blind_attack_issue(battle, attacker, action, square) -> Optional[str]:
     if battle_map is None or not square_in_bounds(battle_map, square):
         return 'validation.unseen.out_of_bounds'
     sx, sy = square
-    if battle_map.base_map[sx][sy] == '#':
+    # Walls are walls whatever their glyph: the base-map '#' check missed
+    # legend-defined walls (e.g. an `H` Stone Wall), letting a blind attack
+    # land on a creature standing inside one (issue #6, Nov-24 report:
+    # total cover blocks targeting regardless of knowing the square).
+    if battle_map.wall(sx, sy):
         return 'validation.unseen.wall'
     if square in [tuple(s) for s in battle_map.entity_squares(attacker)]:
         return 'validation.unseen.self'

@@ -1699,6 +1699,12 @@ class Entity(EntityStateEvaluator, Notable):
             if getattr(self, 'is_raging', None) and self.is_raging():
                 self.end_rage(reason='unconscious')
 
+            # SRD Dodge: "The benefit ... ends early if you are
+            # incapacitated". Clear the marker the moment the creature
+            # drops, so healing it back up before its next turn does not
+            # restore the Dodge (Nov-23 report item 3).
+            self.end_dodge()
+
     def _apply_knock_unconscious(self):
         """5e knockout: 0 HP, unconscious, and stable instead of dying."""
         self.attributes['hp'] = 0
@@ -3077,12 +3083,44 @@ class Entity(EntityStateEvaluator, Notable):
             'paralyzed' in self.statuses or 'stunned' in self.statuses or \
             'petrified' in self.statuses
 
+    def end_dodge(self, battle=None):
+        """Drop the Dodge marker: SRD Dodge says "The benefit of this
+        action ends early if you are incapacitated or if you lose your
+        speed" (Nov-23 report item 3: a dodger knocked out and healed
+        before its next turn must not still be dodging)."""
+        battles = []
+        if battle is not None:
+            battles.append(battle)
+        else:
+            try:
+                from natural20.utils.combat_comms import battle_for
+                found = battle_for(self)
+                if found is not None:
+                    battles.append(found)
+            except Exception:
+                pass
+        for battle in battles:
+            try:
+                entity_state = battle.entity_state_for(self)
+            except Exception:
+                entity_state = None
+            if entity_state is not None and 'dodge' in entity_state.get('statuses', ()):
+                entity_state['statuses'].remove('dodge')
+
     def dodge(self, battle):
         if not battle:
             return False
 
         entity_state = battle.entity_state_for(self)
         if not entity_state:
+            return False
+
+        if 'dodge' in entity_state.get('statuses', []) and self.incapacitated():
+            # Dodge ended the moment the dodger became incapacitated; the
+            # eager clear (make_unconscious) plus this read-side guard make
+            # the SRD "ends early" rule hold even if the creature is healed
+            # before its next turn would have cleared it.
+            self.end_dodge(battle)
             return False
 
         return 'dodge' in entity_state.get('statuses', [])

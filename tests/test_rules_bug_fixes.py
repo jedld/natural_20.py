@@ -15,6 +15,7 @@ from types import SimpleNamespace
 import yaml
 
 from natural20.actions.attack_action import AttackAction
+from natural20.actions.create_spell_slot_action import CreateSpellSlotAction
 from natural20.actions.hide_action import HideAction
 from natural20.actions.move_action import MoveAction
 from natural20.actions.spell_action import SpellAction
@@ -2134,15 +2135,324 @@ class FontOfMagicSlotConversionTest(unittest.TestCase):
 
     def test_hidden_when_no_points_or_bonus_action(self):
         session, pc, map_, battle = self._sorcerer_battle()
+        # With only 1 point no slot can be CREATED, but Flexible Casting is
+        # two-way: the level-1 slots can still convert to points, so the
+        # action stays offered with conversion-only choices (SRD p.66).
         pc.sorcery_points = 1
-        self.assertNotIn('create_spell_slot',
-                         [a.action_type for a in
-                          pc.available_actions(session, battle, auto_target=False)])
+        create = [a for a in pc.available_actions(session, battle, auto_target=False)
+                  if a.action_type == 'create_spell_slot']
+        self.assertEqual(1, len(create))
+        choices = create[0].build_map()['param'][0]['choices']
+        self.assertTrue(all(isinstance(value, str) and value.startswith('to_points:')
+                            for _label, value in choices), choices)
         pc.sorcery_points = 5
         battle.consume(pc, 'bonus_action')
         self.assertNotIn('create_spell_slot',
                          [a.action_type for a in
                           pc.available_actions(session, battle, auto_target=False)])
+
+
+# ---------------------------------------------------------------------------
+# Fourth batch (issue #6): the Nov-23 "inconsistencies" note items 1-3 and
+# 5-7 that are genuine rule bugs on our side, plus the Nov-24 report about
+# blind attacks landing inside legend-defined walls.
+# ---------------------------------------------------------------------------
+
+class LegendWallBlindAttackTest(unittest.TestCase):
+    """Nov-24 report: blind attacks aimed at a square only checked the
+    literal '#' glyph, so a creature inside a legend Stone Wall could be
+    hit through total cover."""
+
+    def test_legend_wall_squares_refuse_blind_attacks(self):
+        from natural20.utils.unseen_targets import blind_attack_issue
+        session = _session()
+        map_ = Map(session, 'tests/fixtures/maps/game_map.yml')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        specter = session.npc('specter', {'name': 'in the wall'})
+        battle.add(fighter, 'a', position=[2, 2])
+        battle.add(specter, 'b', position=[3, 2], token='2')
+        battle.start()
+        battle.set_current_turn(fighter)
+
+        action = None
+        for item in fighter.properties.get('equipped', []):
+            weapon = session.load_weapon(item)
+            if weapon and weapon.get('type') == 'melee_attack':
+                action = AttackAction(session, fighter, 'attack')
+                action.using = item
+                break
+        self.assertIsNotNone(action, 'fighter should have a melee weapon')
+
+        # Every wall square adjacent to the fighter (the legend `H` Stone
+        # Walls included) must be refused. Map.wall() is the authority.
+        checked = 0
+        found_legend = False
+        for (x, y) in [(2, 3), (3, 3), (4, 2), (3, 1)]:
+            if not map_.wall(x, y):
+                continue
+            checked += 1
+            if map_.base_map[y][x] != '#':
+                found_legend = True
+            self.assertEqual('validation.unseen.wall',
+                             blind_attack_issue(battle, fighter, action, (x, y)),
+                             f'wall square ({x},{y}) must block blind attacks')
+        self.assertGreater(checked, 0, 'fixture must contain wall squares')
+        self.assertTrue(found_legend,
+                        'fixture must contain a non-# legend-defined wall')
+
+
+class UnconsciousObserverKeepsHideTest(unittest.TestCase):
+    """Nov-23 item 1 nit: an unconscious (0 HP) enemy is not a conscious
+    observer and cannot be the one that finds a hider."""
+
+    def test_moving_into_the_sight_of_a_downed_enemy_keeps_the_hide(self):
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        rogue = PlayerCharacter.load(session, 'halfling_rogue.yml')
+        watcher = session.npc('goblin', {'name': 'watcher'})
+        battle.add(rogue, 'a', position=[2, 5])
+        battle.add(watcher, 'b', position=[8, 5])
+        battle.start()
+        rogue.reset_turn(battle)
+        watcher.attributes['hp'] = 0
+        watcher.make_unconscious()
+        self.assertFalse(watcher.conscious())
+        rogue.do_hide(15)
+
+        move = MoveAction(session, rogue, 'move')
+        move.move_path = [[2, 5], [3, 5], [4, 5]]
+        move.resolve(session, map_, {'battle': battle})
+        battle.commit(move)
+        self.assertTrue(rogue.hidden(),
+                        'the downed goblin cannot spot the mover')
+
+
+class FreeCastAfterSlottedCast2024Test(unittest.TestCase):
+    """Nov-23 item 2: the 2024 limit counts *slots expended*, so a free
+    (Magic Initiate-style) cast after a slotted spell is still legal."""
+
+    def _mage_battle(self):
+        from natural20.ruleset.factory import get_ruleset
+        session = _session()
+        mage = PlayerCharacter.load(session, 'high_elf_mage.yml')
+        session.ruleset = get_ruleset('5e-2024')
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        battle.add(mage, 'a', position=[5, 5])
+        battle.start()
+        battle.set_current_turn(mage)
+        mage.reset_turn(battle)
+        state = battle.entity_state_for(mage)
+        state['casted_spells'] = [{'level': 1, 'resource': 'action',
+                                   'slot_paid': True}]
+        return session, mage, battle
+
+    def test_requirement_level_free_cast_allowed(self):
+        from natural20.utils.spell_requirements import spells_this_turn_issue
+        session, mage, battle = self._mage_battle()
+        self.assertIsNotNone(spells_this_turn_issue(mage, battle, 1, 'action'))
+        self.assertIsNone(spells_this_turn_issue(mage, battle, 1, 'action',
+                                                 pays_slot=False))
+
+    def test_can_cast_allows_free_cast_after_a_slot(self):
+        from unittest import mock
+        session, mage, battle = self._mage_battle()
+        # No free pool: the second 1st-level spell pays a slot -> blocked.
+        self.assertFalse(SpellAction.can_cast(mage, battle, 'thunderwave',
+                                              at_level=1))
+        with mock.patch('natural20.utils.class_mechanics.free_cast_pool_for',
+                        return_value='magic_initiate:thunderwave'):
+            # A free cast uses no slot: legal after the slotted spell.
+            self.assertTrue(SpellAction.can_cast(mage, battle, 'thunderwave',
+                                                 at_level=1))
+
+
+class DodgeEndsOnIncapacitationTest(unittest.TestCase):
+    """Nov-23 item 3: SRD Dodge ends early when the dodger becomes
+    incapacitated — healing it back up must not restore the benefit."""
+
+    def test_dodge_is_gone_after_knockout_and_healing(self):
+        session = _session()
+        map_ = Map(session, 'battle_sim_objects')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        npc = session.npc('goblin', {'name': 'g'})
+        battle.add(fighter, 'a', position=[0, 5])
+        battle.add(npc, 'b', position=[1, 5])
+        battle.start()
+        battle.set_current_turn(fighter)
+        fighter.do_dodge(battle)
+        self.assertTrue(fighter.dodge(battle))
+
+        fighter.take_damage(fighter.hp(), battle=battle, damage_type='slashing',
+                            item={'type': 'damage', 'source': npc})
+        self.assertTrue(fighter.unconscious())
+        self.assertFalse(fighter.dodge(battle))
+
+        # Healed before its next turn: Dodge already ended early.
+        fighter.heal(10)
+        self.assertTrue(fighter.conscious())
+        self.assertFalse(fighter.dodge(battle))
+
+
+class FontOfMagicLevelGateTest(unittest.TestCase):
+    """Nov-23 item 5: Flexible Casting gates the highest creatable slot by
+    sorcerer level (SRD table: 2/3/5/7/9th level for slots 1-5), and the
+    reverse slot -> points conversion exists too."""
+
+    def _sorcerer(self, level):
+        session = _session()
+        pc = PlayerCharacter.load(session, 'human_sorcerer.yml',
+                                  {'level': level,
+                                   'classes': {'sorcerer': level}})
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        battle.add(pc, 'a', position=[5, 5])
+        battle.start()
+        battle.set_current_turn(pc)
+        pc.reset_turn(battle)
+        return session, pc, map_, battle
+
+    def test_low_level_sorcerer_only_offers_level_1_slots(self):
+        session, pc, map_, battle = self._sorcerer(2)
+        pc.sorcery_points = 3
+        choices = [label for label, _v in
+                   self._choice_pairs(CreateSpellSlotAction(session, pc,
+                                                            'create_spell_slot'))
+                   if not str(_v).startswith('to_points:')]
+        self.assertEqual(1, len(choices),
+                         f'level-2 sorcerer offered: {choices}')
+
+    def test_high_level_sorcerer_can_create_higher_slots(self):
+        session, pc, map_, battle = self._sorcerer(5)
+        pc.sorcery_points = 5
+        values = [v for _l, v in
+                  self._choice_pairs(CreateSpellSlotAction(session, pc,
+                                                           'create_spell_slot'))
+                  if not str(v).startswith('to_points:')]
+        self.assertIn(3, values, 'level-5 sorcerer should be able to make a 3rd-level slot')
+
+    @staticmethod
+    def _choice_pairs(action):
+        built = action.build_map()
+        if built is None:
+            return []
+        return built['param'][0]['choices']
+
+    def test_slot_to_points_conversion(self):
+        session, pc, map_, battle = self._sorcerer(2)
+        # The pool caps at Font of Magic's maximum (2 at level 2), so first
+        # spend the points, then convert a level-1 slot back into points.
+        self.assertTrue(pc.consume_sorcery_points(2))
+        self.assertEqual(0, pc.sorcery_points)
+        self.assertEqual(3, pc.spell_slots_count(1, 'sorcerer'))
+        action = CreateSpellSlotAction(session, pc, 'create_spell_slot')
+        built = action.build_map()['next']('to_points:1')
+        built.resolve(session, map_, {'battle': battle})
+        battle.commit(built)
+        self.assertEqual(2, pc.sorcery_points)
+        self.assertEqual(2, pc.spell_slots_count(1, 'sorcerer'))
+        self.assertEqual(0, battle.entity_state_for(pc)['bonus_action'])
+
+    def test_conversion_respects_point_maximum(self):
+        session, pc, map_, battle = self._sorcerer(2)
+        # Full pool already: no conversion is offered or possible.
+        self.assertEqual(2, pc.sorcery_points)
+        action = CreateSpellSlotAction(session, pc, 'create_spell_slot')
+        values = [v for _l, v in self._choice_pairs(action)]
+        self.assertFalse([v for v in values if str(v).startswith('to_points:')],
+                         values)
+
+    def test_resolve_rejects_illegal_levels(self):
+        session, pc, map_, battle = self._sorcerer(2)
+        pc.sorcery_points = 3
+        action = CreateSpellSlotAction(session, pc, 'create_spell_slot')
+        action.slot_level = 2
+        with self.assertRaises(ValueError):
+            action.resolve(session, map_, {'battle': battle})
+
+
+class CrawlerContinuesAfterOpportunityAttackTest(unittest.TestCase):
+    """Nov-23 item 7: an opportunity attack interrupts the move at the
+    provoking square, but a creature that was ALREADY prone (crawling) and
+    survives the attack may keep crawling to the end of its path."""
+
+    def test_crawler_finishes_its_path_past_the_attack(self):
+        from unittest import mock
+        from natural20.generic_controller import GenericController
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        brute = session.npc('legendary_brute', {'name': 'boss'})
+        battle.add(fighter, 'a', position=[16, 15])
+        controller = GenericController(session)
+        battle.add(brute, 'b', position=[15, 13], token='2')
+        controller.register_handlers_on(brute)
+        battle.start()
+        fighter.reset_turn(battle)
+        brute.reset_turn(battle)
+        fighter.do_prone()
+        # Crawling costs 1 extra foot per foot, so a 30-ft fighter could
+        # only crawl 3 of these 4 squares on its own budget; top it up so
+        # any early stop comes from the reaction, not from spent movement.
+        battle.entity_state_for(fighter)['movement'] = 60
+        hp_before = fighter.hp()
+
+        move = MoveAction(session, fighter, 'move')
+        move.move_path = [[16, 15], [16, 14], [16, 13], [16, 12], [16, 11]]
+        with mock.patch('natural20.die_roll.DieRoll.roll_with_lucky',
+                        classmethod(lambda cls, *a, **k: DieRoll.roll('1'))):
+            # The brute's attack roll is a natural 1: no damage, but the
+            # reaction still fires at the provoking square.
+            resolved = move.resolve(session, map_, {'battle': battle})
+            battle.commit(resolved)
+
+        self.assertEqual(hp_before, fighter.hp(),
+                         'the missed reaction should not damage the crawler')
+        self.assertFalse(brute.has_reaction(battle),
+                         'the opportunity attack must actually have fired')
+        self.assertEqual([16, 11], list(map_.position_of(fighter)),
+                         'the crawler was not knocked down, so it keeps moving')
+
+
+class PassThroughCreatureRunTest(unittest.TestCase):
+    """Nov-23 item 6: passing through occupied squares must handle a RUN of
+    consecutive creatures and diagonal lines, not just a single blocker."""
+
+    def setUp(self):
+        self.session = _session()
+        self.map = Map(self.session, 'large_map')
+        self.battle = Battle(self.session, self.map)
+        self.fighter = PlayerCharacter.load(self.session, 'high_elf_fighter.yml')
+        self.ally_a = PlayerCharacter.load(self.session, 'human_fighter.yml')
+        self.ally_b = PlayerCharacter.load(self.session, 'dwarf_cleric.yml')
+        self.battle.add(self.fighter, 'a', position=[5, 5])
+        self.battle.add(self.ally_a, 'a', position=[6, 5])
+        self.battle.add(self.ally_b, 'a', position=[7, 5])
+        self.battle.start()
+        self.battle.set_current_turn(self.fighter)
+        self.fighter.reset_turn(self.battle)
+
+    def _paths(self):
+        actions = self.fighter.available_actions(self.session, self.battle,
+                                                 auto_target=True, map=self.map)
+        return {tuple(map(tuple, a.move_path)) for a in actions
+                if isinstance(a, MoveAction)}
+
+    def test_two_allies_in_a_row_can_be_crossed(self):
+        self.assertIn(((5, 5), (6, 5), (7, 5), (8, 5)), self._paths())
+
+    def test_single_ally_run_still_offered(self):
+        self.map.move_to(self.ally_b, 20, 15, self.battle)
+        self.assertIn(((5, 5), (6, 5), (7, 5)), self._paths())
+
+    def test_diagonal_pass_through_offered(self):
+        self.map.move_to(self.ally_a, 6, 6, self.battle)
+        self.map.move_to(self.ally_b, 20, 15, self.battle)
+        self.assertIn(((5, 5), (6, 6), (7, 7)), self._paths())
 
 
 if __name__ == '__main__':

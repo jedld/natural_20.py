@@ -1,7 +1,7 @@
 from itertools import combinations, combinations_with_replacement, product
 from natural20.action import Action
 from natural20.actions.spell_action import SpellAction
-from natural20.utils.movement import compute_actual_moves
+from natural20.utils.movement import compute_actual_moves, pass_through_creature_run
 from natural20.map_renderer import MapRenderer
 import pdb
 
@@ -433,23 +433,30 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
                         if len(shortest_path) > 1:
                             # The second element ([]) might be for additional param data
                             selected_movement_options.append([shortest_path, []])
-                    elif (abs(dx) + abs(dy) == 1
-                            and map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
+                    elif (map.bidirectionally_passable(entity, new_x, new_y, (cur_x, cur_y), battle, allow_squeeze=False)
                             and map.passable_through(entity, new_x, new_y, battle)):
-                        # Straight step blocked only by a creature in the
-                        # square (corpse, ally, downed foe): the SRD lets
-                        # you pass through any creature's square, so offer
-                        # the two-square path that ends beyond it instead
-                        # of stranding the mover (issue #6 item 50).
-                        beyond_x, beyond_y = cur_x + 2 * dx, cur_y + 2 * dy
-                        if (not _match or [beyond_x, beyond_y] in _match) and \
-                           map.bidirectionally_passable(entity, beyond_x, beyond_y, (new_x, new_y), battle, allow_squeeze=False) and \
-                           map.placeable(entity, beyond_x, beyond_y, battle, squeeze=False):
-                            through_path = [[cur_x, cur_y], [new_x, new_y], [beyond_x, beyond_y]]
+                        # Step blocked only by a creature (corpse, ally,
+                        # downed foe): the SRD lets you pass through a
+                        # creature's square, so offer the path that crosses
+                        # the whole run of occupied squares and ends beyond
+                        # it — straight or diagonal, one body or several in
+                        # a row (issue #6 item 50, Nov-23 report item 6).
+                        end_square = pass_through_creature_run(
+                            entity, map, battle, cur_x, cur_y, dx, dy,
+                            max(2, entity.available_movement(battle)
+                                // map.feet_per_grid))
+                        if end_square and (not _match or list(end_square) in _match):
+                            through_path = [[cur_x, cur_y]]
+                            walk_x, walk_y = cur_x, cur_y
+                            while (walk_x, walk_y) != tuple(end_square):
+                                walk_x, walk_y = walk_x + dx, walk_y + dy
+                                through_path.append([walk_x, walk_y])
                             movement_result = compute_actual_moves(
                                 entity, through_path, map, battle,
                                 entity.available_movement(battle) // 5)
-                            if len(movement_result.movement) > 1:
+                            if (len(movement_result.movement) > 1
+                                    and movement_result.impediment is None
+                                    and len(movement_result.movement) == len(through_path)):
                                 selected_movement_options.append([movement_result.movement, []])
 
             params_list.append(selected_movement_options)

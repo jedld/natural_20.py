@@ -67,7 +67,7 @@ from natural20.actions.large_form_action import LargeFormAction
 from natural20.utils.giant_ancestry import initialize_racial_traits
 from natural20.utils.action_builder import autobuild
 from natural20.concern.container import Container
-from natural20.utils.movement import compute_actual_moves
+from natural20.utils.movement import compute_actual_moves, pass_through_creature_run
 from natural20.concern.lootable import Lootable
 from natural20.concern.inventory import Inventory
 from natural20.progression import (
@@ -995,20 +995,26 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
                   move_action = MoveAction(session, self, 'move')
                   move_action.move_path = actual_movement.movement
                   action_list.append(move_action)
-              elif (abs(x_pos) + abs(y_pos) == 1):
-                # Straight step blocked only by a creature standing in a
-                # one-square corridor: offer the two-square path that
-                # passes through the occupied square and ends beyond it
-                # (SRD "Move Around Other Creatures", issue #6 item 50).
-                mid_x, mid_y = cur_x + x_pos, cur_y + y_pos
-                beyond_x, beyond_y = cur_x + 2 * x_pos, cur_y + 2 * y_pos
-                if map.bidirectionally_passable(self, mid_x, mid_y, (cur_x, cur_y), battle, allow_squeeze=False) and \
-                   map.passable_through(self, mid_x, mid_y, battle) and \
-                   map.bidirectionally_passable(self, beyond_x, beyond_y, (mid_x, mid_y), battle, allow_squeeze=False) and \
-                   map.placeable(self, beyond_x, beyond_y, battle, squeeze=False):
-                  through_path = [[cur_x, cur_y], [mid_x, mid_y], [beyond_x, beyond_y]]
+              else:
+                # Step blocked only by creatures standing in the way:
+                # offer the path that passes THROUGH the whole run of
+                # occupied squares (allies, downed allies, corpses) and
+                # ends beyond it, in straight and diagonal lines (SRD
+                # "Move Around Other Creatures", issue #6 items 47/50 and
+                # the Nov-23 follow-up about runs of two or more).
+                end_square = pass_through_creature_run(
+                    self, map, battle, cur_x, cur_y, x_pos, y_pos,
+                    max(2, self.available_movement(battle) // map.feet_per_grid))
+                if end_square:
+                  through_path = [[cur_x, cur_y]]
+                  walk_x, walk_y = cur_x, cur_y
+                  while (walk_x, walk_y) != tuple(end_square):
+                    walk_x, walk_y = walk_x + x_pos, walk_y + y_pos
+                    through_path.append([walk_x, walk_y])
                   actual_movement = compute_actual_moves(self, through_path, map, battle, self.available_movement(battle) // 5)
-                  if len(actual_movement.movement) > 1 and actual_movement.impediment is None:
+                  if (len(actual_movement.movement) > 1
+                          and actual_movement.impediment is None
+                          and len(actual_movement.movement) == len(through_path)):
                     move_action = MoveAction(session, self, 'move')
                     move_action.move_path = actual_movement.movement
                     action_list.append(move_action)
