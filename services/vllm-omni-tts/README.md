@@ -98,8 +98,8 @@ VoiceDesign / CustomVoice require a **different** server model — run a separat
 
 ## Troubleshooting
 
-- **`vllm: not found`:** run `./install.sh` (installs matched `vllm==0.24.0` + `vllm-omni==0.24.0`).
-- **`No module named vllm.entrypoints.serve.disagg`:** version mismatch — reinstall with `./install.sh` (do not use vllm 0.25.x with omni 0.24.x).
+- **`vllm: not found`:** run `./install.sh` (installs the matched `vllm` + `vllm-omni` pair pinned in `requirements.txt`).
+- **`No module named vllm.entrypoints.serve.disagg`:** version mismatch — reinstall with `./install.sh` (`vllm` and `vllm-omni` must be the same version; never mix e.g. 0.34.x with 0.33.x).
 - **CUDA OOM:** lower `--gpu-memory-utilization` in `start.sh` or use 0.6B model.
 - **Voices missing after restart:** re-run `register_campaign_voices.py`, use `./start_with_voices.sh`, or rely on webapp `VLLM_OMNI_TTS_REGISTER_ON_START=1` at bootstrap.
 - **Streaming silent:** ensure `response_format=pcm`, `stream=true`, `stream_format=audio`, and server was started with `qwen3_tts.yaml` (`async_chunk: true`).
