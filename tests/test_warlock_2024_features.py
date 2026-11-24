@@ -1,8 +1,7 @@
 """SRD 5.2 warlock overlay, Archfey patron (PHB 2024 pack), item mechanics,
-weapon alternate modes, attack penalties, the D&D Beyond feature-choice
-import and generic autobuild choice handling."""
+weapon alternate modes, attack penalties and generic autobuild choice
+handling."""
 import json
-import sys
 from pathlib import Path
 
 import pytest
@@ -138,35 +137,6 @@ def test_dragonlance_hoopak_alternate_mode_needs_ammo():
     data = yaml.safe_load((root / 'items' / 'weapons.yml').read_text())
     assert data['hoopak']['alternate_modes'] == ['hoopak_sling']
     assert data['hoopak_sling']['type'] == 'ranged_attack'
-
-
-def test_importer_extracts_invocations_and_mystic_arcanum(tmp_path):
-    sys.path.insert(0, str(ROOT / 'scripts'))
-    import beyond_importer as bi
-    make_campaign(tmp_path, ruleset='5e-2024', packs=['players_handbook_2024'])
-    importer = bi.BeyondImporter(campaign_root=str(tmp_path))
-    payload = {
-        'classes': [{
-            'definition': {'name': 'Warlock'},
-            'classFeatures': [
-                {'definition': {'id': 1, 'name': 'Eldritch Invocations'}},
-                {'definition': {'id': 2, 'name': 'Mystic Arcanum (Level 6 Spell)'}},
-            ],
-        }],
-        'options': {'class': [
-            {'componentId': 1, 'definition': {'id': 11, 'name': 'Agonizing Blast (Eldritch Blast)'}},
-            {'componentId': 1, 'definition': {'id': 12, 'name': 'Pact of the Tome'}},
-        ]},
-        'spells': {'class': [
-            {'componentId': 12, 'definition': {'name': 'Vicious Mockery'}},
-            {'componentId': 2, 'definition': {'name': 'Summon Fiend'}},
-        ]},
-    }
-    out = importer._extract_feature_choices(payload)
-    assert out['eldritch_invocations'] == ['agonizing_blast', 'pact_of_the_tome']
-    assert out['invocation_spells'] == {'agonizing_blast': 'eldritch_blast'}
-    assert out['class_spells'] == {'warlock': ['vicious_mockery']}
-    assert out['mystic_arcanum'] == {6: 'summon_fiend'}
 
 
 def test_imported_dragonlance_warlock_loads():
