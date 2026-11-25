@@ -32,6 +32,8 @@ coverage/
 # Campaign runtime data (per-campaign saves, logs, sqlite DBs)
 saves/
 **/campaign_logs.sqlite
+**/npc_memories/
+**/notebook.sqlite
 node_modules/
 .env
 n20-webapp/webapp/.env
