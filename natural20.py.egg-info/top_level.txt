@@ -1,2 +1,0 @@
-natural20
-tests
