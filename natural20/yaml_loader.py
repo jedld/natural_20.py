@@ -482,6 +482,20 @@ def _merge_template_with_ruleset_overlay(
     return merged
 
 
+def _drop_tombstones(merged: Any) -> Any:
+    """Apply campaign-level removal markers to a merged catalogue.
+
+    In a merged item catalogue (``items/objects.yml`` and friends), setting a
+    top-level entry to ``null`` in the campaign (or an imported campaign)
+    file removes the entry contributed by templates, the ruleset overlay,
+    imports, or expansion packs — e.g. ``barrel: null`` deletes the bundled
+    barrel object for that campaign.
+    """
+    if isinstance(merged, dict):
+        return {key: value for key, value in merged.items() if value is not None}
+    return merged
+
+
 def load_campaign_yaml(
     campaign_root: str | Path,
     category: str,
@@ -548,7 +562,7 @@ def load_campaign_yaml(
                         )
                         if isinstance(expansion_data, dict):
                             merged = deep_merge(merged, expansion_data)
-            return deep_merge(merged, campaign_data)
+            return _drop_tombstones(deep_merge(merged, campaign_data))
         return campaign_data
 
     # No local file: for item catalogues, merge template + overlay + imports.

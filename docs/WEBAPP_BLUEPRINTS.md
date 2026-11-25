@@ -366,6 +366,45 @@ or goes straight to `next_turn()` (end of turn), checking `battle_ends()`
 first so a reaction-window knockout can still end the fight. Tests:
 `tests/webapp/test_reaction_resume.py`.
 
+## Hybrid controller (`hybrid` kind): build sites
+
+The `llm` and `hybrid` combat controllers are built in exactly five places,
+all via `webapp.ai_config.build_llm_combat_controller(game_session, handler,
+entity, kind)`: `/battle` (`blueprints/battle.py`), the PvP autofill start and
+`/update_controller` in `app.py`, `/update_controller` in
+`blueprints/dm.py`, MCP `dm.set_controller`, and
+`GameControllerRegistry._build_controller_by_kind` (campaign / per-NPC
+defaults). `hybrid` (`HybridStrategistController`, engine-side) additionally
+resolves a generative **strategist** provider via
+`ai_config.strategist_llm_provider_for` (per-NPC `strategist_provider`
+profile → `combat.strategist_provider` → DM provider; never a JEV provider)
+that writes step-by-step turn plans for the JEV executor; plans are logged
+DM-only (`strategist_plan` event). Controller kind values are validated
+against `ai_config.CONTROLLER_KINDS` (`ai`, `llm`, `hybrid`, `manual`); the
+VTT turn-order select and the AI Settings panel take the list from
+`GET /ai/config` (`controller_kinds`). Restore rebinding (both providers) is
+installed by `ai_config.install_combat_provider_resolver`. Details:
+[JEV_NPC_BATTLE_AI.md](JEV_NPC_BATTLE_AI.md) → "Hybrid LLM strategist + JEV
+executor". Tests: `tests/test_hybrid_strategist_controller.py`.
+
+**Named agent bundles (`agent:<name>`)**: the `/battle` start, both
+`/update_controller` routes and MCP `dm.set_controller` also accept
+`agent:<name>` specs (named bundles from the `.ai.yaml` `agents:` registry:
+controller kind + provider profiles + standing directives) and validate them
+with `ai_config.is_controller_spec`. `/start` sites and
+`GameControllerRegistry._build_controller_by_kind` route every spec through
+`ai_config.build_combat_controller_for_spec`, which dispatches manual/ai/llm/
+hybrid and `build_combat_controller_from_agent`; `stamp_agent_identity_for_entity`
+attaches the bundle (`agent_name`/`agent_persona` + profile names) so plain
+kinds configured with `combat.agent` still carry their directives. The
+Command Console "Default NPC controller" select (`/update_npc_default_controller`)
+lists agents too (`ai_agent_options()` template global feeds all three
+selects: `battle.html`, `add.html`, `index.html`). Unknown agent specs are a
+400 from the routes and a `tool_error` from MCP; a bundle whose own
+`controller:` is `manual` builds a DM `WebController`. Details:
+[AI_CONFIG.md](AI_CONFIG.md) → "Named agent bundles". Tests:
+`tests/webapp/test_ai_config.py` (agents section).
+
 ## Battle pacing: DM ends AI turns
 
 Optional pause so the DM can narrate before combat moves on. When enabled, an
@@ -579,6 +618,90 @@ while auto-follow is active.
   auth/permission/toggle paths) and the `sidekick_follow_state` /
   `build_portrait_render_context` cases in
   `n20-webapp/tests/webapp/test_pov_utils.py`.
+
+## Render cache epoch invariant (refresh_map pushes)
+
+`/update` (blueprints/navigation.py) caches the fully rendered map HTML per
+user keyed on the GameManagement **render epoch**
+(`bump_render_epoch()` / `render_epoch_for_user()` in `webapp/utils.py`,
+cache `_UPDATE_RESPONSE_CACHE`). Any server push of
+`{'type': 'refresh_map'}` must advance the epoch **first**, or clients keep
+polling a stale snapshot — the reported symptom was "dropping a second NPC
+makes the first one vanish".
+
+Enforced in two layers:
+
+- Explicit `get_current_game().bump_render_epoch()` immediately before every
+  `refresh_map` emit in `blueprints/dm.py` / `app.py` legacy routes, and in
+  `MCPContext.emit_refresh()` (`mcp/context.py`).
+- A global safety net in `app.py`: `_install_refresh_map_epoch_guard()` wraps
+  `socketio.emit` and bumps the epoch for any `refresh_map` message emitted
+  anywhere else in the codebase.
+
+Test doubles that stand in for GameManagement must therefore provide
+`bump_render_epoch` (see `FakeGame` in
+`tests/webapp/test_entity_delete_undo.py`). Regression coverage:
+`tests/webapp/test_pc_placement_drag.py`.
+
+## PC tray drag-and-drop placement (runtime mode)
+
+The party tray (`/available_pcs`, DM spawner panel PCs tab) lists every
+campaign character sheet, but only *placed* PCs are registered entities.
+Dragging one onto the VTT posts `/move_entity`; when the uid has no token on
+any map the route now **spawns** it from the sheet
+(`ensure_character_entity_loaded` / `find_character_sheet` +
+`PlayerCharacter.load` + `place_entity_instance`, group `'a'`) instead of
+404-ing; unknown uids return 400 with a hint. A second drag of the same uid
+is a plain move. Covered by `tests/webapp/test_pc_placement_drag.py`.
+
+## Campaign spawner library (add / delete / unique / duplicate)
+
+The combined Spawner panel (NPCs | PCs | Objects tabs) edits the **campaign
+YAML**, not just the runtime map:
+
+- **PCs tab** — "+ New" opens `/character_builder` in a new browser tab.
+- **Objects tab** — "+ New" creates an entry in
+  `<campaign>/items/objects.yml`; per-object ✕ (only when
+  `campaign_defined`) deletes the campaign entry, or writes a
+  `key: null` **tombstone** for bundled template objects. Tombstones are
+  stripped by `natural20/yaml_loader._drop_tombstones` for merged item
+  catalogues (`TEMPLATE_MERGE_RESOURCES`).
+- **NPCs tab** — "+ New" creates `<campaign>/npcs/<slug>.yml` (optionally
+  based on an existing type; the copy is flattened through the effective
+  inherit-resolved sheet). Per-row buttons: **★ unique** toggles the type's
+  authored `entity_uid` (see below), **⧉ duplicate** spawns a second
+  independent copy of a unique NPC at an auto-chosen free square, **✕
+  delete** (only when `campaign_owned`) removes the campaign sheet — bundled
+  (templates / imports / expansion) types and types with placed tokens are
+  refused; deleting a campaign override re-reveals the bundled base.
+
+Backend: `POST /dm/library` (`blueprints/dm.py`) with
+`op=create_npc|delete_npc|set_unique_npc|create_object|delete_object`,
+implemented in `blueprints/helpers/campaign_library.py` and mirrored by the
+MCP tool `dm.library` (same ops) plus `duplicate` on `dm.spawn_npc`.
+`/available_npcs` carries `campaign_owned` + `unique`/`entity_uid`/`on_map`;
+`/available_objects` carries `campaign_defined` — these flags drive which
+buttons the UI shows. Every mutation calls
+`campaign_library.invalidate_spawner_caches()` (drops
+`app._available_npcs_cache` / `app._available_objects_cache` and reloads the
+session object catalogue).
+
+Unique semantics come from the engine
+(`natural20/npc.py::authored_unique_entity_uid`): an NPC sheet with a
+non-UUID authored `entity_uid` is one-instance-per-map-set —
+`natural20/map_set.py::spawn_or_move_npc` moves the existing token instead
+of adding another. `set_unique_npc` rewrites the *campaign* copy of the
+effective sheet (adding/removing `entity_uid` + `unique: true`), so bundled
+sheets are never edited.
+
+Duplicate semantics: `spawn_or_move_npc(..., duplicate=True)` always creates
+a fresh instance; if the type carries an authored uid,
+`map_set._anonymize_npc_instance` re-keys the copy to a spawn UUID
+(`_first_placeable_spot` picks the square when x/y are omitted).
+
+Tests: `n20-webapp/tests/webapp/test_campaign_spawner_library.py` (routes +
+flags + tombstone + duplicate) and `tests/test_campaign_library_engine.py`
+(engine duplicate + tombstone loader).
 
 ## Related docs
 

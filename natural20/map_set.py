@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Optional
 
@@ -283,15 +284,63 @@ def _map_size_xy(battle_map):
     return width, height
 
 
-def spawn_or_move_npc(session, npc_type, target_map, x, y, group='b', rand_life=True,
-                      overrides=None):
+def _anonymize_npc_instance(npc):
+    """Re-key an NPC instance to a fresh spawn UUID.
+
+    Used when duplicating a unique (authored-uid) creature: the copy must not
+    collide with the original's stable ``entity_uid``.
+    """
+    from natural20.npc import is_spawn_uuid
+    if not is_spawn_uuid(str(getattr(npc, 'entity_uid', '') or '')):
+        new_uid = str(uuid.uuid4())
+        npc.properties['entity_uid'] = new_uid
+        npc.properties['unique'] = False
+        npc.entity_uid = new_uid
+    return npc
+
+
+def _first_placeable_spot(target_map, npc):
+    """First free, placeable square (scan order: row by row)."""
+    width, height = _map_size_xy(target_map)
+    for y in range(height):
+        for x in range(width):
+            try:
+                if target_map.entity_at(x, y) is not None:
+                    continue
+            except Exception:
+                continue
+            try:
+                if target_map.placeable(npc, x, y):
+                    return x, y
+            except Exception:
+                continue
+    return None
+
+
+def spawn_or_move_npc(session, npc_type, target_map, x=None, y=None, group='b',
+                      rand_life=True, overrides=None, duplicate=False):
     """Create a generic NPC, or move/instance a unique NPC on the target map set.
 
     Unique NPCs already present on the destination map set are moved with
     :func:`place_entity_instance` instead of creating a second token.
     Unique NPCs that exist only on another set are instanced onto this set
     without removing the other-set token.
+
+    With ``duplicate=True`` a brand-new independent instance is always
+    created (even for unique NPCs): it gets a fresh spawn UUID so several
+    copies of a named creature can fight side by side. When ``x``/``y`` are
+    omitted the first free placeable square is chosen.
     """
+    if duplicate and (x is None or y is None):
+        opt = {'rand_life': bool(rand_life)}
+        if overrides:
+            opt['overrides'] = dict(overrides)
+        npc = _anonymize_npc_instance(session.npc(npc_type, opt))
+        spot = _first_placeable_spot(target_map, npc)
+        if spot is None:
+            raise ValueError('No free square available to duplicate this NPC')
+        x, y = spot
+
     x, y = int(x), int(y)
     width, height = _map_size_xy(target_map)
     if x < 0 or y < 0 or x >= width or y >= height:
@@ -303,7 +352,7 @@ def spawn_or_move_npc(session, npc_type, target_map, x, y, group='b', rand_life=
     except Exception:
         occupant = None
 
-    uid = unique_npc_uid_for_type(session, npc_type, overrides)
+    uid = None if duplicate else unique_npc_uid_for_type(session, npc_type, overrides)
     existing = session.entity_by_uid(uid) if uid else None
     set_id = session.map_set_for(getattr(target_map, 'name', None))
     current = session.map_for_entity(existing, map_set=set_id) if existing else None
@@ -332,6 +381,8 @@ def spawn_or_move_npc(session, npc_type, target_map, x, y, group='b', rand_life=
     if overrides:
         opt['overrides'] = dict(overrides)
     npc = session.npc(npc_type, opt)
+    if duplicate:
+        _anonymize_npc_instance(npc)
     target_map.add(npc, x, y, group=group)
     return {
         'entity_uid': npc.entity_uid,
@@ -339,6 +390,7 @@ def spawn_or_move_npc(session, npc_type, target_map, x, y, group='b', rand_life=
         'map': getattr(target_map, 'name', None),
         'position': [x, y],
         'unique': bool(uid),
+        'duplicate': bool(duplicate),
         'moved': False,
         'from_map': None,
     }
