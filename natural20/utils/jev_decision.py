@@ -49,6 +49,7 @@ decision failure can never crash the battle loop.
 import logging
 import math
 import os
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -408,6 +409,536 @@ def _conversation_lines(entity) -> List[str]:
 
 
 _TRIM_ORDER = ('earlier in this fight:', 'earlier conversation:', 'heard in this fight:', 'since last turn:')
+
+
+_JEV_SHEET_ABILITIES = ('str', 'dex', 'con', 'int', 'wis', 'cha')
+MAX_JEV_SHEET_FEATURES = 14
+MAX_JEV_SHEET_ATTACKS = 8
+MAX_JEV_SHEET_BIO = 240
+
+
+def _sheet_enabled() -> bool:
+    """Opt-out switch for the character-sheet block (``N20_JEV_SHEET=0``)."""
+    return str(os.environ.get('N20_JEV_SHEET', '1')).strip().lower() \
+        not in ('0', 'no', 'false', 'off')
+
+
+def _one_line(value, limit: int) -> Optional[str]:
+    """Collapse ``value`` to one trimmed line, or ``None`` when empty."""
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split()).strip()
+    if not text:
+        return None
+    return text[:limit] + ('...' if len(text) > limit else '')
+
+
+def _sheet_identity_line(entity) -> Optional[str]:
+    """Who this entity is: PC classes/levels, or the NPC type/kind/CR/size."""
+    props = getattr(entity, 'properties', None) or {}
+    try:
+        level = entity.level() if hasattr(entity, 'level') else None
+    except Exception:
+        level = None
+    try:
+        if entity.is_npc():
+            bits = []
+            if props.get('size'):
+                bits.append(str(props['size']))
+            race = props.get('race')
+            if isinstance(race, (list, tuple)) and race:
+                bits.append('/'.join(str(r) for r in race[:3]))
+            elif isinstance(race, str) and race:
+                bits.append(race)
+            npc_type = props.get('npc_type') or getattr(entity, 'npc_type', None)
+            if npc_type:
+                bits.append(str(npc_type))
+            kind = props.get('kind')
+            if level is not None:
+                bits.append(f"CR {level}")
+            if kind and str(kind) != str(npc_type):
+                bits.append(f"kind {kind}")
+            return ("identity: " + ", ".join(bits)) if bits else None
+        classes = getattr(entity, 'c_class', lambda: None)()
+        if isinstance(classes, dict) and classes:
+            desc = ", ".join(f"{k} {v}" for k, v in classes.items())
+        elif isinstance(classes, str) and classes:
+            desc = classes
+        else:
+            desc = ''
+        prefix = f"level {level}" if level is not None else ""
+        line = "identity: " + " ".join(x for x in (prefix, desc) if x)
+        race = props.get('race')
+        if isinstance(race, (list, tuple)) and race:
+            line += f"; race {'/'.join(str(r) for r in race[:3])}"
+        elif isinstance(race, str) and race:
+            line += f"; race {race}"
+        return line if len(line) > len("identity: ") else None
+    except Exception:
+        return None
+
+
+def _sheet_saves_line(entity) -> Optional[str]:
+    """Proficient saving throws as ``abil +N`` (non-proficient ones equal the
+    ability modifiers already rendered)."""
+    try:
+        props = getattr(entity, 'properties', None) or {}
+        profs = set(props.get('saving_throw_proficiencies') or [])
+        if not profs:
+            return None
+        prof_bonus = entity.proficiency_bonus()
+        parts = []
+        for ab in _JEV_SHEET_ABILITIES:
+            if f"{ab}_save" in profs:
+                mod = getattr(entity, f"{ab}_mod", lambda: 0)() or 0
+                parts.append(f"{ab} {mod + prof_bonus:+d}")
+        return ("saves: " + ", ".join(parts)) if parts else None
+    except Exception:
+        return None
+
+
+def _sheet_senses_line(entity) -> Optional[str]:
+    """Passive perception, darkvision, languages and condition immunities."""
+    props = getattr(entity, 'properties', None) or {}
+    bits = []
+    try:
+        pp = entity.passive_perception
+        if isinstance(pp, int):
+            bits.append(f"passive perception {pp}")
+    except Exception:
+        pass
+    try:
+        dv = props.get('darkvision')
+        if isinstance(dv, (int, float)) and dv > 0:
+            bits.append(f"darkvision {int(dv)} ft")
+    except Exception:
+        pass
+    langs = props.get('languages')
+    if isinstance(langs, (list, tuple)) and langs:
+        bits.append("languages " + "/".join(str(l) for l in langs[:6]))
+    imm = [str(c) for c in (getattr(entity, 'condition_immunities', None) or []) if c]
+    if imm:
+        bits.append("immune to conditions " + "/".join(imm[:6]))
+    return ("senses/immunities: " + "; ".join(bits)) if bits else None
+
+
+def _sheet_features_line(entity) -> Optional[str]:
+    """Names of class and race features so passive traits are at least known."""
+    parts: List[str] = []
+    props = getattr(entity, 'properties', None) or {}
+    try:
+        parts.extend(str(f) for f in (props.get('class_features') or []))
+    except Exception:
+        pass
+    try:
+        race_props = getattr(entity, 'race_properties', None) or {}
+        parts.extend(str(f) for f in (race_props.get('race_features') or []))
+    except Exception:
+        pass
+    seen, out = set(), []
+    for f in parts:
+        key = f.lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(f)
+    if not out:
+        return None
+    more = f" (+{len(out) - MAX_JEV_SHEET_FEATURES} more)" if len(out) > MAX_JEV_SHEET_FEATURES else ""
+    return "features: " + ", ".join(out[:MAX_JEV_SHEET_FEATURES]) + more
+
+
+def _npc_trait_bits(entity) -> List[str]:
+    """Static monster trait flags worth stating explicitly."""
+    props = getattr(entity, 'properties', None) or {}
+    bits = []
+    if props.get('magic_resistance'):
+        bits.append("magic resistance (advantage on magical saves)")
+    uf = props.get('undead_fortitude')
+    if uf:
+        bits.append("undead fortitude (holds at 0 hp unless radiant/critical)")
+    if props.get('misty_escape'):
+        bits.append("misty escape (when reduced to 0 hp)")
+    if props.get('cannot_speak'):
+        bits.append("cannot speak")
+    actions = props.get('actions') or []
+    groups = {a.get('multiattack_group') for a in actions
+              if isinstance(a, dict) and a.get('multiattack_group')}
+    if groups:
+        bits.append("has a multiattack combo")
+    if props.get('legendary_actions'):
+        bits.append("has legendary actions (out of others' turns)")
+    return bits
+
+
+def _sheet_resource_pools_line(entity) -> Optional[str]:
+    try:
+        pools = getattr(entity, 'resources', None) or {}
+        parts = []
+        for name, pool in list(pools.items())[:10]:
+            cur = getattr(pool, 'current', None)
+            mx = getattr(pool, 'max_value', None)
+            if cur is None or mx is None:
+                continue
+            parts.append(f"{name} {cur}/{mx}")
+        return ("pools: " + ", ".join(parts)) if parts else None
+    except Exception:
+        return None
+
+
+def _sheet_attacks_lines(entity) -> List[str]:
+    """The NPC's attack options with to-hit and damage dice, so campaign and
+    custom monsters are not opaque (SRD-named weapons the model already knows
+    are just repeated here at little cost)."""
+    actions = getattr(entity, 'npc_actions', None) or []
+    lines: List[str] = []
+    for a in actions[:MAX_JEV_SHEET_ATTACKS]:
+        if not isinstance(a, dict):
+            continue
+        name = a.get('name') or a.get('label') or 'attack'
+        bits: List[str] = []
+        if a.get('type') == 'area_save':
+            shape = a.get('shape') or 'area'
+            reach = a.get('range')
+            if a.get('width'):
+                reach = f"{reach} wide {a['width']}" if reach else f"wide {a['width']}"
+            dice = a.get('damage_die') or a.get('damage')
+            dtype = a.get('damage_type') or ''
+            area = f" ({shape} {reach} ft)".rstrip() if reach else f" ({shape})"
+            bits.append(f"area{area} ability")
+            bits.append(f"{a.get('save', 'save')} save DC {a.get('dc', '?')}")
+            if dice:
+                bits.append(f"{dice} {dtype}".strip())
+            if a.get('recharge'):
+                bits.append(f"recharge {a['recharge']}")
+        else:
+            if a.get('attack') is not None:
+                bits.append(f"{int(a['attack']):+d} to hit")
+            die = a.get('damage_die')
+            flat = a.get('damage')
+            dtype = a.get('damage_type') or ''
+            # ``damage_die`` is the roll; ``damage`` is the engine's flat
+            # fallback for dice-less strikes, not an extra rider.
+            if die:
+                bits.append(f"{die} {dtype}".strip())
+            elif flat:
+                bits.append(f"{flat} {dtype}".strip())
+            if a.get('range'):
+                band = a.get('long_range')
+                bits.append(f"range {a['range']}" + (f"/{band}" if band else ""))
+            if a.get('no_damage'):
+                bits.append("no damage (special effect)")
+        for rider in a.get('additional_damage') or []:
+            if isinstance(rider, dict) and rider.get('damage_die'):
+                note = f"+{rider['damage_die']} {rider.get('damage_type', '')}".strip()
+                if rider.get('life_drain'):
+                    note += " (life drain)"
+                bits.append(note)
+        grapple = a.get('grapple_instead')
+        if isinstance(grapple, dict) and grapple.get('escape_dc'):
+            bits.append(f"can grapple instead (DC {grapple['escape_dc']})")
+        for rider in (a.get('on_hit') or [])[:2]:
+            if isinstance(rider, dict):
+                desc = _one_line(rider.get('description'), 90)
+                if desc:
+                    bits.append(f"on hit: {desc}")
+        if bits:
+            lines.append(f"- {name}: " + ", ".join(bits))
+    if not lines:
+        return []
+    trait_bits = _npc_trait_bits(entity)
+    header = "my attack options:"
+    out = [header] + lines
+    if trait_bits:
+        out.append("monster traits: " + "; ".join(trait_bits))
+    return out
+
+
+def _sheet_bio_line(entity) -> Optional[str]:
+    """One trimmed personality/backstory line (drives callout tone; also lets
+    the model shy away from role-breaking choices)."""
+    props = getattr(entity, 'properties', None) or {}
+    for key in ('personality_traits', 'personality', 'ideals', 'backstory', 'description'):
+        text = _one_line(props.get(key), MAX_JEV_SHEET_BIO)
+        if text:
+            return f"personality/backstory: {text}"
+    try:
+        text = _one_line(entity.backstory() if hasattr(entity, 'backstory') else None,
+                         MAX_JEV_SHEET_BIO)
+        if text:
+            return f"personality/backstory: {text}"
+    except Exception:
+        pass
+    return None
+
+
+def _actor_sheet_lines(battle, entity) -> List[str]:
+    """The actor's compact character-sheet block: identity (race/class/level or
+    NPC kind/CR), proficient saves, senses and immunities, class/race feature
+    names, limited pools, its attack options with to-hit and damage, and a
+    personality/backstory line. Complements the option list, which shows what
+    is executable this turn but not the underlying numbers or passive traits."""
+    if not _sheet_enabled():
+        return []
+    lines: List[str] = []
+    for fn in (_sheet_identity_line, _sheet_saves_line, _sheet_senses_line,
+               _sheet_features_line, _sheet_resource_pools_line,
+               _sheet_bio_line):
+        try:
+            line = fn(entity)
+        except Exception:
+            line = None
+        if line:
+            lines.append(line)
+    try:
+        lines.extend(_sheet_attacks_lines(entity))
+    except Exception:
+        pass
+    return lines
+
+
+# Hybrid LLM-strategist + JEV executor: the generative strategist writes
+# step-by-step orders at the start of the creature's turn; the controller
+# stores them in battle entity state under this key so every planner call
+# (action, move, callout, and reactions during other creatures' turns)
+# picks them up from the state render.
+STRATEGIST_ORDERS_KEY = 'strategist_orders'
+MAX_JEV_ORDERS_LINES = 16
+MAX_JEV_ORDERS_CHARS = 1400
+
+# Movement intents the hybrid strategist may emit (``MOVE: <tag>``) and that
+# the JEV move planner hard-filters against. Soft prose in the orders is also
+# parsed into these same tags when no explicit line is present.
+MOVE_INTENT_HOLD = 'hold'
+MOVE_INTENT_RETREAT = 'retreat'
+MOVE_INTENT_RANGE = 'range'
+MOVE_INTENT_ENGAGE = 'engage'
+MOVE_INTENT_HIDE = 'hide'
+MOVE_INTENT_TAGS = (
+    MOVE_INTENT_HOLD, MOVE_INTENT_RETREAT, MOVE_INTENT_RANGE,
+    MOVE_INTENT_ENGAGE, MOVE_INTENT_HIDE,
+)
+
+
+def get_strategist_orders(battle, entity) -> Optional[str]:
+    """The stored commander's orders for ``entity`` this turn, if any."""
+    try:
+        orders = (battle.entity_state_for(entity) or {}).get(STRATEGIST_ORDERS_KEY)
+    except Exception:
+        return None
+    return orders if isinstance(orders, str) and orders.strip() else None
+
+
+def set_strategist_orders(battle, entity, orders: Optional[str]) -> None:
+    """Store (or clear with ``None``) the commander's orders in battle state."""
+    state = battle.entity_state_for(entity)
+    if orders:
+        state[STRATEGIST_ORDERS_KEY] = str(orders)
+    else:
+        state.pop(STRATEGIST_ORDERS_KEY, None)
+
+
+def parse_strategist_move_intent(orders: Optional[str]) -> Optional[str]:
+    """Map commander's orders text to a movement intent tag, or ``None``.
+
+    Prefers an explicit ``MOVE: hold|retreat|range|engage|hide|none`` line
+    (case-insensitive). Falls back to keyword heuristics over the free-text
+    plan so older plans without the tag still steer the move menu.
+    """
+    if not orders or not isinstance(orders, str):
+        return None
+    text = orders.strip()
+    if not text:
+        return None
+    lower = text.lower()
+
+    tagged = None
+    for raw in lower.splitlines():
+        line = raw.strip()
+        m = re.match(r'^move\s*:\s*(hold|retreat|range|engage|hide|none)\b', line)
+        if m:
+            tagged = m.group(1)
+    if tagged == 'none':
+        return None
+    if tagged in MOVE_INTENT_TAGS:
+        return tagged
+
+    # Hold / do not move (check before "move away" style retreat phrases).
+    if re.search(
+        r"\b(do not move|don't move|hold position|stay put|remain (here|in place)|"
+        r"no movement|move 0(?:\s*(?:ft|feet))?|stand (?:your )?ground)\b",
+        lower,
+    ):
+        return MOVE_INTENT_HOLD
+
+    # Stay at range / kite — before engage, so "don't close" wins over "close".
+    if re.search(
+        r'\b(stay at range|keep(?:ing)? (?:your )?distance|maintain distance|'
+        r'kite|do not close|don\'t close|stay back|ranged safety|'
+        r'avoid(?:ing)? melee|do not engage|don\'t engage)\b',
+        lower,
+    ):
+        return MOVE_INTENT_RANGE
+
+    if re.search(
+        r'\b(retreat|flee|step (?:back|away)|move away|back away|get clear|'
+        r'out of (?:melee )?reach|disengage|fall back|'
+        r'move\s+\d+\s*(?:ft|feet)\s+away)\b',
+        lower,
+    ):
+        return MOVE_INTENT_RETREAT
+
+    if re.search(
+        r'\b(hide(?:\s|$)|break (?:line of )?sight|get out of sight|'
+        r'find cover and hide)\b',
+        lower,
+    ):
+        return MOVE_INTENT_HIDE
+
+    if re.search(
+        r'\b(engage|close(?:ing)? (?:the )?(?:gap|distance)|charge|'
+        r'move (?:in|closer)|close into melee|get adjacent|close to melee)\b',
+        lower,
+    ):
+        return MOVE_INTENT_ENGAGE
+
+    return None
+
+
+def _move_leaf_kind(desc: str) -> str:
+    """Classify a JEV move-leaf description into an intent bucket."""
+    d = (desc or '').lower()
+    if d.startswith('pass'):
+        return 'pass'
+    if 'retreat' in d:
+        return 'retreat'
+    if d.startswith('move: hide') or 'hide at' in d:
+        return 'hide'
+    if d.startswith('move: engage') or 'advance toward' in d:
+        return 'engage'
+    if d.startswith('move: offensive'):
+        return 'offensive'
+    if d.startswith('move: defensive'):
+        return 'defensive'
+    if d.startswith('move:'):
+        return 'other_move'
+    return 'other'
+
+
+def apply_strategist_move_bias(
+    leaves: List[Tuple[str, Any, str]],
+    orders: Optional[str],
+) -> List[Tuple[str, Any, str]]:
+    """Hard-filter / annotate move leaves to match the commander's MOVE intent.
+
+    * ``hold`` — drop every ``move`` leaf (pass remains via ``_with_pass``).
+    * ``retreat`` / ``range`` — drop engage / offensive / approach leaves.
+    * ``engage`` — drop retreat leaves.
+    * ``hide`` — drop engage / offensive / approach leaves; prefer hide.
+
+    Matching leaves are tagged ``[commander ordered]`` so the decision model
+    still sees the preference even when several intents remain. If filtering
+    would remove every move leaf while the intent was not ``hold``, defensive
+    (then any) moves are restored so the creature is not frozen in place.
+    """
+    intent = parse_strategist_move_intent(orders)
+    if not intent or not leaves:
+        return leaves
+
+    if intent == MOVE_INTENT_HOLD:
+        return [(t, a, d) for t, a, d in leaves if t != 'move']
+
+    drop_kinds = {
+        MOVE_INTENT_RETREAT: {'engage', 'offensive'},
+        MOVE_INTENT_RANGE: {'engage', 'offensive'},
+        MOVE_INTENT_ENGAGE: {'retreat'},
+        MOVE_INTENT_HIDE: {'engage', 'offensive'},
+    }.get(intent, set())
+    prefer_kinds = {
+        MOVE_INTENT_RETREAT: {'retreat', 'defensive'},
+        MOVE_INTENT_RANGE: {'retreat', 'defensive'},
+        MOVE_INTENT_ENGAGE: {'engage', 'offensive'},
+        MOVE_INTENT_HIDE: {'hide', 'defensive'},
+    }.get(intent, set())
+
+    had_moves = any(t == 'move' for t, _, _ in leaves)
+    filtered: List[Tuple[str, Any, str]] = []
+    for t, a, d in leaves:
+        if t != 'move':
+            filtered.append((t, a, d))
+            continue
+        kind = _move_leaf_kind(d)
+        if kind in drop_kinds:
+            continue
+        if kind in prefer_kinds and '[commander ordered]' not in d:
+            d = f"{d} [commander ordered]"
+        filtered.append((t, a, d))
+
+    if had_moves and not any(t == 'move' for t, _, _ in filtered):
+        # Intent could not be satisfied with available leaves — keep safer
+        # fallbacks rather than stranding the creature with no move option.
+        fallback_order = ('defensive', 'retreat', 'hide', 'other_move', 'engage', 'offensive')
+        restored = []
+        for want in fallback_order:
+            for t, a, d in leaves:
+                if t == 'move' and _move_leaf_kind(d) == want:
+                    restored.append((t, a, d))
+            if restored:
+                break
+        if restored:
+            filtered.extend(restored)
+        else:
+            return leaves
+    return filtered
+
+
+def _strategist_orders_lines(battle, entity) -> List[str]:
+    """The 'commander's orders' block rendered into every JEV question state.
+
+    The orders come from the hybrid controller's generative strategist and
+    stay in effect for the whole turn, including reactions taken during
+    other creatures' turns.
+    """
+    orders = get_strategist_orders(battle, entity)
+    if not orders:
+        return []
+    text = orders.strip()
+    if len(text) > MAX_JEV_ORDERS_CHARS:
+        text = text[:MAX_JEV_ORDERS_CHARS] + '...'
+    intent = parse_strategist_move_intent(text)
+    out = ["commander's orders (follow these as far as the legal options allow):"]
+    if intent:
+        out.append(f"(movement intent: {intent})")
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line:
+            out.append(line)
+        if len(out) - 1 >= MAX_JEV_ORDERS_LINES:
+            break
+    return out
+
+
+def _agent_directive_lines(battle, entity) -> List[str]:
+    """Standing orders from a named agent bundle (``.ai.yaml`` ``agents:``).
+
+    The controller carries ``agent_persona`` (the bundle's ``directives``);
+    it frames every JEV question this creature answers, plain and stable
+    across the whole encounter."""
+    try:
+        controller = battle.controller_for(entity)
+    except Exception:
+        controller = None
+    persona = str(getattr(controller, 'agent_persona', None) or '').strip()
+    if not persona:
+        return []
+    name = getattr(controller, 'agent_name', None) or 'agent'
+    out = [f"standing orders ({name} agent profile):"]
+    for raw in persona.splitlines():
+        line = raw.strip()
+        if line:
+            out.append(line)
+        if len(out) - 1 >= MAX_JEV_ORDERS_LINES:
+            break
+    return out
 
 
 def _fit_state(lines: List[str]) -> str:
@@ -1038,6 +1569,31 @@ class JevActionPlanner:
             except Exception:
                 pass
 
+            # Character-sheet block: identity, saves, senses/immunities,
+            # features, pools, attack options and a short bio line.
+            try:
+                lines.extend(_actor_sheet_lines(battle, entity))
+            except Exception:
+                pass
+
+            # Named agent bundle standing orders (the ``agents:`` registry's
+            # ``directives``): stable persona/tactics carried by the
+            # controller into every question this creature answers.
+            try:
+                lines.extend(_agent_directive_lines(battle, entity))
+            except Exception:
+                pass
+
+            # Commander's orders (hybrid LLM strategist + JEV executor):
+            # step-by-step instructions written by the generative strategist
+            # at the start of the creature's turn. Read from battle entity
+            # state so every planner call this turn (action, move, callout
+            # and reactions on other turns) sees the same plan.
+            try:
+                lines.extend(_strategist_orders_lines(battle, entity))
+            except Exception:
+                pass
+
             lines.extend(_self_context_lines(battle, entity))
 
             map_lines = self._render_pov_map(battle, entity, m)
@@ -1317,7 +1873,7 @@ class JevActionPlanner:
                     continue
                 self._enrich(self._battle, self._entity, a)  # pre-target defaults
                 add(a)
-            return self._with_pass(self._cap_leaves(self._skirmish_filter(leaves)))
+            return self._finalize_leaves(leaves)
 
         # Full auto-build path (move_for / direct planning): movement gets the
         # rich pathfinding treatment alongside the other action classes.
@@ -1363,7 +1919,15 @@ class JevActionPlanner:
         from natural20.actions.summon_creatures_action import SummonCreaturesAction
         for a in SummonCreaturesAction.options_for(session, self._entity, self._battle):
             add(a)
-        return self._with_pass(self._cap_leaves(self._skirmish_filter(leaves)))
+        return self._finalize_leaves(leaves)
+
+    def _finalize_leaves(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
+        """Skirmish filter → cap → strategist move bias → always-available pass."""
+        biased = apply_strategist_move_bias(
+            self._cap_leaves(self._skirmish_filter(leaves)),
+            get_strategist_orders(self._battle, self._entity),
+        )
+        return self._with_pass(biased)
 
     def _skirmish_filter(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
         """Shoot-and-hide tactics for creatures with a bonus-action Hide
@@ -1421,10 +1985,14 @@ class JevActionPlanner:
 
         Ending the turn is a legal choice on every turn, so the pass leaf is
         appended *after* capping and can never be squeezed out of the list.
+        Strategist ``MOVE: hold`` also forces pass to remain even after a Dash
+        with unspent movement (otherwise the hold order could not be obeyed).
         """
         if any(t == 'end_turn' for t, _, _ in leaves):
             return leaves
-        if self._dash_unspent() and any(t == 'move' for t, _, _ in leaves):
+        hold = parse_strategist_move_intent(
+            get_strategist_orders(self._battle, self._entity)) == MOVE_INTENT_HOLD
+        if self._dash_unspent() and any(t == 'move' for t, _, _ in leaves) and not hold:
             # The Dash bought movement for a destination: passing now wastes it.
             return leaves
         from natural20.actions.end_turn_action import EndTurnAction
@@ -1432,7 +2000,10 @@ class JevActionPlanner:
             action = EndTurnAction(self._session, self._entity, 'end_turn')
         except Exception:
             return leaves
-        return leaves + [('end_turn', action, 'pass (end turn)')]
+        label = 'pass (end turn)'
+        if hold:
+            label = 'pass (end turn) [commander ordered: hold]'
+        return leaves + [('end_turn', action, label)]
 
     def _dash_unspent(self) -> bool:
         """The creature Dashed this turn and still has the extra movement."""

@@ -1,0 +1,11 @@
+# Optional dependencies for the locally trained System One-style model (s1_local/).
+# The core engine and webapp do NOT require any of these; they are only needed
+# to train, serve, or evaluate the local model.
+#
+#   pip install -r requirements-s1-local.txt
+torch>=2.1
+# Wire server (TypeSafe System One compatible)
+fastapi>=0.110
+uvicorn>=0.27
+# Used by the engine to call the server; also needed for the wire-compat tests
+typesafe-sdk

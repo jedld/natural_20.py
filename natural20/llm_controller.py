@@ -385,6 +385,20 @@ class LlmMcpController(GenericController):
 	# controllers restored from a save, which can't persist live providers.
 	provider_resolver = None
 
+	# Optional ``callable(profile_name) -> provider`` for named agent bundles:
+	# saves persist the *profile name* (``agent_profile``), and the host app
+	# rebuilds the live provider from it on first use after a load.
+	profile_resolver = None
+
+	# Named agent bundle identity (see the webapp's ``agents:`` registry).
+	# Persisted through to_dict/from_dict; ``agent_persona`` (the bundle's
+	# standing directives) is injected into decision prompts and the JEV
+	# state context.
+	agent_name = None
+	agent_persona = None
+	agent_profile = None
+	agent_strategist_profile = None
+
 	def __init__(self, session, valid_move_types=None, llm_client=None, model: Optional[str] = None, use_tools: bool = True, llm_provider=None, defer_provider: bool = False):
 		super().__init__(session, valid_move_types)
 		self.client = llm_client  # expected to be OpenAI-like client; optional
@@ -404,8 +418,23 @@ class LlmMcpController(GenericController):
 	@property
 	def llm_provider(self):
 		if self._provider_pending:
-			self._provider_pending = False
-			self._llm_provider = self._default_provider()
+			# A restored controller: prefer the host resolver so reads without
+			# an entity (is_available probes, planner gates) still bind the
+			# right provider instead of prematurely falling to env defaults.
+			resolver = type(self).provider_resolver
+			if callable(resolver):
+				try:
+					provider = resolver(getattr(self, '_last_entity', None))
+				except Exception:
+					provider = None
+				if provider is not None:
+					self._llm_provider = provider
+					self._provider_pending = False
+				else:
+					return None  # stay pending; _ensure_provider(entity) rebinds
+			else:
+				self._provider_pending = False
+				self._llm_provider = self._default_provider()
 		return self._llm_provider
 
 	@llm_provider.setter
@@ -414,9 +443,21 @@ class LlmMcpController(GenericController):
 		self._provider_pending = False
 
 	def _ensure_provider(self, entity) -> None:
-		"""Bind a deferred provider for *entity* through ``provider_resolver``."""
+		"""Bind a deferred provider through ``profile_resolver`` (named agent
+		bundle's profile) or ``provider_resolver`` (per-entity default)."""
 		if not getattr(self, '_provider_pending', False):
 			return
+		profile = getattr(self, 'agent_profile', None)
+		resolver = type(self).profile_resolver
+		if profile and callable(resolver):
+			try:
+				provider = resolver(profile)
+			except Exception:
+				logger.debug("[LlmMcpController] agent profile resolver failed", exc_info=True)
+				provider = None
+			if provider is not None:
+				self.llm_provider = provider
+				return
 		resolver = type(self).provider_resolver
 		if callable(resolver):
 			try:
@@ -2511,6 +2552,13 @@ class LlmMcpController(GenericController):
 		if backstory:
 			parts.append(f"Character context: {backstory}\n")
 
+		# Named agent bundle standing orders (the bundle's ``directives``).
+		agent_directives = str(getattr(self, 'agent_persona', None) or '').strip()
+		if agent_directives:
+			agent_label = getattr(self, 'agent_name', None) or 'agent'
+			parts.append(f"Standing orders ({agent_label} agent profile):\n"
+			             + "\n".join(f"- {ln}" for ln in agent_directives.splitlines()) + "\n")
+
 		parts.extend([
 			"Visible allies:\n" + ("".join(f"- {ln}\n" for ln in ally_lines) if ally_lines else "- (none visible)\n"),
 			"Visible enemies:\n" + ("".join(f"- {ln}\n" for ln in enemy_lines) if enemy_lines else "- (none visible)\n") + "\n",
@@ -3024,6 +3072,13 @@ class LlmMcpController(GenericController):
 		base['entity_context'] = json.loads(json.dumps(self._entity_context, default=str))
 		base['model'] = self.model
 		base['use_tools'] = self.use_tools
+		# Named agent bundle identity (profile *names* are persisted; live
+		# providers are rebound after load via profile_resolver).
+		for key in ('agent_name', 'agent_persona', 'agent_profile',
+		            'agent_strategist_profile'):
+			value = getattr(self, key, None)
+			if value:
+				base[key] = value
 		return base
 
 	@staticmethod
@@ -3034,4 +3089,424 @@ class LlmMcpController(GenericController):
 			use_tools=data.get('use_tools', True), defer_provider=True)
 		controller.state = data.get('state') or {}
 		controller._entity_context = data.get('entity_context') or {}
+		for key in ('agent_name', 'agent_persona', 'agent_profile',
+		            'agent_strategist_profile'):
+			setattr(controller, key, data.get(key))
+		return controller
+
+
+class HybridStrategistController(LlmMcpController):
+	"""Hybrid combat agent: a generative LLM plans, JEV executes.
+
+	The attached combat provider (``llm_provider``) is the JEV *System One*
+	decision model, exactly like an ``llm`` controller with a battle JEV
+	provider. Before the creature's first decision of each turn, a separate
+	generative provider (any supported LLM: ollama/openai/anthropic/llama_cpp)
+	is fed the same state text the JEV planner sees, plus the creature's
+	currently legal options, and writes step-by-step orders: overall strategy,
+	concrete numbered steps for this turn, and reaction guidance for the
+	other creatures' turns.
+
+	Those orders are stored in battle entity state
+	(``natural20.utils.jev_decision.STRATEGIST_ORDERS_KEY``), so **every**
+	JEV question for the rest of the turn - actions, movement, callouts and
+	reactions taken during other creatures' turns - carries a "commander's
+	orders" block in its context. The planner's own option list still decides
+	what is legal; the orders only rank and steer within it.
+
+	Each plan is logged to the combat log DM-only (``strategist_plan`` event,
+	``visibility='dm'``).
+
+	Provider resolution: the strategist comes from ``strategist_resolver``
+	(a class attribute installed by the webapp; per-NPC ``.ai.yaml``
+	``strategist_provider`` profile -> ``combat.strategist_provider`` -> the
+	DM provider), falling back to the controller's own provider when that is
+	generative. Without any generative provider, or when JEV is not the
+	executor, the controller degrades to plain ``LlmMcpController`` behavior.
+	"""
+
+	# Class-level hook installed by the webapp: callable(entity) -> generative
+	# provider. Restored controllers rebind the strategist lazily on use.
+	strategist_resolver = None
+
+	MAX_ORDERS_CHARS = 1400
+	MAX_ORDERS_LINES = 16
+	MAX_ORDER_OPTIONS = 40
+
+	STRATEGIST_SYSTEM_PROMPT = (
+		"You are the tactical advisor for {name}, a creature fighting in a "
+		"D&D 5e combat. A separate fast decision model will EXECUTE your "
+		"plan by choosing among the legal actions, so your job is only to "
+		"decide what to do, not to pick action indexes.\n"
+		"Using the battle state and the legal options provided, write "
+		"step-by-step orders:\n"
+		"1. One line of overall strategy for this turn (who to focus, "
+		"positioning, what to avoid).\n"
+		"2. Numbered concrete steps in execution order for this turn "
+		"(movement first if it matters, then action, bonus action, free "
+		"interactions). Name specific targets, distances and spell/attack "
+		"names.\n"
+		"3. One line starting with 'MOVE:' using exactly one tag so the "
+		"executor can prioritize matching movement leaves: "
+		"hold (do not move) | retreat (step out of reach / fall back) | "
+		"range (stay at range; do not close to melee) | "
+		"engage (close to melee) | hide (move to a hiding spot) | "
+		"none (no movement preference).\n"
+		"4. A final line starting with 'Reaction:': what to do with your "
+		"reaction during the other creatures' turns (opportunity attacks, "
+		"counterspell, protective reactions), or 'Reaction: hold'.\n"
+		"The 'rules for those options' and 'seen in this fight' blocks are "
+		"the ORACLE: the exact mechanics this engine implements for each "
+		"option, spell, effect and trait. Trust them over your memory of "
+		"the rulebooks - never assume action costs, ranges, scaling or "
+		"side effects they do not state.\n"
+		"The legal options already name resolved targets and destinations: "
+		"never re-derive grid coordinates or count map rows in your orders; "
+		"refer to creatures by name. Movement destinations are chosen by "
+		"the executor from its own move menu — use the MOVE: tag instead of "
+		"inventing squares.\n"
+		"Stay within {max_lines} lines total, be imperative and specific, "
+		"and only order things present in the legal options. Output the "
+		"orders only - no prose, no markdown fences."
+	)
+
+	def __init__(self, session, valid_move_types=None, llm_client=None,
+				 model: Optional[str] = None, use_tools: bool = True,
+				 llm_provider=None, defer_provider: bool = False,
+				 strategist_provider=None):
+		super().__init__(
+			session, valid_move_types=valid_move_types, llm_client=llm_client,
+			model=model, use_tools=use_tools, llm_provider=llm_provider,
+			defer_provider=defer_provider)
+		self._strategist_provider = strategist_provider
+		# Bind lazily per entity through strategist_resolver when unset.
+		self._strategist_pending = strategist_provider is None
+
+	# ------------------------------------------------------------------ #
+	# Strategist provider                                                 #
+	# ------------------------------------------------------------------ #
+
+	@property
+	def strategist_provider(self):
+		"""Generative provider used to write the plans (may be ``None``)."""
+		if getattr(self, '_strategist_pending', False):
+			self._strategist_pending = False
+			profile = getattr(self, 'agent_strategist_profile', None)
+			resolver = type(self).profile_resolver
+			if profile and callable(resolver):
+				try:
+					self._strategist_provider = resolver(profile)
+				except Exception as e:  # pragma: no cover - defensive
+					logger.warning("[HybridStrategist] agent profile resolver failed: %s", e)
+					self._strategist_provider = None
+			if self._strategist_provider is None:
+				resolver = type(self).strategist_resolver
+				if callable(resolver):
+					try:
+						self._strategist_provider = resolver(getattr(self, '_last_entity', None))
+					except Exception as e:  # pragma: no cover - defensive
+						logger.warning("[HybridStrategist] strategist resolver failed: %s", e)
+						self._strategist_provider = None
+		if self._strategist_provider is not None:
+			return self._strategist_provider
+		# Default: the controller's own provider when it is generative
+		# (JEV executor configured elsewhere leaves this None).
+		prov = self.llm_provider
+		if prov is not None and not (JevProvider is not None and isinstance(prov, JevProvider)):
+			return prov
+		return None
+
+	def _strategist_is_usable(self, prov) -> bool:
+		if prov is None:
+			return False
+		if JevProvider is not None and isinstance(prov, JevProvider):
+			return False  # decision models cannot write plans
+		return callable(getattr(prov, 'send_message', None))
+
+	# ------------------------------------------------------------------ #
+	# Order lifecycle                                                     #
+	# ------------------------------------------------------------------ #
+
+	def begin_turn(self, entity) -> None:
+		"""Mark this creature's orders stale; regenerated before its next decision."""
+		super().begin_turn(entity)
+		try:
+			ctx = self._get_entity_context(entity)
+			ctx['orders_stale'] = True
+		except Exception:
+			pass
+
+	def _ensure_orders(self, battle, entity, available_actions=None) -> None:
+		"""Generate this turn's strategist orders once, if a hybrid setup is live.
+
+		Orders are re-armed on the battle's **round**, not only through
+		``begin_turn``: the webapp VTT runs its own combat loop and never
+		calls controller ``begin_turn`` (only ``Battle.while_active`` does),
+		which would otherwise plan exactly once per creature per battle.
+		``begin_turn`` still forces a fresh plan when a host loop calls it."""
+		if entity is None or not self._is_jev_live():
+			return  # no JEV executor to feed -> nothing to plan for
+		try:
+			ctx = self._get_entity_context(entity)
+		except Exception:
+			return
+		turn_key = (id(battle), battle.round)
+		if ctx.get('orders_turn_key') == turn_key and not ctx.get('orders_stale', False):
+			return
+		ctx['orders_stale'] = False  # at most one plan attempt per turn
+		ctx['orders_turn_key'] = turn_key
+		try:
+			self._last_entity = entity  # lets a pending strategist_resolver bind per-entity
+			self._generate_orders(battle, entity, available_actions)
+		except Exception as e:
+			logger.warning("[HybridStrategist] order generation failed: %s", e)
+
+	def _generate_orders(self, battle, entity, available_actions=None) -> None:
+		strategist = self.strategist_provider
+		if not self._strategist_is_usable(strategist):
+			return
+		from natural20.utils.jev_decision import (
+			JevActionPlanner, _leaf_desc, set_strategist_orders)
+		from natural20.utils import oracle
+
+		# Same context the JEV agent sees, minus its action-choice task line
+		# and without the previous turn's (now stale) orders.
+		set_strategist_orders(battle, entity, None)
+		planner = JevActionPlanner(None)
+		state = planner._render_state(battle, entity)
+		state = "\n".join(ln for ln in state.splitlines()
+						  if not ln.startswith('Task:'))
+		names = planner._display_names(battle, entity)
+
+		actions = available_actions
+		if actions is None:
+			try:
+				actions = entity.available_actions(self.session, battle) or []
+			except Exception:
+				actions = []
+		options = []
+		option_rules_lines: List[str] = []
+		use_oracle = oracle.oracle_enabled()
+		for action in actions[:self.MAX_ORDER_OPTIONS]:
+			if action is None:
+				continue
+			try:
+				desc = _leaf_desc(action, names)
+			except Exception:
+				desc = None
+			if not desc:
+				try:
+					desc = action.describe()
+				except Exception:
+					desc = None
+			if desc:
+				options.append(desc)
+				if use_oracle:
+					try:
+						rules = oracle.option_rules(action)
+					except Exception:
+						rules = None
+					if rules:
+						option_rules_lines.append(f"- {desc}: {rules}")
+
+		user = state
+		if options:
+			user += "\nlegal options right now:\n- " + "\n- ".join(options)
+		if option_rules_lines:
+			user += ("\nrules for those options (what the engine ACTUALLY does "
+					 "with them - follow these over your memory of the books, "
+					 "and never invent mechanics they do not state):\n"
+					 + "\n".join(option_rules_lines))
+		observed = oracle.observed_rules_lines(battle, entity) if use_oracle else []
+		if observed:
+			user += ("\nseen in this fight (authoritative rules of spells, active "
+					 "effects and traits already observed on the battlefield):\n"
+					 + "\n".join("- " + line for line in observed))
+		# Movement is decided later by the executor's strategic move menu, not
+		# from available_actions — ground the MOVE: tag vocabulary here.
+		user += (
+			"\nmovement intents the executor understands (emit exactly one "
+			"line `MOVE: <tag>`):\n"
+			"- hold — do not move this turn\n"
+			"- retreat — fall back / step out of enemy reach\n"
+			"- range — stay at range; do not close to melee\n"
+			"- engage — close to melee with a foe\n"
+			"- hide — move to a hiding spot\n"
+			"- none — no movement preference\n"
+		)
+		user += "\n\nWrite this turn's orders for {name} now.".format(name=entity.name)
+
+		# Named agent bundle standing orders (the bundle's ``directives``)
+		# frame the plan like a persona would.
+		persona = str(getattr(self, 'agent_persona', None) or '').strip()
+		if persona:
+			label = getattr(self, 'agent_name', None) or 'agent'
+			user = "Standing orders for {name} (agent profile {label}):\n{persona}\n\n{body}".format(
+				name=entity.name, label=label, persona=persona, body=user)
+
+		messages = [
+			{'role': 'system',
+			 'content': self.STRATEGIST_SYSTEM_PROMPT.format(
+				 name=entity.name, max_lines=self.MAX_ORDERS_LINES)},
+			{'role': 'user', 'content': user},
+		]
+		try:
+			reply = strategist.send_message(messages)
+		except Exception as e:
+			logger.warning("[HybridStrategist] strategist LLM call failed: %s", e)
+			return
+		orders = self._clean_orders(reply)
+		if not orders:
+			return
+
+		set_strategist_orders(battle, entity, orders)
+		try:
+			battle.event_manager.received_event({
+				'source': entity,
+				'event': 'strategist_plan',
+				'battle': battle,
+				'message': orders,
+				'visibility': 'dm',
+			})
+		except Exception as e:  # pragma: no cover - logging must not break combat
+			logger.debug("[HybridStrategist] plan log event failed: %s", e)
+
+	def _clean_orders(self, reply) -> Optional[str]:
+		"""Trim the LLM reply to a bounded, plain-text multi-line plan.
+
+		``MOVE:`` / ``Reaction:`` lines are pinned so a verbose strategist
+		that burns the line budget on chain-of-thought cannot drop the tags
+		the JEV executor uses to constrain movement and reactions.
+		"""
+		if not isinstance(reply, str):
+			return None
+		text = re.sub(r'<\|[^|]+\|>', '', reply)
+		text = re.sub(r'</?think[^>]*>', '', text, flags=re.IGNORECASE)
+		text = text.replace('```', '').strip()
+		body = []
+		move_line = None
+		reaction_line = None
+		for raw in text.splitlines():
+			line = raw.strip()
+			if not line or line.lower() in ('orders:', 'orders'):
+				continue
+			lower = line.lower()
+			if lower.startswith('move:'):
+				move_line = line
+				continue
+			if lower.startswith('reaction:'):
+				reaction_line = line
+				continue
+			body.append(line)
+
+		# Prefer concrete steps; drop trailing reasoning once we hit the budget.
+		budget = self.MAX_ORDERS_LINES
+		reserved = (1 if move_line else 0) + (1 if reaction_line else 0)
+		body = body[: max(0, budget - reserved)]
+		lines = list(body)
+		if move_line:
+			lines.append(move_line)
+		if reaction_line:
+			lines.append(reaction_line)
+		if not lines:
+			return None
+		joined = "\n".join(lines)
+		if len(joined) > self.MAX_ORDERS_CHARS:
+			# Keep pinned tags even under the char cap.
+			pinned = [ln for ln in (move_line, reaction_line) if ln]
+			pinned_text = ("\n" + "\n".join(pinned)) if pinned else ""
+			head_budget = max(0, self.MAX_ORDERS_CHARS - len(pinned_text) - 3)
+			head = "\n".join(body)
+			if len(head) > head_budget:
+				head = head[:head_budget] + '...'
+			joined = head + pinned_text
+		return joined
+
+	# ------------------------------------------------------------------ #
+	# Decision entry points (ensure orders before any JEV question)       #
+	# ------------------------------------------------------------------ #
+
+	def select_action(self, battle, entity, available_actions: Optional[List[Action]] = None):
+		if entity is not None:
+			self._ensure_provider(entity)
+			self._ensure_orders(battle, entity, available_actions)
+		return super().select_action(battle, entity, available_actions)
+
+	def move_for(self, entity, battle) -> Optional[Action]:
+		if entity is not None:
+			self._ensure_provider(entity)
+			self._ensure_orders(battle, entity)
+		return super().move_for(entity, battle)
+
+	def select_reaction(self, entity, battle, map, valid_actions, event) -> Optional[Action]:
+		"""JEV picks reactions with the same orders in context; heuristics fall back."""
+		if entity is None:
+			return None
+		self._ensure_provider(entity)
+		self._ensure_orders(battle, entity)
+		if valid_actions and self._is_jev_live():
+			chosen = self._jev_pick_reaction(battle, entity, valid_actions)
+			if chosen is False:
+				return None  # JEV explicitly chose to hold its reaction
+			if chosen is not None:
+				return chosen
+		return super().select_reaction(entity, battle, map, valid_actions, event)
+
+	def _jev_pick_reaction(self, battle, entity, valid_actions):
+		"""One-shot JEV choice over the reaction window's *valid_actions*.
+
+		Returns the chosen ``Action``, ``False`` when JEV explicitly chose to
+		pass (hold the reaction), or ``None`` when it had no decision (fall
+		back to heuristics).
+		"""
+		from natural20.utils.jev_decision import JevActionPlanner, _leaf_desc
+		from natural20.actions.end_turn_action import EndTurnAction
+		prov = self.llm_provider
+		try:
+			planner = JevActionPlanner(None)
+			state = planner._render_state(battle, entity)
+			names = planner._display_names(battle, entity)
+			options = []
+			for action in valid_actions:
+				desc = _leaf_desc(action, names)
+				if not desc:
+					try:
+						desc = action.describe()
+					except Exception:
+						desc = None
+				if not desc:
+					return None  # cannot describe one option -> keep indexing safe, fall back
+				options.append(desc)
+			result = prov.decide_action(state, options)
+			if not result:
+				return None
+			index = result.get('index')
+			if not isinstance(index, int) or not (0 <= index < len(valid_actions)):
+				return None
+			action = valid_actions[index]
+			if isinstance(action, EndTurnAction) or getattr(action, 'action_type', None) == 'end_turn':
+				return False  # JEV explicitly chose to hold its reaction
+			return action
+		except Exception as e:
+			logger.debug("[HybridStrategist] jev reaction pick failed: %s", e)
+			return None
+
+	# ------------------------------------------------------------------ #
+	# Persistence (providers never saved; rebound via resolvers)          #
+	# ------------------------------------------------------------------ #
+
+	def to_dict(self) -> dict:
+		return super().to_dict()
+
+	@staticmethod
+	def from_dict(data: dict) -> 'HybridStrategistController':
+		"""Restore controller from serialized state; providers rebind lazily."""
+		controller = HybridStrategistController(
+			data['session'], model=data.get('model'),
+			use_tools=data.get('use_tools', True), defer_provider=True)
+		controller.state = data.get('state') or {}
+		controller._entity_context = data.get('entity_context') or {}
+		for key in ('agent_name', 'agent_persona', 'agent_profile',
+		            'agent_strategist_profile'):
+			setattr(controller, key, data.get(key))
 		return controller

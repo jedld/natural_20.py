@@ -15,11 +15,13 @@ Scenarios (``--scenario``, comma-separated list):
 Each side runs its own controller arm (``--side-a-ai`` / ``--side-b-ai``):
   generic   GenericController heuristics (seeded random, deterministic)
   random    uniform random choice over legal actions
-  jev       LlmMcpController + live JevProvider (TypeSafe System One API)
+  teacher   LlmMcpController + the live vendor decision API
+            (``JevProvider`` over the TypeSafe System One wire; "JEV" is the
+            vendor's name for it, and ``jev`` is accepted as an arm alias)
   llm       LlmMcpController + chat model at --llm-url (comparison arm)
 
 Legacy flags still work: ``--opponent {generic,random,both}`` selects the
-side-A arm and ``--npc-ai {jev,llm,generic}`` the side-B arm.
+side-A arm and ``--npc-ai {teacher,jev,llm,generic}`` the side-B arm.
 
 ``--goblin-hp`` overrides goblin HP on either side (40 = Krizzit-fixture
 buff, 7 = vanilla SRD). ``--log-dir`` writes one battle log per game.
@@ -27,10 +29,10 @@ Any provider failure falls back safely to the generic heuristic controller
 (call failures are counted and reported).
 
 Examples:
-    # full scenario matrix, JEV (side B) vs generic (side A), 5 games each
-    python scripts/jev_battle_sim.py \
+    # full scenario matrix, teacher (side B) vs generic (side A), 5 games each
+    python scripts/s1_battle_sim.py \
         --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
-        --side-a-ai generic --side-b-ai jev --repeat 5 \
+        --side-a-ai generic --side-b-ai teacher --repeat 5 \
         --max-rounds 10 --out sim_variety.json --log-dir logs/ --quiet
 
 Environment (loaded from n20-webapp/webapp/.env):
@@ -135,7 +137,7 @@ class CountingLlamaProvider(LlamaCppProvider):
     """LlamaCppProvider that counts chat calls, failures, and latency.
 
     The LLM comparison arm: LlmMcpController drives the entity via the usual
-    chat prompt (integer-index response), in contrast to Jev's typed
+    chat prompt (integer-index response), in contrast to the System One provider's typed
     decide_action API.
     """
 
@@ -163,10 +165,10 @@ class CountingLlamaProvider(LlamaCppProvider):
 
 def logger_fail(msg):
     import logging
-    logging.getLogger('jev_battle_sim').warning(msg)
+    logging.getLogger('s1_battle_sim').warning(msg)
 
 
-def make_jev_request_logger(path, metadata):
+def make_teacher_request_logger(path, metadata):
     """Append one JSON line per JEV request/response, tagged with sim metadata."""
     os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
 
@@ -195,6 +197,72 @@ PC_POOL = [
 # Light-CR NPC pool (CR <= 0.5) so 1v4 and 3v3 matchups are roughly fair.
 NPC_POOL_LIGHT = ['goblin', 'skeleton', 'wolf', 'giant_rat', 'hobgoblin', 'human_guard']
 
+# All SRD/template NPC kinds (bundled templates fall back through Session),
+# minus the example file. Used for distillation sweeps (--npc-pool all) so
+# the teacher sees heavy bruisers, swarms, undead and casters, not just
+# CR <= 0.5 fodder. Pair with --pc-level 5 to keep matchups survivable.
+NPC_POOL_ALL = [
+    'goblin', 'skeleton', 'wolf', 'giant_rat', 'hobgoblin', 'human_guard',
+    'ogre', 'veteran', 'gladiator', 'bugbear', 'zombie', 'specter',
+    'animated_armor', 'vampire_spawn', 'swarm_of_bats', 'swarm_of_centipedes',
+    'swarm_of_rats', 'acolyte', 'commoner', 'spy', 'noble', 'owlbear',
+    'owl', 'cat', 'bat', 'boar',
+]
+
+NPC_POOLS = {'light': NPC_POOL_LIGHT, 'all': NPC_POOL_ALL}
+
+# SRD spells added to a leveled caster's prepared list so higher-level
+# slots actually open menu variety in distillation runs (invalid choices
+# simply never surface as actions).
+CLASS_EXTRA_SPELLS = {
+    'wizard': ['fireball', 'web', 'haste', 'slow', 'counterspell',
+               'blight', 'lightning_bolt', 'polymorph', 'mirror_image'],
+    'cleric': ['spiritual_weapon', 'shield_of_faith', 'guiding_bolt',
+               'spiritual_weapon'],
+    'sorcerer': ['fireball', 'haste', 'blight', 'chromatic_orb'],
+    'druid': ['thunderwave', 'polymorph', 'fireball'],
+    'warlock': ['hex', 'blight'],
+    'bard': ['haste', 'hideous_laughter'],
+}
+
+
+def level_up_pc(pc, target_level):
+    """Advance a fixture PC to target_level via the XP path.
+
+    The fixtures campaign is XP-gated, so we grant enough XP to reach the
+    level, then apply the pending grants one at a time with average HP.
+    """
+    if pc.level() >= target_level:
+        return pc
+    pc.add_experience(35000, source='s1_sim')
+    applied = 0
+    while pc.level() < target_level and applied < 20:
+        try:
+            pc.apply_level_up(hp_mode='average')
+        except Exception:
+            break
+        applied += 1
+    return pc
+
+
+def add_class_extra_spells(pc):
+    """Extend a leveled caster's prepared list with class SRD picks."""
+    try:
+        classes = dict(pc.properties.get('classes') or {})
+    except Exception:
+        return
+    if pc.level() < 3:
+        return
+    prepared = list(pc.properties.get('prepared_spells') or [])
+    changed = False
+    for cls in classes:
+        for spell in CLASS_EXTRA_SPELLS.get(cls, []):
+            if spell not in prepared:
+                prepared.append(spell)
+                changed = True
+    if changed:
+        pc.properties['prepared_spells'] = prepared
+
 SCENARIOS = {
     'pc_vs_npc': {
         'a': ('pc', 1), 'b': ('npc', 4),
@@ -222,7 +290,7 @@ SCENARIOS = {
     },
 }
 
-ARM_CHOICES = ['generic', 'random', 'jev', 'llm']
+ARM_CHOICES = ['generic', 'random', 'teacher', 'jev', 'llm']
 
 
 def hp_line(entity):
@@ -571,7 +639,7 @@ def llm_move_options(battle, session, entity, limit_offensive=3, limit_defensive
     """
     Full-speed, pre-pathed move destinations for the LLM comparison arm:
     squares adjacent to enemies (close the gap) plus squares that maximize
-    distance from them (retreat). Mirrors the option set the JEV planner
+    distance from them (retreat). Mirrors the option set the System One planner
     is shown, so both model arms face the same decision shape instead of
     the engine's 8 single-step moves.
     """
@@ -764,10 +832,48 @@ def pc_roster_info(pc, fixture):
     return info
 
 
-def make_entity(session, kind, index, pool_pick, used_names, goblin_hp, team_tag=''):
+def find_spawn_position(m, entity, intended, battle=None):
+    """Nearest placeable square whose full footprint fits on the map.
+
+    Large creatures (Huge ogres, 2x2 footprints) overflow the edge spawns of
+    the 10x8 arena. ``Map.placeable`` silently clips out-of-bounds footprint
+    squares, while ``Map.place`` raises unless the whole ``token_size``
+    footprint is in bounds — so probe the bounds explicitly, then
+    ``placeable`` for passability/occupancy.
+    """
+    size = max(1, int(getattr(entity, 'token_size', lambda: 1)()))
+    w, h = m.size[0], m.size[1]
+
+    def fits(x, y):
+        if not (0 <= x and 0 <= y and x + size <= w and y + size <= h):
+            return False
+        try:
+            return m.placeable(entity, x, y, battle)
+        except Exception:
+            return False
+
+    if fits(intended[0], intended[1]):
+        return intended
+    for radius in range(1, max(w, h)):
+        for dx in range(-radius, radius + 1):
+            for dy in range(-radius, radius + 1):
+                if abs(dx) != radius and abs(dy) != radius:
+                    continue  # ring only
+                x, y = intended[0] + dx, intended[1] + dy
+                if fits(x, y):
+                    return (x, y)
+    raise ValueError(f"no placeable spawn for {entity.name} ({size}x{size}) "
+                     f"near {intended} on {w}x{h} map")
+
+
+def make_entity(session, kind, index, pool_pick, used_names, goblin_hp, team_tag='',
+                pc_level=None):
     """Create one combatant from the roster pool and disambiguate its name."""
     if kind == 'pc':
         pc = PlayerCharacter.load(session, pool_pick)
+        if pc_level:
+            level_up_pc(pc, pc_level)
+            add_class_extra_spells(pc)
         name = pc.name
         base = name
         n = 2
@@ -797,23 +903,29 @@ def make_entity(session, kind, index, pool_pick, used_names, goblin_hp, team_tag
     return npc
 
 
+def normalize_arm(arm):
+    """CLI arm name -> canonical name ('jev' is a legacy alias for 'teacher')."""
+    return 'teacher' if arm == 'jev' else arm
+
+
 def make_controller(session, arm, providers):
+    arm = normalize_arm(arm)
     if arm == 'generic':
         return GenericController(session)
     if arm == 'random':
         return RandomController(session)
-    if arm in ('jev', 'llm'):
+    if arm in ('teacher', 'llm'):
         return LlmMcpController(session, llm_provider=providers[arm])
     raise ValueError(f"unknown controller arm: {arm}")
 
 
-def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
+def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='s1_arena',
               goblin_hp=40, llm_url=LLM_BASE_URL, llm_model=LLM_MODEL,
-              jev_log_path=None):
+              s1_log_path=None, npc_pool='light', pc_level=None):
     """Build one fresh battle for a scenario.
 
     Returns (session, map, battle, team_a, team_b, providers, roster_info)
-    where providers maps arm name -> counting provider (jev/llm only) and
+    where providers maps arm name -> counting provider (teacher/llm only) and
     roster_info is {'a': [roster entries], 'b': [...]}.
     """
     random.seed(seed)  # deterministic dice (and NPC random names)
@@ -824,18 +936,18 @@ def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
     spec = SCENARIOS[scenario]
     roster_rng = random.Random(f"roster-{scenario}-{seed}")
     providers = {}
-    if side_a_ai == 'jev' or side_b_ai == 'jev':
+    if side_a_ai == 'teacher' or side_b_ai == 'teacher':
         request_logger = None
-        if jev_log_path:
-            request_logger = make_jev_request_logger(
-                jev_log_path,
+        if s1_log_path:
+            request_logger = make_teacher_request_logger(
+                s1_log_path,
                 {'scenario': scenario, 'seed': seed,
                  'side_a_ai': side_a_ai, 'side_b_ai': side_b_ai},
             )
         provider = CountingJevProvider({}, request_logger=request_logger)
         if not provider.initialize({}) or not provider.is_available:
-            raise RuntimeError("JEV provider failed to initialize (TYPESAFE_API_KEY?)")
-        providers['jev'] = provider
+            raise RuntimeError("teacher provider failed to initialize (TYPESAFE_API_KEY?)")
+        providers['teacher'] = provider
     if side_a_ai == 'llm' or side_b_ai == 'llm':
         url = normalize_llm_url(llm_url)
         cfg = {'base_url': url}
@@ -852,10 +964,12 @@ def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
         if kind == 'pc':
             picks = roster_rng.sample(PC_POOL, count)
         else:
-            picks = roster_rng.sample(NPC_POOL_LIGHT, count)
+            picks = roster_rng.sample(NPC_POOLS[npc_pool], count)
         for i, pick in enumerate(picks):
-            ent = make_entity(session, kind, i, pick, used_names, goblin_hp, team_tag=tag)
-            battle.add(ent, group, position=positions[i],
+            ent = make_entity(session, kind, i, pick, used_names, goblin_hp,
+                              team_tag=tag, pc_level=pc_level)
+            pos = find_spawn_position(m, ent, positions[i], battle)
+            battle.add(ent, group, position=pos,
                        token=token_base if kind == 'pc' else pick[:1].upper())
             battle.set_controller_for(ent, make_controller(session, arm, providers))
             entities.append(ent)
@@ -871,19 +985,21 @@ def build_run(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
     return session, m, battle, team_a, team_b, providers, {'a': roster_a, 'b': roster_b}
 
 
-def play_game(scenario, side_a_ai, side_b_ai, seed, map_name='jev_arena',
+def play_game(scenario, side_a_ai, side_b_ai, seed, map_name='s1_arena',
               max_rounds=10, verbose=True, goblin_hp=40, log_dir=None,
-              llm_url=LLM_BASE_URL, llm_model=LLM_MODEL, jev_log_dir=None):
-    jev_log_path = None
-    if jev_log_dir and ('jev' in (side_a_ai, side_b_ai)):
-        jev_log_path = os.path.join(
-            jev_log_dir,
-            f"{scenario}_{seed}_{side_a_ai}_vs_{side_b_ai}.jev.jsonl",
+              llm_url=LLM_BASE_URL, llm_model=LLM_MODEL, s1_log_dir=None,
+              game_index=0, npc_pool='light', pc_level=None):
+    side_a_ai, side_b_ai = normalize_arm(side_a_ai), normalize_arm(side_b_ai)
+    s1_log_path = None
+    if s1_log_dir and ('teacher' in (side_a_ai, side_b_ai)):
+        s1_log_path = os.path.join(
+            s1_log_dir,
+            f"{scenario}_{seed}g{game_index}_{side_a_ai}_vs_{side_b_ai}.s1.jsonl",
         )
     session, m, battle, team_a, team_b, providers, roster_info = build_run(
-        scenario, side_a_ai, side_b_ai, seed, map_name=map_name,
+        scenario, side_a_ai, side_b_ai, seed + game_index, map_name=map_name,
         goblin_hp=goblin_hp, llm_url=llm_url, llm_model=llm_model,
-        jev_log_path=jev_log_path)
+        s1_log_path=s1_log_path, npc_pool=npc_pool, pc_level=pc_level)
     combatants = team_a + team_b
     spawn_pos = {id(c): m.entity_or_object_pos(c) for c in combatants}
     log_lines = []
@@ -1005,7 +1121,7 @@ def provider_calls_of(result, side):
     p = result.get(f'provider_{side}')
     if not p:
         return 0
-    if p.get('kind') == 'jev':
+    if p.get('kind') == 'teacher':
         return p.get('decide_action_calls', 0) + p.get('decide_bool_calls', 0)
     return p.get('chat_calls', 0)
 
@@ -1019,7 +1135,7 @@ def provider_stats(provider):
     }
     if isinstance(provider, CountingJevProvider):
         base.update({
-            'kind': 'jev',
+            'kind': 'teacher',
             'decide_action_calls': provider.decide_calls,
             'decide_bool_calls': provider.bool_calls,
         })
@@ -1030,10 +1146,10 @@ def provider_stats(provider):
 
 def probe_provider(arm, llm_url, llm_model):
     """Validate a model arm is reachable before the run starts."""
-    if arm == 'jev':
+    if arm == 'teacher':
         provider = CountingJevProvider({})
         if not provider.initialize({}) or not provider.is_available:
-            print("ERROR: JEV provider not available. Set TYPESAFE_API_KEY "
+            print("ERROR: teacher provider not available. Set TYPESAFE_API_KEY "
                   "(see n20-webapp/webapp/env.example).", file=sys.stderr)
             sys.exit(2)
     elif arm == 'llm':
@@ -1048,17 +1164,17 @@ def probe_provider(arm, llm_url, llm_model):
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--map', default='jev_arena')
+    parser.add_argument('--map', default='s1_arena')
     parser.add_argument('--scenario', default='pc_vs_npc',
                         help="comma-separated list from: " + ",".join(SCENARIOS))
     parser.add_argument('--side-a-ai', choices=ARM_CHOICES, default=None,
                         help='side A controller arm (default: --opponent or generic)')
     parser.add_argument('--side-b-ai', choices=ARM_CHOICES, default=None,
-                        help='side B controller arm (default: --npc-ai or jev)')
+                        help='side B controller arm (default: --npc-ai or teacher)')
     parser.add_argument('--opponent', choices=['generic', 'random', 'both'], default=None,
                         help='legacy: side A controller (both = run both arms)')
-    parser.add_argument('--npc-ai', choices=['jev', 'llm', 'generic'], default=None,
-                        help='legacy: side B controller (default jev)')
+    parser.add_argument('--npc-ai', choices=['teacher', 'jev', 'llm', 'generic'], default=None,
+                        help='legacy: side B controller (default teacher; jev = alias)')
     parser.add_argument('--goblin-hp', type=int, default=40,
                         help='goblin HP override (40=Krizzit-fixture buff, 7=vanilla SRD)')
     parser.add_argument('--llm-url', default=LLM_BASE_URL,
@@ -1070,8 +1186,15 @@ def main():
     parser.add_argument('--seed', type=int, default=20260921)
     parser.add_argument('--out', default=None, help='write JSON results to this path')
     parser.add_argument('--log-dir', default=None, help='write one battle log per game here')
-    parser.add_argument('--jev-log-dir', default=None,
+    parser.add_argument('--s1-log-dir', default=None,
                         help='write one JEV request/response JSONL file per game here')
+    parser.add_argument('--npc-pool', choices=sorted(NPC_POOLS), default='light',
+                        help='NPC roster pool: light (CR<=0.5, default) or all '
+                             '(every bundled SRD NPC kind, incl. ogres/veterans/'
+                             'swarms; pair with --pc-level 5)')
+    parser.add_argument('--pc-level', type=int, default=None,
+                        help='level fixture PCs up to this level (XP path, '
+                             'average HP) and top up caster spell lists')
     parser.add_argument('--quiet', action='store_true', help='no per-turn log')
     args = parser.parse_args()
 
@@ -1083,7 +1206,9 @@ def main():
 
     side_a_arms = [args.side_a_ai] if args.side_a_ai else \
         (['generic', 'random'] if args.opponent == 'both' else [args.opponent or 'generic'])
-    side_b_arms = [args.side_b_ai] if args.side_b_ai else [args.npc_ai or 'jev']
+    side_b_arms = [args.side_b_ai] if args.side_b_ai else [args.npc_ai or 'teacher']
+    side_a_arms = [normalize_arm(a) for a in side_a_arms]
+    side_b_arms = [normalize_arm(a) for a in side_b_arms]
 
     for arm in sorted(set(side_a_arms) | set(side_b_arms)):
         probe_provider(arm, args.llm_url, args.llm_model)
@@ -1103,7 +1228,10 @@ def main():
                                        goblin_hp=args.goblin_hp,
                                        log_dir=args.log_dir,
                                        llm_url=args.llm_url, llm_model=args.llm_model,
-                                       jev_log_dir=args.jev_log_dir)
+                                       s1_log_dir=args.s1_log_dir,
+                                       game_index=i,
+                                       npc_pool=args.npc_pool,
+                                       pc_level=args.pc_level)
                     all_results.append(result)
                     print(f"  [{done}/{total}] seed={seed} {scenario} "
                           f"a={side_a} b={side_b} winner={result['winner']} "

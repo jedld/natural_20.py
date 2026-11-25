@@ -227,6 +227,13 @@ inherited the non-bonus builder.
 Entity: Krizzit; HP 7/7; AC 15; pos [1, 5]; movement 30 ft; speed 30 ft
 statuses: poisoned, prone
 mods: str-1 dex+2 con+0 int+0 wis-1 cha-1
+identity: small, humanoid/goblinoid, goblin, CR 0.25, kind Goblin
+senses/immunities: passive perception 9; darkvision 60 ft; languages common/goblin
+pools: innate:fog_cloud 1/1
+personality/backstory: Goblins are small, black-hearted humanoids...
+my attack options:
+- Scimitar: +4 to hit, 1d6+2 slashing, range 5
+- Shortbow: +4 to hit, 1d6+2 piercing, range 80
 round 3; turn order: Velka > (you) > Noke > Gort
 own resources: reaction ready, second wind 1 left
 own state: concentrating on Bless
@@ -401,6 +408,155 @@ line is always kept.
   retreat, or stay silent. The NPC conversation LLM then voices it in
   character. See [COMBAT_COMMUNICATION.md](COMBAT_COMMUNICATION.md).
 
+## Character-sheet block in the state context
+
+Beyond the live tactical picture, every JEV question carries a compact block
+describing *who the actor is*, so the decision model never has to infer the
+character sheet from the option list alone (and custom campaign monsters are
+not opaque). `_actor_sheet_lines` (in `jev_decision.py`) renders these lines
+right after the actor's `mods:` line; each is omitted when empty:
+
+- **identity** — PCs: level plus every class/level (and race). NPCs: size,
+  race list, `npc_type`, CR and kind.
+- **saves** — only the *proficient* saving throws as `abil +N`
+  (non-proficient saves equal the ability modifiers already rendered).
+- **senses/immunities** — passive Perception, darkvision range, languages,
+  and condition immunities.
+- **features** — names of learned class features (`properties.class_features`)
+  and race features, capped at 14. Passive traits never appear as options, so
+  naming them at least tells the model they exist.
+- **pools** — every limited `ResourcePool` as `name current/max`, including
+  `innate:<spell>` long-rest pools (Ki, Superiority Dice, Lay on Hands, ...).
+- **my attack options** (NPCs) — one line per YAML `actions` entry with
+  `+N to hit`, damage dice/type, weapon range, `additional_damage` riders
+  (incl. `life_drain`), `grapple_instead` escape DC and shortened `on_hit`
+  descriptions. `type: area_save` breath weapons render as
+  `area (cone 60 ft) ability, constitution save DC 18, 8d6 fire, recharge 5-6`.
+  A `monster traits:` line states magic resistance, undead fortitude, misty
+  escape, cannot-speak, multiattack and legendary actions.
+- **personality/backstory** — one capped line from
+  `personality_traits`/`personality`/`ideals`/`backstory`/`description`.
+  Callout selection (`jev_select_callout`) reuses the same state, so this
+  also informs what the creature chooses to shout.
+
+What stays implicit: spell *descriptions* (SRD spell names in the option list
+are known to the decision model; castable spells always appear as leaves with
+their slot level and target), and exact per-weapon PC to-hit math (computed
+server-side when the attack resolves).
+
+The block costs roughly 200 (simple NPC) to ~900 (complex monster) characters
+inside the `N20_JEV_STATE_MAX_CHARS` budget — `_fit_state` trims history,
+conversation and heard speech before ever touching it. Set **`N20_JEV_SHEET=0`**
+to drop the whole block (useful for small self-hosted decision models trained
+on the old context format; `webapp/jev_distill.py` logs whatever is sent, so
+retrain with the switch off to match). Regression tests:
+`tests/test_jev_state_context.py`.
+
+## Hybrid LLM strategist + JEV executor (`hybrid` controller)
+
+`HybridStrategistController` (`natural20/llm_controller.py`) pairs two models:
+
+- a **generative LLM strategist** (any supported provider: ollama / openai /
+  anthropic / llama_cpp) that decides *what to do*, and
+- the **JEV System One decision model** that *executes* it, exactly like the
+  `llm` controller with a battle JEV provider.
+
+Each turn (lazily, before the creature's first decision):
+
+1. `begin_turn` marks the creature's orders stale.
+2. Before the first `select_action` / `move_for` / reaction, the strategist
+   is fed the **same state text** `JevActionPlanner._render_state` produces
+   (minus its `Task:` line and the previous turn's orders) plus the creature's
+   currently legal options, and writes step-by-step orders: one overall
+   strategy line, numbered concrete steps (named targets, distances,
+   spell/attack names), a `MOVE: hold|retreat|range|engage|hide|none` line
+   (the executor's movement vocabulary — grid destinations are *not* planned
+   here), and a `Reaction:` line for the other creatures' turns.
+   The prompt carries a **rules oracle** (`natural20/utils/oracle.py`) so the
+   strategist plans with the mechanics this engine actually runs instead of
+   remembered book rules:
+   * every legal option gets a `rules for those options:` line - spell/item
+     YAML `description` plus `casting_time` / `range` / `components` /
+     `concentration`; NPC attacks synthesized from the attack YAML (to-hit,
+     damage dice, `additional_damage` / `life_drain` / `grapple_instead`
+     riders, recharge); SRD one-liners for generic actions and Python-side
+     class features (Second Wind states the actual die, Action Surge states
+     it grants an Action not a bonus action, ...);
+   * a `seen in this fight` block lists the authoritative rules of spells /
+     active effects on any combatant (read from `entity.effects` /
+     `casted_effects` source spell props and recent battle-log casts) and
+     traits synthesized from `monster_traits` configs (regeneration with its
+     suppression types, legendary resistance count, undead fortitude,
+     magic resistance).
+   Campaign flavor reaches the oracle only through YAML `description`
+   fields. Caps: 420 chars/entry, `MAX_OPTIONS_BUDGET`/`MAX_OBSERVED_BUDGET`
+   (env override `N20_STRATEGIST_OBSERVED_CHARS`); `N20_STRATEGIST_ORACLE=0`
+   disables both sections. The system prompt tells the strategist the oracle
+   is authoritative and forbids deriving grid coordinates in the orders
+   (legal options already resolve targets - this also fixes plans spending
+   their line budget on ASCII-map counting).
+3. The plan is stored in battle entity state under
+   `strategist_orders` (`natural20/utils/jev_decision.py`
+   `STRATEGIST_ORDERS_KEY`), so **every** JEV question for the rest of the
+   turn - action, movement, callouts, and reactions during other creatures'
+   turns - carries a `commander's orders (follow these as far as the legal
+   options allow):` block. Movement is **hard-constrained** from that plan:
+   `parse_strategist_move_intent` / `apply_strategist_move_bias` read the
+   `MOVE:` tag (or prose heuristics) and drop conflicting strategic move
+   leaves before JEV chooses (`hold` removes all moves and keeps `pass`;
+   `range`/`retreat` drop engage/offensive; `engage` drops retreat; `hide`
+   prefers hide/defensive). Matching leaves are tagged
+   `[commander ordered]`. Action/spell choice remains soft steering within
+   the planner's legal option list.
+   Orders re-arm on the **battle round** (`orders_turn_key` in the entity
+   context), not only through `controller.begin_turn`: `begin_turn` is
+   called only by `Battle.while_active()`, and the webapp VTT runs its own
+   turn loop, so relying on it alone would plan each creature exactly once
+   per battle (the bug behind "strategist logs stopped after round 1").
+   **Verifying live**: set `N20_JEV_REQUEST_LOGS=1` (with optional
+   `N20_LOG_DIR`, default `llm_logs/`) and every `decide_action` /
+   `decide_bool` wire payload (the exact `state` string JEV saw, plus the
+   parsed answer) is appended to `llm_logs/jev_decisions.jsonl`. Grep it for
+   `commander's orders` to confirm the current plan reached a given question.
+   Note: a decision tree pruned to a *single* legal leaf is auto-selected
+   without a round-trip, so no wire line appears for that turn.
+4. Reactions are answered by JEV directly over the reaction window's valid
+   actions (`select_reaction`); heuristics (`GenericController`, incl.
+   `choose_counterspell`) fall back when JEV declines or errors.
+5. The plan is logged **DM-only** to the combat log as a `strategist_plan`
+   event (`visibility='dm'`, handler in `natural20/event_manager.py`).
+
+Provider resolution: executor = `combat_llm_provider_for` (unchanged; usually
+the JEV battle provider). Strategist = `strategist_llm_provider_for`:
+per-NPC `.ai.yaml` `npcs.<uid|type>.combat.strategist_provider` →
+`combat.strategist_provider` → the DM provider. A JEV provider is never used
+for planning (its `send_message` is a no-op note). Without a generative
+strategist, or when the executor is not JEV, the controller degrades to plain
+`LlmMcpController` behavior (no orders).
+
+Configure it per-NPC or as the campaign default (`hybrid` is a valid value
+for `combat.npc_controller` and per-NPC `combat.controller`), from the
+controller selects in the VTT (H / Hybrid), `/update_controller`, or MCP
+`dm.set_controller` (`kind: 'hybrid'`). Restored from a save via the
+`!hybrid_strategist_controller` tag; both providers rebind lazily
+(`provider_resolver` / `strategist_resolver`, installed by
+`ai_config.install_combat_provider_resolver`).
+
+Order blocks are capped at 16 lines / 1400 chars inside the
+`N20_JEV_STATE_MAX_CHARS` state budget, and `_fit_state` trims history,
+conversation and heard speech before ever touching them.
+
+A named agent bundle (`.ai.yaml` `agents:`, see `docs/AI_CONFIG.md` → "Named
+agent bundles") adds a **standing orders** block of its own: the bundle's
+`directives` ride on the controller (`agent_persona`) and are rendered right
+before the commander's orders as `standing orders (<name> agent profile):`
+(`jev_decision._agent_directive_lines`), so they steer every question - plain
+`llm` prompts and hybrid strategist plans included - for the whole encounter.
+The hybrid strategist is also shown them ("Standing orders for <name> (agent
+profile <label>)") when it writes the turn plan.
+
+Regression tests: `tests/test_hybrid_strategist_controller.py`.
+
 ## Guarantees and fallbacks
 
 - The tactical **state string** is rendered once per turn and shared by the
@@ -564,7 +720,7 @@ provider = JevProvider(config, request_logger=lambda record: handle(record))
 ```bash
 python scripts/simulate_priest_quarters.py --ai jev --seed 20 \
     --out logs/priest_quarters_combat_jev.log \
-    --jev-log logs/jev_requests.jsonl
+    --s1-log logs/jev_requests.jsonl
 ```
 
 Each JSONL line has this shape:
@@ -597,25 +753,25 @@ Unit coverage for the record shape lives in
 
 ### Exporting a clean training dataset
 
-`scripts/export_jev_training_data.py` validates and reshapes the raw JSONL
+`scripts/export_choice_training_data.py` validates and reshapes the raw JSONL
 logs into a compact supervised dataset:
 
 ```bash
-python scripts/export_jev_training_data.py \
-    --out logs/jev_training/action_decisions.jsonl \
-    --report logs/jev_training/action_decisions.report.json
+python scripts/export_choice_training_data.py \
+    --out logs/choice_training/action_decisions.jsonl \
+    --report logs/choice_training/action_decisions.report.json
 # exact-duplicate export (state + options + chosen_index):
-python scripts/export_jev_training_data.py --dedupe \
-    --out logs/jev_training/action_decisions_dedup.jsonl \
-    --report logs/jev_training/action_decisions_dedup.report.json
+python scripts/export_choice_training_data.py --dedupe \
+    --out logs/choice_training/action_decisions_dedup.jsonl \
+    --report logs/choice_training/action_decisions_dedup.report.json
 ```
 
 By default it reads every JEV request log under:
 
 - `logs/compare/jev_requests_*.jsonl`
 - `logs/jev_requests_*.jsonl`
-- `logs/jev_sim/**/*.jsonl`
-- `logs/jev_training/raw/**/*.jsonl`
+- `logs/s1_sim/**/*.jsonl`
+- `logs/choice_training/raw/**/*.jsonl`
 
 Only successful `task == "action"` records are exported. Each output record
 contains `state`, `options`, `chosen_index`, `chosen_option`, `confidence`,
@@ -625,16 +781,16 @@ metadata: `entity`, `round`, `hp`, `max_hp`, `ac`, `position`, `latency_ms`,
 `model`, `source_file`, and, when present, the simulator's `sim` metadata
 (scenario, seed, and arm assignment).
 
-`scripts/jev_battle_sim.py` can write one raw JEV request log per game:
+`scripts/s1_battle_sim.py` can write one raw JEV request log per game:
 
 ```bash
-python scripts/jev_battle_sim.py \
+python scripts/s1_battle_sim.py \
     --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
-    --side-a-ai generic --side-b-ai jev --repeat 10 \
+    --side-a-ai generic --side-b-ai teacher --repeat 10 \
     --seed 20270000 --max-rounds 10 \
-    --out logs/jev_sim/jev_vs_generic_10repeat_seed20270000.json \
-    --log-dir logs/jev_sim/logs_10repeat \
-    --jev-log-dir logs/jev_sim/jev_10repeat --quiet
+    --out logs/s1_sim/jev_vs_generic_10repeat_seed20270000.json \
+    --log-dir logs/s1_sim/logs_10repeat \
+    --jev-log-dir logs/s1_sim/jev_10repeat --quiet
 ```
 
 As of 2026-10-16 the exported dataset contained 6,060 valid action records
@@ -644,7 +800,7 @@ seeds 20-24, two earlier hazard-context logs, and 75 variety-sim games
 
 ## Headless battle simulation (win-rate analysis)
 
-`scripts/jev_battle_sim.py` runs a full battle headlessly (no Flask) to
+`scripts/s1_battle_sim.py` runs a full battle headlessly (no Flask) to
 measure how JEV-controlled NPCs perform against baseline controllers:
 
 - Party: the L7 fighter fixture (`tests/fixtures/high_elf_fighter.yml`) run
@@ -658,7 +814,7 @@ measure how JEV-controlled NPCs perform against baseline controllers:
   (`move_for` -> `action` -> `commit` until no actions remain).
 
 ```bash
-python scripts/jev_battle_sim.py --opponent both --repeat 5 \
+python scripts/s1_battle_sim.py --opponent both --repeat 5 \
     --max-rounds 10 --out sim_result.json
 # -> per-game log + JSON, plus a win-rate summary per opponent:
 #    vs generic  JEV wins X/N ...
@@ -709,7 +865,7 @@ can be compared directly with a general-purpose chat model driving the
 same battle. All arms share identical maps, seeds, and round caps.
 
 - `--npc-ai generic`: heuristic control (no API calls).
-- `--npc-ai jev`: the JEV recursive action-tree planner decides every
+- `--npc-ai teacher`: the JEV recursive action-tree planner decides every
   action through `LlmMcpController.move_for`.
 - `--npc-ai llm`: the chat model's `select_action` path
   (`_ask_llm_for_choice` -> provider `send_message`, flat action index,
@@ -728,11 +884,11 @@ same battle. All arms share identical maps, seeds, and round caps.
 
 ```bash
 # one background job per arm (seeds 20260921-25 generic / 20261921-25 random)
-python scripts/jev_battle_sim.py --npc-ai generic --goblin-hp 7 \
+python scripts/s1_battle_sim.py --npc-ai generic --goblin-hp 7 \
     --opponent both --repeat 5 --max-rounds 10 --out sim_vanilla_control.json --quiet
-python scripts/jev_battle_sim.py --npc-ai jev --goblin-hp 7 \
+python scripts/s1_battle_sim.py --npc-ai teacher --goblin-hp 7 \
     --opponent both --repeat 5 --max-rounds 10 --out sim_vanilla_jev.json --quiet
-python scripts/jev_battle_sim.py --npc-ai llm --goblin-hp 7 \
+python scripts/s1_battle_sim.py --npc-ai llm --goblin-hp 7 \
     --opponent both --repeat 5 --max-rounds 10 --out sim_vanilla_llm.json --quiet
 ```
 
@@ -773,9 +929,9 @@ the deterministic `GenericController`):
   roster kind (NPC, PC melee, PC caster) plays through the planner.
 
 ```bash
-python scripts/jev_battle_sim.py \
+python scripts/s1_battle_sim.py \
     --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
-    --side-a-ai generic --side-b-ai jev --goblin-hp 40 \
+    --side-a-ai generic --side-b-ai teacher --goblin-hp 40 \
     --repeat 5 --max-rounds 10 --out sim_variety_flat.json
 ```
 
@@ -915,7 +1071,7 @@ Two latent engine bugs surfaced while running the AI arms:
 
 ### Generative-LLM comparison arm (2026-09-23)
 
-`scripts/jev_battle_sim.py --side-a-ai llm` drives the `LlmMcpController`
+`scripts/s1_battle_sim.py --side-a-ai llm` drives the `LlmMcpController`
 chat path (OpenAI-compatible endpoint) against JEV on side B. The 27B
 llama.cpp server at `jedld-strix:8081` was wedged (repeated 180 s provider
 timeouts), so the comparison ran against a local
@@ -1002,19 +1158,19 @@ turn) masks controller quality in some games.
 ### Additional 75-game training-data batch (2026-10-16)
 
 To expand the decision dataset for distillation, two direct paired batches
-were run: a 5-repeat batch (`logs/jev_sim/jev_vs_generic_5repeat.json`) and a
+were run: a 5-repeat batch (`logs/s1_sim/jev_vs_generic_5repeat.json`) and a
 10-repeat batch seeded at `20270000`
-(`logs/jev_sim/jev_vs_generic_10repeat_seed20270000.json`). Side A was
+(`logs/s1_sim/jev_vs_generic_10repeat_seed20270000.json`). Side A was
 `GenericController`, side B was JEV, goblin HP 40, max 10 rounds:
 
 ```bash
-python scripts/jev_battle_sim.py \
+python scripts/s1_battle_sim.py \
     --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
-    --side-a-ai generic --side-b-ai jev --repeat 10 \
+    --side-a-ai generic --side-b-ai teacher --repeat 10 \
     --seed 20270000 --max-rounds 10 \
-    --out logs/jev_sim/jev_vs_generic_10repeat_seed20270000.json \
-    --log-dir logs/jev_sim/logs_10repeat \
-    --jev-log-dir logs/jev_sim/jev_10repeat --quiet
+    --out logs/s1_sim/jev_vs_generic_10repeat_seed20270000.json \
+    --log-dir logs/s1_sim/logs_10repeat \
+    --jev-log-dir logs/s1_sim/jev_10repeat --quiet
 ```
 
 | scenario | JEV wins | generic wins | draws | avg rounds | JEV calls |
@@ -1035,7 +1191,7 @@ de-duplication).
 
 ### Dataset and playstyle analysis (2026-10-16)
 
-The deduped dataset (`logs/jev_training/action_decisions_dedup.jsonl`) has
+The deduped dataset (`logs/choice_training/action_decisions_dedup.jsonl`) has
 5,828 examples from 81 files and 53 entity names. Mean menu size is 9.0
 options (median 5, p95 29, max 60); mean state length is 1,866 chars (p95
 3,084). Sources: 3,475 campaign/hazard-context records, 898 from the 5-repeat
@@ -1081,7 +1237,7 @@ robust from-scratch production model.
 
 ### Multi-agent coordination batch (2026-10-16)
 
-`scripts/jev_battle_sim.py` now emits per-side `coordination` metrics for
+`scripts/s1_battle_sim.py` now emits per-side `coordination` metrics for
 every game. The metrics are computed from committed action results and map
 positions: action-category counts, attack/spell hits and misses, damage by
 target, healing, ally spacing (mean pairwise straight-line grid distance at
@@ -1096,13 +1252,13 @@ B JEV on the three multi-combatant scenarios (10 games each, seed `20280000`,
 goblin HP 40, max 10 rounds):
 
 ```bash
-python scripts/jev_battle_sim.py \
+python scripts/s1_battle_sim.py \
     --scenario npc_vs_npc,pc_vs_pc,team_pvp \
-    --side-a-ai generic --side-b-ai jev --repeat 10 \
+    --side-a-ai generic --side-b-ai teacher --repeat 10 \
     --seed 20280000 --max-rounds 10 \
-    --out logs/jev_sim/jev_vs_generic_multiagent_seed20280000.json \
-    --log-dir logs/jev_sim/logs_multiagent \
-    --jev-log-dir logs/jev_sim/jev_multiagent --quiet
+    --out logs/s1_sim/jev_vs_generic_multiagent_seed20280000.json \
+    --log-dir logs/s1_sim/logs_multiagent \
+    --jev-log-dir logs/s1_sim/jev_multiagent --quiet
 ```
 
 | scenario | JEV wins | generic wins | draws | avg rounds | JEV calls |
@@ -1150,13 +1306,13 @@ the same standard arena (five scenarios × 5 repeats, goblin HP 40, max 10
 rounds):
 
 ```bash
-python scripts/jev_battle_sim.py \
+python scripts/s1_battle_sim.py \
     --scenario pc_vs_npc,duel,npc_vs_npc,pc_vs_pc,team_pvp \
-    --side-a-ai generic --side-b-ai jev --repeat 5 \
+    --side-a-ai generic --side-b-ai teacher --repeat 5 \
     --seed 20261017 --max-rounds 10 \
-    --out logs/jev_sim/jev_vs_generic_20261017_seed20261017.json \
-    --log-dir logs/jev_sim/logs_20261017 \
-    --jev-log-dir logs/jev_sim/jev_20261017 --quiet
+    --out logs/s1_sim/jev_vs_generic_20261017_seed20261017.json \
+    --log-dir logs/s1_sim/logs_20261017 \
+    --jev-log-dir logs/s1_sim/jev_20261017 --quiet
 ```
 
 | scenario | JEV wins | generic wins | draws | exact binomial p | JEV calls |

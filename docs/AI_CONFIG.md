@@ -42,9 +42,22 @@ providers:                 # named profiles; dm / npc / battle map to the LLMHan
   fast_chat: {provider: openai, model: gpt-4o-mini, api_key_env: OPENAI_API_KEY}   # custom
   # any profile: enabled: false  -> slot disabled (npc falls back to dm, battle to dm)
 combat:
-  npc_controller: ai        # ai = deterministic GenericController | llm | manual (DM)
+  npc_controller: ai        # ai = deterministic GenericController | llm | hybrid (LLM plans + JEV) | manual (DM)
+                            # | agent:<name> (use a named agent bundle below)
+  npc_agent: brute          # default named agent for NPCs without their own controller/agent
   llm_provider: battle      # profile for llm combat controllers (default: battle -> dm)
+  strategist_provider: dm   # profile for hybrid controllers' turn-planner LLM (default: dm; never jev)
   force_llm: false          # NPC_LLM_COMBAT_ENABLED equivalent; beats per-NPC settings
+agents:                     # named agent bundles: kind + profiles + standing orders in one entry
+  brute:
+    label: Brute            # shown in the DM panel and battle controller selects
+    controller: hybrid      # ai | llm | hybrid | manual
+    provider: battle        # executor / SystemOne (JEV) profile; omit = normal combat chain
+    strategist_provider: dm # hybrid planner profile; omit = normal strategist chain
+    directives: |           # fed into the JEV state, LLM prompt and strategist plan each turn
+      Focus archers and casters first. Open with the javelin volley, then close.
+      Never pursue a fleeing enemy; hold the corridor.
+  pack_alpha: {controller: llm, provider: battle, directives: Howl, then flank with the pack.}
 conversation:
   enabled: true             # false = no dedicated NPC provider (NPC_LLM_ENABLED=0)
   provider: npc             # profile for NPC dialogue
@@ -60,6 +73,7 @@ sidekicks:                  # applied to in-party sidekicks before the general d
   tasks: {enabled: true, provider: npc}
 npcs:                       # keyed by entity_uid (individual) or NPC type
   goblin:      {combat: {controller: ai}}
+  wolf:        {combat: {agent: pack_alpha}}
   npc_boss_1:  {combat: {controller: llm, provider: battle}, conversation: {provider: fast_chat},
                 tasks: {enabled: false}}
 ```
@@ -74,7 +88,8 @@ Provider names: `llama_cpp`, `ollama`, `openai`, `anthropic`, `jev`, `mock`. `ll
 1. `npcs[<entity_uid>]`
 2. `npcs[<npc_type>]`
 3. `sidekicks` (in-party sidekicks only)
-4. The general default: `combat.npc_controller`, `combat.llm_provider`, `conversation.provider` or `tasks.provider`
+4. The general default: `combat.npc_controller` / `combat.npc_agent`, `combat.llm_provider`,
+   `conversation.provider` or `tasks.provider`
 
 Where each setting is used:
 
@@ -91,12 +106,47 @@ Where each setting is used:
   `llm` combatant on JEV, point the `battle` profile at `provider: jev` (or set
   `BATTLE_LLM_PROVIDER=jev`) and leave `combat.llm_provider` unset or `battle`. A PC can be
   overridden by its `entity_uid` under `npcs:`.
+- **Hybrid controller (`hybrid`).** `HybridStrategistController`: a generative LLM writes
+  step-by-step turn orders that the JEV executor follows (reactions included); plans are
+  DM-only in the combat log. Its planner LLM resolves via
+  `ai_config.strategist_llm_provider_for(handler, entity)`: per-NPC
+  `combat.strategist_provider`, then `combat.strategist_provider`, then the `dm` slot — a
+  `jev` provider is never selected for planning. See `docs/JEV_NPC_BATTLE_AI.md` →
+  "Hybrid LLM strategist + JEV executor".
 - **Conversation and task providers.** `LLMConversationController.generate_response` tags each call
   with `entity_uid` and `ai_role`. A conversation id of the form `<uid>:goal|movement|environment|long_rest*`
   is a task. `LLMHandler.npc_provider_resolver`, installed by `configure_ai`, swaps in the profile's
   provider. Task calls fall back to the conversation profile.
 - **`tasks.enabled: false`.** The NPC is skipped by environment ticks and the long-rest simulation,
   and new short-term goals are refused.
+
+## Named agent bundles (`agents:`)
+
+An agent bundles a combat **controller kind**, **provider profiles** (any LLM,
+including SystemOne/JEV) and free-text **standing directives** under one name —
+so all of a creature's AI configuration can be picked "as one", opencode-style.
+
+- **Reference an agent** instead of a controller kind:
+  - per NPC / NPC type: `npcs.<key>.combat.agent: <name>` (or `combat.controller: agent:<name>`),
+  - sidekicks: `sidekicks.combat.agent: <name>`,
+  - campaign default: `combat.npc_agent: <name>`,
+  - live in combat: the turn-order controller select (`battle.html`), `/update_controller`
+    and MCP `dm.set_controller` accept `agent:<name>`; the Command Console "Default NPC
+    controller" select (`/update_npc_default_controller`) also lists agents.
+- **Precedence** (per entity): explicit `combat.controller` kind → the referenced agent
+  bundle's `controller` → `combat.npc_controller` (and likewise for provider profiles:
+  per-NPC profile → agent `provider` / `strategist_provider` → `combat.llm_provider` /
+  `combat.strategist_provider` → battle/DM slots). `ai_config.build_combat_controller_for_spec`
+  is the single dispatcher used by `/battle`, `/update_controller`, MCP and auto-battles.
+- **Directives** reach every decision context: the JEV state block
+  (`standing orders (<name> agent profile):` in `JevActionPlanner._render_state`), the
+  `LlmMcpController._build_prompt`, and the hybrid strategist's plan prompt. The controller
+  carries `agent_name` / `agent_persona`; saves persist them plus the *profile names*
+  (`agent_profile` / `agent_strategist_profile`), and `LlmMcpController.profile_resolver`
+  rebinds the live providers after a load.
+- **The DM panel** edits agents in the AI Settings → **Agents** tab (add/remove, pick
+  controller kind and profiles, write the directives), and there is an **Agent** column
+  in the Per-NPC tab plus a "Default NPC agent" select on the Combat tab.
 
 ## HTTP / MCP
 

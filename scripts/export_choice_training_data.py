@@ -2,8 +2,8 @@
 """Export JEV request/response JSONL logs into clean training records.
 
 Reads the raw ``JevProvider`` request logs written by
-``scripts/simulate_priest_quarters.py --jev-log`` and
-``scripts/jev_battle_sim.py --jev-log-dir`` and produces a compact, validated
+``scripts/simulate_priest_quarters.py --s1-log`` and
+``scripts/s1_battle_sim.py --s1-log-dir`` and produces a compact, validated
 JSONL dataset suitable for training a similar System One action-choice model.
 
 Only successful ``task == "action"`` records are exported. Each output record
@@ -12,9 +12,9 @@ confidence, the raw probability map, and a probability vector aligned to the
 option list.
 
 Usage:
-    python scripts/export_jev_training_data.py \
-        --out logs/jev_training/action_decisions.jsonl \
-        --report logs/jev_training/action_decisions.report.json
+    python scripts/export_choice_training_data.py \
+        --out logs/choice_training/action_decisions.jsonl \
+        --report logs/choice_training/action_decisions.report.json
 """
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INPUTS = [
     'logs/compare/jev_requests_*.jsonl',
     'logs/jev_requests_*.jsonl',
-    'logs/jev_sim/**/*.jsonl',
-    'logs/jev_training/raw/**/*.jsonl',
+    'logs/s1_sim/**/*.jsonl',
+    'logs/choice_training/raw/**/*.jsonl',
 ]
 
 
@@ -201,17 +201,22 @@ def main():
     parser.add_argument('--inputs', nargs='*', default=None,
                         help='JSONL files, directories, or glob patterns. '
                              f'Default: {DEFAULT_INPUTS}')
-    parser.add_argument('--out', default='logs/jev_training/action_decisions.jsonl',
+    parser.add_argument('--out', default='logs/choice_training/action_decisions.jsonl',
                         help='Output JSONL path.')
-    parser.add_argument('--report', default='logs/jev_training/action_decisions.report.json',
-                        help='Output JSON report path.')
+    parser.add_argument('--report', default=None,
+                        help='Output JSON report path (default: alongside --out '
+                             'as <out-stem>.report.json, so subset exports do '
+                             'not clobber the main corpus report).')
     parser.add_argument('--dedupe', action='store_true',
                         help='Drop records with identical state/options/chosen_index.')
     args = parser.parse_args()
 
     input_files = expand_inputs(args.inputs or DEFAULT_INPUTS)
     out_path = (ROOT / args.out).resolve()
-    report_path = (ROOT / args.report).resolve()
+    if args.report:
+        report_path = (ROOT / args.report).resolve()
+    else:
+        report_path = out_path.parent / (out_path.stem + '.report.json')
     out_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
