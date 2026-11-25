@@ -796,7 +796,27 @@ def autobuild(session, action_class, entity, battle, map=None, auto_target=True,
 
     # Remove any None values which represent invalid/failed builds
     final_actions = [act for act in previous_builds if act is not None]
-    return [act for act in final_actions if not _npc_attack_target_blocked(act)]
+    return [act for act in final_actions
+            if not _npc_attack_target_blocked(act) and not _charm_blocks_harmful_target(act)]
+
+
+def _charm_blocks_harmful_target(action) -> bool:
+    """Drop options that would attack / harmfully target a creature's charmer.
+
+    Weapon attacks are covered by ``attack_target_issue``; this also catches
+    SpellAction (Sacred Flame, etc.) and other harmful actions autobuild emits.
+    """
+    source = getattr(action, 'source', None)
+    if source is None:
+        return False
+    try:
+        from natural20.utils.friendly_fire import is_harmful
+        from natural20.utils.monster_traits import action_targets_charmer
+        if not is_harmful(action):
+            return False
+        return action_targets_charmer(source, action)
+    except Exception:
+        return False
 
 
 def _npc_attack_target_blocked(action) -> bool:

@@ -262,6 +262,57 @@ class TestVampireAttacks(MonsterTraitsTestBase):
         self.assertFalse(is_charmed_by(self.pc, self.vampire))
         self.assertNotIn('charmed', self.pc.statuses)
 
+    def test_charm_blocks_harmful_spells_and_autobuild(self):
+        """Charmed creatures can't Sacred Flame (or similarly harm) the charmer."""
+        from natural20.actions.spell_action import SpellAction
+        from natural20.utils.action_builder import autobuild
+
+        cleric = PlayerCharacter.load(self.session, 'dwarf_cleric.yml')
+        self.battle.add(cleric, 'a', position=[6, 4], add_to_initiative=True)
+        cleric.reset_turn(self.battle)
+
+        DieRoll.fudge(1)
+        self.attack('charm', target=cleric, d20=None)
+        self.assertTrue(is_charmed_by(cleric, self.vampire))
+
+        flame = SpellAction.build(self.session, cleric)['next'](
+            ['sacred_flame', 0])['next'](self.vampire)
+        flame.validate(self.map, target=self.vampire, battle=self.battle)
+        self.assertIn('validation.attack.charmed_by_target', flame.errors)
+
+        built = autobuild(self.session, SpellAction, cleric, self.battle)
+        against_vampire = [
+            a for a in built
+            if getattr(a, 'target', None) is self.vampire
+            and isinstance(getattr(a, 'spell', None), dict)
+            and a.spell.get('id') == 'sacred_flame'
+        ]
+        self.assertEqual(against_vampire, [])
+
+    def test_charm_blocks_wrath_of_the_storm_against_charmer(self):
+        from natural20.actions.wrath_of_the_storm_action import wrath_of_the_storm_reaction
+
+        cleric = PlayerCharacter.load(self.session, 'dwarf_cleric.yml')
+        # Force the Tempest feature on so we can exercise the reaction gate
+        # without needing a Tempest Domain fixture.
+        cleric.properties.setdefault('class_features', [])
+        if 'wrath_of_the_storm' not in cleric.properties['class_features']:
+            cleric.properties['class_features'].append('wrath_of_the_storm')
+        cleric.wrath_of_the_storm_max = 2
+        cleric.wrath_of_the_storm_uses = 2
+        self.battle.add(cleric, 'a', position=[6, 5], add_to_initiative=True)
+        cleric.reset_turn(self.battle)
+
+        DieRoll.fudge(1)
+        self.attack('charm', target=cleric, d20=None)
+        self.assertTrue(is_charmed_by(cleric, self.vampire))
+
+        events = wrath_of_the_storm_reaction(
+            self.battle, cleric, self.vampire,
+            {'attack_roll': object(), 'damage': 5},
+        )
+        self.assertEqual(events, [])
+
     def test_charmed_target_is_a_willing_bite_target(self):
         DieRoll.fudge(1)
         self.attack('charm', d20=None)

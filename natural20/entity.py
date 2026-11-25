@@ -5170,6 +5170,38 @@ class Entity(EntityStateEvaluator, Notable):
 
         return True, None
 
+    @staticmethod
+    def _dump_effect_descriptor(descriptor):
+        # Store entity references inside effect descriptors as uid strings
+        # (resolved back by natural20.utils.serialization.relink_spell_entities
+        # and Map.from_dict). Live objects here would make an entity that is
+        # linked to itself (e.g. a self-targeted Mirror Image) serialize as a
+        # node referencing itself, which PyYAML cannot construct on load.
+        if not isinstance(descriptor, dict):
+            return descriptor
+        dumped = dict(descriptor)
+        for key in ('source', 'target'):
+            value = dumped.get(key)
+            if isinstance(value, (list, tuple, set)):
+                dumped[key] = [
+                    str(uid) if (uid := getattr(item, 'entity_uid', None)) is not None else item
+                    for item in value
+                ]
+            else:
+                uid = getattr(value, 'entity_uid', None)
+                if uid is not None:
+                    dumped[key] = str(uid)
+        return dumped
+
+    def _dump_effects(self):
+        return {
+            status: [self._dump_effect_descriptor(d) for d in (descriptors or [])]
+            for status, descriptors in (self.effects or {}).items()
+        }
+
+    def _dump_casted_effects(self):
+        return [self._dump_effect_descriptor(d) for d in (self.casted_effects or [])]
+
     def to_dict(self):
         from natural20.weapon_mastery import mastery_state_to_dict
         return {
@@ -5177,12 +5209,12 @@ class Entity(EntityStateEvaluator, Notable):
             'properties': self.properties,
             'attributes': self.attributes,
             'inventory': self.inventory,
-            'effects': self.effects,
+            'effects': self._dump_effects(),
             'status': self.statuses,
             'death_saves': self.death_saves,
             'death_fails': self.death_fails,
             'concentration': self.concentration,
-            'casted_effects': self.casted_effects,
+            'casted_effects': self._dump_casted_effects(),
             'grapples': self.grapples,
             'temp_hp' : self._temp_hp,
             'group' : self.group,

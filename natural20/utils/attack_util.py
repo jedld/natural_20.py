@@ -406,6 +406,16 @@ def after_take_damage_hook(battle, target, attacker, damage_opts=None):
         action.trigger_damage_type = trigger_damage_type
         action.trigger_attacker = attacker
 
+        # Charmed: can't target the charmer with harmful reaction spells
+        # (Hellish Rebuke). Absorb Elements targets self and is fine.
+        if not is_absorb_elements:
+            try:
+                from natural20.utils.monster_traits import is_charmed_by
+                if is_charmed_by(target, attacker):
+                    continue
+            except Exception:
+                pass
+
         was_resistant = False
         if is_absorb_elements and trigger_damage_type:
             try:

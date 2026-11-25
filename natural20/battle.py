@@ -945,6 +945,16 @@ class Battle():
     def in_legendary_phase(self, entity):
         return bool(self.legendary_phase) and getattr(entity, 'entity_uid', None) == self.legendary_phase
 
+    def statistics(self):
+        """JSON-safe battle statistics computed from ``battle_log``.
+
+        See :mod:`natural20.utils.battle_statistics` for the schema: damage
+        by source/target pair and type, hits/crits/misses, healing, saves,
+        team aggregates and kill attribution.
+        """
+        from natural20.utils.battle_statistics import collect_statistics
+        return collect_statistics(self)
+
     def battle_ends(self):
         """
         Returns true if the battle has ended
@@ -1040,6 +1050,8 @@ class Battle():
         process_departures(self)
         if self.started and self.battle_ends():
             self.session.event_manager.received_event({"source" : self, "event" : 'end_of_combat'})
+            from natural20.utils.battle_statistics import emit_battle_statistics
+            emit_battle_statistics(self)
             self.started = False
             # print('tpk')
             return 'tpk'

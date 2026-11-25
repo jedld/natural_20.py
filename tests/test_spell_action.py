@@ -157,10 +157,10 @@ class TestSpellAction(unittest.TestCase):
         self.npc.heal(100)
         self.assertEqual(self.npc.hp(), 2)
 
-        # drop effect until next turn
+        # drop effect at the start of the caster's next turn
         self.entity.reset_turn(self.battle)
         self.npc.heal(100)
-        self.assertNotEqual(self.npc.hp(), 3)
+        self.assertEqual(self.npc.hp(), self.npc.max_hp())
 
     def test_true_strike(self):
         def cast_true_strike():
@@ -204,6 +204,60 @@ class TestSpellAction(unittest.TestCase):
         other = self.session.npc('skeleton')
         self.battle.add(other, 'a', position=[6, 5])
         self.assertEqual(target_advantage_condition(self.session, self.npc, other, None, battle=self.battle), [0, [[], []]])
+
+    def test_chill_touch_blocks_undead_regen_across_recasts(self):
+        """Regression: undead disadvantage dismiss must not wipe a later
+        Chill Touch heal-block (shared effect id + stale end_of_turn hooks)."""
+        from natural20.utils.monster_traits import apply_regeneration
+
+        random.seed(1004)
+        DieRoll.fudge(20)
+        vampire = self.session.npc('vampire_lord')
+        self.battle_map.add(vampire, 1, 5)
+        self.battle.add(vampire, 'b', add_to_initiative=True)
+        vampire.attributes['hp'] = 100
+
+        def cast_chill_touch():
+            action = SpellAction.build(self.session, self.entity)['next'](
+                ['chill_touch', 0])['next'](vampire)
+            self.battle.execute_action(action)
+            return action
+
+        cast_chill_touch()
+        self.assertTrue(vampire.has_spell_effect('chill_touch'))
+        vampire.attributes['hp'] = 100
+        self.assertEqual(apply_regeneration(vampire, self.battle), 0)
+        self.assertEqual(vampire.hp(), 100)  # heal_override -> 0
+
+        # Start of caster's next turn ends the first heal-block and arms the
+        # undead rider's end-of-turn dismiss.
+        self.entity.reset_turn(self.battle)
+        vampire.attributes['hp'] = 100
+        self.assertEqual(apply_regeneration(vampire, self.battle), 20)
+        vampire.attributes['hp'] = 100
+
+        # Recast while the prior undead end_of_turn is still pending.
+        DieRoll.fudge(20)
+        cast_chill_touch()
+        self.assertTrue(vampire.has_spell_effect('chill_touch'))
+        vampire.attributes['hp'] = 100
+
+        # End of caster turn fires the *prior* undead dismiss — must not clear
+        # this cast's heal_override.
+        self.entity.resolve_trigger('end_of_turn')
+        self.assertTrue(vampire.has_spell_effect('chill_touch'))
+        self.assertEqual(apply_regeneration(vampire, self.battle), 0)
+        self.assertEqual(vampire.hp(), 100)
+
+        # A third cast after another caster turn must still suppress regen.
+        self.entity.reset_turn(self.battle)
+        DieRoll.fudge(20)
+        cast_chill_touch()
+        self.entity.resolve_trigger('end_of_turn')
+        vampire.attributes['hp'] = 90
+        self.assertEqual(apply_regeneration(vampire, self.battle), 0)
+        self.assertEqual(vampire.hp(), 90)
+        DieRoll.unfudge(20)
 
     def test_expeditious_retreat(self):
         action = SpellAction.build(self.session, self.entity)['next'](['expeditious_retreat', 0])

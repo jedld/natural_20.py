@@ -251,6 +251,30 @@ class SpellAction(Action):
         self.errors = list(self.spell_action.errors)
         self.validation_issues = list(getattr(self.spell_action, 'validation_issues', []))
         self._validate_force_dome(battle_map, target)
+        self._validate_charm_target(target)
+
+    def _validate_charm_target(self, target):
+        """Charmed creatures can't aim harmful spells at their charmer."""
+        try:
+            from natural20.utils.friendly_fire import is_harmful
+            from natural20.utils.monster_traits import charmed_by_target_issue
+            from natural20.utils.target_validation import add_validation_issue
+        except Exception:
+            return
+        if not is_harmful(self):
+            return
+        members = target if isinstance(target, (list, tuple, set)) else [target]
+        for tgt in members:
+            issue = charmed_by_target_issue(self.source, tgt)
+            if not issue:
+                continue
+            add_validation_issue(self.spell_action, issue)
+            add_validation_issue(self, issue)
+            self.errors = list(dict.fromkeys(
+                list(self.errors) + list(getattr(self.spell_action, 'errors', []) or [])
+            ))
+            self.validation_issues = list(getattr(self.spell_action, 'validation_issues', []))
+            return
 
     def _validate_force_dome(self, battle_map, target):
         if battle_map is None or self.source not in battle_map.entities:

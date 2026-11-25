@@ -1893,22 +1893,12 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
     return len(self.journal) != before
 
   def to_dict(self):
-    _serialized_casted_effects = []
-    _serialized_effects = {}
-    for casted_effect in self.casted_effects:
-      _copy = copy.copy(casted_effect)
-      if 'target' in casted_effect:
-        _copy['target'] = getattr(casted_effect['target'], 'entity_uid', casted_effect['target'])
-      _serialized_casted_effects.append(_copy)
-
-    for k, descriptors in self.effects.items():
-      _descriptor_arr = []
-      for descriptor in descriptors:
-        _descriptor = copy.copy(descriptor)
-        if 'source' in _descriptor:
-          _descriptor['source'] = getattr(_descriptor['source'], 'entity_uid', _descriptor['source'])
-        _descriptor_arr.append(_descriptor)
-      _serialized_effects[k] = _descriptor_arr
+    # Store entity refs in effect descriptors (both ``source`` and ``target``)
+    # as uid strings via the Entity dump helpers. Live objects make a
+    # self-linked entity (e.g. self-cast Mirror Image) serialize as a node
+    # aliasing itself, which PyYAML cannot reconstruct on load.
+    _serialized_casted_effects = self._dump_casted_effects()
+    _serialized_effects = self._dump_effects()
 
 
     # Per-class mutable resources that should round-trip

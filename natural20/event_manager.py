@@ -495,6 +495,30 @@ class EventManager:
             if line:
                 self.output_logger.log(line, event=event, visibility='dm')
 
+        def strategist_plan(event):
+            # Hybrid LLM strategist + JEV executor: the generative strategist's
+            # step-by-step orders for this turn (DM-only planning window).
+            message = event.get('message') or ''
+            if not message.strip():
+                return
+            name = self.show_name(event)
+            self.output_logger.log(f"{name} (strategist) plans this turn:",
+                                   event=event, visibility='dm')
+            for line in str(message).splitlines():
+                line = line.strip()
+                if line:
+                    self.output_logger.log(f"  {line}", event=event, visibility='dm')
+
+        def battle_statistics(event):
+            # Combat-end statistics report (utils/battle_statistics): the
+            # lines are pre-formatted ([DM]-prefixed) report rows.
+            visibility = event.get('visibility')
+            for line in (event.get('lines') or []):
+                line = str(line)
+                if line.strip():
+                    self.output_logger.log(line, event=event,
+                                           visibility=visibility)
+
         def ice_knife(event):
             if event['success']:
                 self.output_logger.log(f"{self.show_target_name(event)} passed the dexterity saving throw for ice knife. {event['roll']} >= {event['source'].spell_save_dc()}")
@@ -746,6 +770,8 @@ class EventManager:
             'arcane_ward_absorb': lambda event: self.output_logger.log(
                 f"{self.show_name(event)}'s Arcane Ward absorbs {event.get('damage')} damage ({event.get('remaining')} left)."),
             'turn_status': turn_status,
+            'strategist_plan': strategist_plan,
+            'battle_statistics': battle_statistics,
             'dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} dodges."),
             'died': died,
             'summon_called': lambda event: self.output_logger.log(

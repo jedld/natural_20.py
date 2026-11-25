@@ -443,7 +443,7 @@ en:
     shove:
       invalid_target_size: The target must be no more than one size larger than you
     attack:
-      charmed_by_target: You can't attack the creature that charmed you.
+      charmed_by_target: You can't attack or target the creature that charmed you with harmful effects.
       target_condition: The target doesn't meet this attack's requirements (e.g. it must be grappled, incapacitated, restrained or willing).
       target_creature_type: This attack can't affect that kind of creature.
       loading: This Loading weapon was already fired during this Attack action.

@@ -31,7 +31,7 @@ from natural20.spell.objects.daylight import DaylightSource
 from natural20.item_library.pit_trap import PitTrap
 from natural20.generic_controller import GenericController
 from natural20.web.web_controller import WebController
-from natural20.llm_controller import LlmMcpController
+from natural20.llm_controller import LlmMcpController, HybridStrategistController
 from natural20.session import Session
 from natural20.die_roll import DieRollResult
 from typing import Any
@@ -268,6 +268,9 @@ def relink_spell_entities(session, maps=None, battle=None):
         if isinstance(value, str):
             entity = session.entity_by_uid(value)
             return entity if entity is not None else value
+        if isinstance(value, (list, tuple, set)):
+            resolved = [resolve(item) for item in value]
+            return tuple(resolved) if isinstance(value, tuple) else resolved
         return value
 
     map_list = list(maps.values() if isinstance(maps, dict) else (maps or []))
@@ -296,13 +299,15 @@ def relink_spell_entities(session, maps=None, battle=None):
             for descriptor in descriptors or []:
                 if isinstance(descriptor, dict):
                     fix(descriptor.get('effect'))
-                    if 'source' in descriptor:
-                        descriptor['source'] = resolve(descriptor['source'])
+                    for key in ('source', 'target'):
+                        if key in descriptor:
+                            descriptor[key] = resolve(descriptor[key])
         for descriptor in getattr(entity, 'casted_effects', None) or []:
             if isinstance(descriptor, dict):
                 fix(descriptor.get('effect'))
-                if 'target' in descriptor:
-                    descriptor['target'] = resolve(descriptor['target'])
+                for key in ('source', 'target'):
+                    if key in descriptor:
+                        descriptor[key] = resolve(descriptor[key])
 
     # Entity event hooks are not saved; effects that rely on them re-register
     # through ``restore_hooks()`` once every entity reference is live again.
@@ -347,6 +352,70 @@ def represent_class(dumper, data):
 
 yaml.SafeDumper.add_representer(type, represent_class)
 
+# PyYAML cannot construct a node graph whose cycle passes through a
+# custom-tagged object: its recursion guard raises "found unconstructable
+# recursive node" for any alias that points at one of its own ancestors.
+# Saves hit this when an entity that is self-linked through its own effect
+# descriptors (e.g. Strahd's Mirror Image with ``target``/``source`` pointing
+# back at itself) is first dumped in full — typically as a map ``entities``
+# key — because the alias sits *inside* the entity's own node. Break those
+# back-edges before construction by replacing the alias with the ancestor's
+# ``entity_uid`` string; ``relink_spell_entities`` / ``Map.from_dict`` resolve
+# it back to a live entity after the load.
+
+_STANDARD_COLLECTION_TAGS = ('tag:yaml.org,2002:map', 'tag:yaml.org,2002:seq')
+
+
+def _uid_stub_node(ancestor, original):
+    # Build a plain-string scalar node holding the ancestor entity's uid so the
+    # reference stays resolvable after load (empty string when not available).
+    if isinstance(ancestor, yaml.MappingNode):
+        for key_node, value_node in ancestor.value:
+            if (isinstance(key_node, yaml.ScalarNode)
+                    and key_node.value == 'entity_uid'
+                    and isinstance(value_node, yaml.ScalarNode)):
+                return yaml.ScalarNode(
+                    'tag:yaml.org,2002:str', value_node.value,
+                    original.start_mark, original.end_mark)
+    return yaml.ScalarNode(
+        'tag:yaml.org,2002:str', '', original.start_mark, original.end_mark)
+
+
+def _break_ref_edge(child, ancestors):
+    for ancestor in reversed(ancestors):
+        if ancestor is child:
+            # Standard map/seq cycles are constructible natively (deferred
+            # construction); only custom-tagged cycles break the Constructor.
+            if child.tag in _STANDARD_COLLECTION_TAGS:
+                return child
+            return _uid_stub_node(ancestor, child)
+    return break_recursive_object_refs(child, ancestors)
+
+
+def break_recursive_object_refs(node, ancestors=None):
+    """In-place rewrite of a composed YAML node graph.
+
+    Aliases that point at one of their own custom-tagged ancestors (cycles the
+    Constructor could never build) are replaced by the ancestor's
+    ``entity_uid`` scalar string. Standard map/seq cycles are left alone; the
+    Constructor defers those and can build them natively.
+    """
+    if ancestors is None:
+        ancestors = []
+    if isinstance(node, yaml.MappingNode):
+        ancestors.append(node)
+        node.value = [
+            (_break_ref_edge(key_node, ancestors), _break_ref_edge(value_node, ancestors))
+            for key_node, value_node in node.value
+        ]
+        ancestors.pop()
+    elif isinstance(node, yaml.SequenceNode):
+        ancestors.append(node)
+        node.value = [_break_ref_edge(child, ancestors) for child in node.value]
+        ancestors.pop()
+    return node
+
+
 # Create a specialized loader with constructors
 class SafeLoaderWithConstructors(yaml.FullLoader):
     def construct_mapping(self, node, deep=False):
@@ -357,6 +426,13 @@ class SafeLoaderWithConstructors(yaml.FullLoader):
                 if isinstance(key_node, yaml.SequenceNode):
                     key_node.tag = 'tag:yaml.org,2002:python/tuple'
         return super().construct_mapping(node, deep=deep)
+
+    def get_single_data(self):
+        node = self.get_single_node()
+        if node is None:
+            return None
+        break_recursive_object_refs(node)
+        return self.construct_document(node)
 
 # Global mapping: classes are associated with their YAML tag.
 CLASS_TAG_MAPPING = {
@@ -389,6 +465,7 @@ CLASS_TAG_MAPPING = {
     GenericController: '!generic_controller',
     WebController: '!web_controller',
     LlmMcpController: '!llm_mcp_controller',
+    HybridStrategistController: '!hybrid_strategist_controller',
     AttackAction: '!attack_action',
     ActionRecord: '!action_record',
     MultiSwitch: '!multi_switch',
@@ -418,7 +495,8 @@ def generic_constructor(loader, node):
     # Look up our mapping to find the class associated with this tag.
     for cls, tag in CLASS_TAG_MAPPING.items():
         if node.tag == tag:
-            if tag in ('!generic_controller', '!web_controller', '!llm_mcp_controller'):
+            if tag in ('!generic_controller', '!web_controller', '!llm_mcp_controller',
+                       '!hybrid_strategist_controller'):
                 # Older saves stored controller ``battle_data`` keyed by the
                 # Battle being loaded (a recursive alias); it's transient, drop it.
                 node.value = [(k, v) for k, v in node.value

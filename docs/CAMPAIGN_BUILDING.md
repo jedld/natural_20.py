@@ -454,12 +454,29 @@ dimensions.
 | `login_ui` | object | Optional login screen layout/theme (panel position, fonts, colors). See [Login screen styling](#login-screen-styling). |
 | `character_selection_background` | string | Image for character selection |
 | `autosave` | bool | Enable automatic save |
-| `selectable_characters` | array | Characters players can pick at login |
+| `selectable_characters` | array | Characters players can pick at login (map `player:` PCs are auto-listed; see below) |
 | `suppress_dialog_descriptions` | bool or `"player_characters"` | Hide entity descriptions in the JRPG talk panel and the NPC public card / PC character sheet for non-DM players (mystery / spoiler-safe) |
 | `highlight_doors` | bool | Highlight visible door fixtures on the map with an amber overlay (player-facing UI) |
 | `soundtracks` | array | Background music tracks |
 | `logins` | array | User accounts (`role`: `"player"` or `"dm"`) |
 | `default_controllers` | array | Which users control which entities |
+
+### Selectable characters at login
+
+The login character-selection screen and the DM **Manage Users** assignment
+panel offer characters from three sources, deduplicated (index entries win):
+
+1. `index.json` `selectable_characters` rows (explicit `sheet` + `overrides.entity_uid`).
+2. Campaign NPCs marked `selectable: true` (sidekick picks).
+3. **Map `player:` definitions** — party PCs authored directly in map YAML
+   (`player: [{position, sheet, overrides: {entity_uid}}]`) are automatically
+   offered as claimable characters even without an `index.json` row. Their
+   display name/description come from the sheet YAML, and claiming places them
+   at the position defined on the map. The DM can assign these to a login from
+   Manage Users (or MCP `dm.user_admin` `assign_character`).
+
+See `webapp/blueprints/helpers/character_selection.py`
+(`map_defined_player_entries`).
 
 ### Login screen styling
 

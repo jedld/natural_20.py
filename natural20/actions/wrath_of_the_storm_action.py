@@ -217,6 +217,13 @@ def wrath_of_the_storm_reaction(battle, cleric, attacker, damage_opts):
         return []
     if attacker.dead():
         return []
+    # Charmed: can't target the charmer with harmful abilities (PHB).
+    try:
+        from natural20.utils.monster_traits import is_charmed_by
+        if is_charmed_by(cleric, attacker):
+            return []
+    except Exception:
+        pass
     bmap = battle.map_for(cleric)
     try:
         if bmap is None or bmap.distance(cleric, attacker) * bmap.feet_per_grid > 5:

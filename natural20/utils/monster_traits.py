@@ -617,6 +617,36 @@ def is_charmed_by(entity, charmer):
     return uid is not None and uid in active_charmers(entity)
 
 
+def charmed_by_target_issue(source, target):
+    """Return the validation key when *source* is charmed by *target*.
+
+    PHB Charmed: the creature can't attack the charmer or target the charmer
+    with harmful abilities or magical effects. Callers decide whether the
+    action is harmful before consulting this.
+    """
+    if source is None or target is None:
+        return None
+    if not hasattr(target, 'entity_uid'):
+        return None
+    if is_charmed_by(source, target):
+        return 'validation.attack.charmed_by_target'
+    return None
+
+
+def action_targets_charmer(source, action) -> bool:
+    """True when *action* has at least one creature target that charmed *source*."""
+    if source is None or action is None:
+        return False
+    targets = getattr(action, 'target', None)
+    members = targets if isinstance(targets, (list, tuple, set)) else [targets]
+    for target in members:
+        if target is None or not hasattr(target, 'entity_uid'):
+            continue
+        if is_charmed_by(source, target):
+            return True
+    return False
+
+
 def apply_charm(target, charmer, save_dc=None, duration=None, repeat_save_when_harmed=True):
     """Charm ``target`` (unless immune). Returns True when the charm took hold."""
     if target is None or charmer is None or target.dead():
@@ -745,8 +775,9 @@ def attack_target_issue(source, target, npc_action):
         return None
     if getattr(target, 'object', lambda: False)():
         return None
-    if is_charmed_by(source, target):
-        return 'validation.attack.charmed_by_target'
+    charm_issue = charmed_by_target_issue(source, target)
+    if charm_issue:
+        return charm_issue
     if not isinstance(npc_action, dict):
         return None
     conditions = npc_action.get('target_if')
