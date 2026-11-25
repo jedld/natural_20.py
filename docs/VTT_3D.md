@@ -31,7 +31,7 @@ Maps stay 2D grids. The 3D view **extrudes and drapes**:
 | Torches / lamps | `lights[]` from YAML `map.light` + `lights:` catalog | Wall sconce or standing torch + `PointLight` |
 | Campfire / brazier / fireplace | object `kind` | Mesh + `PointLight` when lit (fireplace unlit = mesh only) |
 | Tokens | `/map_state` `entities[]` | Billboard + disc; **prone** lies on the floor; **flying** hovers with a ground shadow; carried torch or spell orb + `PointLight` when `light` is set |
-| Fog / light | tile `line_of_sight`, `light` | Dark quads / warm tint (game illumination, unchanged) |
+| Fog / light | tile `line_of_sight`, `light` | Soft-edged shade / warm-tint overlays (one feathered mask quad per layer, no sharp tile borders; game illumination, unchanged) |
 | Move / AoE | `/path`, `/target` | Polyline + floor highlights |
 | Combat FX | Socket `spell` / `attack` | Projectiles, beams, cones, bursts, auras (`client-3d/src/fx/`) |
 | Map weather | Socket `effect:set` | Fog (scene + ground mist), streaked rain with splashes, snow, terrain-water chop, point fires, wall of fire |
