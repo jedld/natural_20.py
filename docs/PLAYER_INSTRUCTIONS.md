@@ -82,6 +82,28 @@ live for that entity. Without one, nothing renders and the API answers
   live step list fed by socket refreshes, Stop/Close that POST
   `/instruction/stop`. Steps auto-continue while the status is `step`.
 
+### Error surfacing (no silent stalls)
+
+Every refusal is a JSON body the modal can display, and the modal wires
+the same handler to jQuery's error path:
+
+- `ajaxPost(url, data, onSuccess, isJSON, onError)` — the optional
+  `onError` receives `jqXHR.responseJSON` (or a synthetic
+  `{status:'error', message}` for non-JSON/HTML failures). Without it a
+  4xx/5xx only hits `console.error` and any polling loop would freeze.
+- The Instruct modal passes its `handle()` as both success and error
+  callback for `/instruction` and `/instruction/step`, so a 409
+  ("It is not this character's turn…", "Resolve the pending reaction
+  first…"), a 503 (no decision model) or a 500 shows its message in the
+  status line and re-enables Run instead of sitting at "Starting..."
+  forever. (This was the "click Instruct, everything stalls" bug: the
+  off-turn 409 was returned correctly but never rendered, while the
+  manual character's turn waited for input.)
+- `start_instruction` / `run_instruction_step` wrap their whole body in
+  try/except so unexpected engine errors also return
+  `{status:'error', message}` with a 500 rather than an HTML traceback
+  page.
+
 ## Ready (Hold) is System One too
 
 `webapp/ready_action_handler.parse_ready_action_request` now prefers
