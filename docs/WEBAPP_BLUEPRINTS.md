@@ -112,6 +112,7 @@ This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid squa
 | `cors_config.py` | CORS origins, SocketIO async mode |
 | `perf.py` | Request timing instrumentation |
 | `conversation_wiring.py` | `ConversationService` setup and `/talk` route registration |
+| `instruction_follow.py` | Player free-text instruction runs executed step by step by the System One (JEV) decision model; per-entity run state in `session_state['active_instructions']`; provider gating via `combat_llm_provider_for` (`docs/PLAYER_INSTRUCTIONS.md`) |
 
 Blueprints read shared state through `runtime_state` accessors, **not** by importing from `webapp.app`.
 
@@ -703,9 +704,24 @@ Tests: `n20-webapp/tests/webapp/test_campaign_spawner_library.py` (routes +
 flags + tombstone + duplicate) and `tests/test_campaign_library_engine.py`
 (engine duplicate + tombstone loader).
 
+## Player instructions (System One step-by-step)
+
+Human players can type a free-text intent ("open the door and walk in") and have the JEV/"System One" decision model carry it out **one legal action at a time**. No generative-LLM fallback: the Instruct button and endpoints exist only while a decision provider (anything exposing `decide_action`) is live for the entity.
+
+- Engine core: `natural20/utils/instruction_follow.py` — `InstructionPlanner` reuses the `JevActionPlanner` leaf menu (plus out-of-combat move leaves in `_move_leaves`) and returns one built action per `select_step()`, or a loop-control sentinel: `InstructionStop` (nothing fits / done), `InstructionEndTurn` (offered only when the instruction text mentions ending the turn), `InstructionReady` (out-of-turn intent in combat). `parse_player_instruction()` answers the Ready trigger/action questions with two flat Choice calls enumerated from the entity's sheet.
+- Webapp: `webapp/blueprints/helpers/instruction_follow.py` (ownership + turn gating + commit) and battle blueprint routes `POST /instruction` (start), `POST /instruction/step` (advance one step), `POST /instruction/stop`. Responses: `{status: step|done|end_turn|error, step{label}, reason}`. `end_turn` reuses the normal `/end_turn` path.
+- Run state lives in `session_state['active_instructions'][entity_uid]` (instruction text, done-step labels, step count; budget `DEFAULT_INSTRUCTION_BUDGET = 8`), so MCP callers share it; the Flask session keeps only the entity pointer.
+- Availability: `instruction_available(entity, battle)` (action-bar flag `instruction_available`, rendered next to End Turn in `_action_tabs.html`) resolves the provider via `ai_config.combat_llm_provider_for` and gates with `provider_can_follow_instructions`.
+- Turn gating: own turn / legendary phase in combat, any time out of combat, refused while a reaction or bardic-inspiration prompt is open; out-of-turn intent becomes a Ready action through the `ready` sentinel.
+- Ready (Hold) parsing also prefers System One: `webapp/ready_action_handler.parse_ready_action_request` tries `parse_player_instruction` first (two Choice calls, options enumerated from the entity's actual weapons/spells/items), then the generative LLM, then the heuristic parser; `_validate_5e_legality` still applies.
+- MCP mirror: `actions.instruction` (op=start|step|stop).
+- Frontend: `openInstructionModal` in `engine.js` (textarea, Run, live step list, Stop) driven by `.action-instruction` clicks; auto-continues `/instruction/step` while status is `step`.
+- Tests: `tests/test_instruction_follow.py` (engine), `n20-webapp/tests/webapp/test_instruction_follow.py` (ready parsing + route wiring).
+
 ## Related docs
 
 - `AGENTS.md` — agent orientation, MCP catalogue, battle/spell conventions
+- `docs/PLAYER_INSTRUCTIONS.md` — System One step-by-step player instructions + System One Ready parsing
 - `docs/CONVERSATION_RAG.md` — NPC `/talk` RAG pipeline
 - `plans/app_refactor_plan.md` — original refactor plan (completed)
 - `plans/pr_status.md` — PR-by-PR extraction log

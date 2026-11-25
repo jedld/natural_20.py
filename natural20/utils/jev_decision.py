@@ -2297,6 +2297,9 @@ class JevActionPlanner:
           1. defensive    a safe square (cover, no OA, away from enemies)
           2. hide         a reachable hiding spot
           3. offensive    a square that improves our attack position
+
+        Without a battle (out of combat) the intent-based scan has no foes to
+        reason about, so plain legal destinations are offered instead.
         """
         from natural20.actions.move_action import MoveAction
         from natural20.ai.path_compute import PathCompute
@@ -2310,6 +2313,34 @@ class JevActionPlanner:
         pos = m.position_of(ent)
         move_ft = ent.available_movement(battle)
         if move_ft <= 0:
+            return
+
+        if battle is None:
+            # Out of combat there is no path-of-attack reasoning: offer the
+            # nearest legal destinations, capped like the in-battle scan.
+            try:
+                step = getattr(m, 'feet_per_grid', 5) or 5
+                side = max(1, int((move_ft + step - 1) // step))
+                x0, y0 = int(pos[0]), int(pos[1])
+                dests = []
+                for dy in range(-side, side + 1):
+                    for dx in range(-side, side + 1):
+                        if dx == 0 and dy == 0:
+                            continue
+                        dest = (x0 + dx, y0 + dy)
+                        try:
+                            if not m.placeable(ent, dest[0], dest[1]):
+                                continue
+                        except Exception:
+                            continue
+                        dests.append((abs(dx) + abs(dy), dest))
+                dests.sort()
+                for _, dest in dests[:MAX_JEV_LEAVES // 2]:
+                    action = MoveAction(self._session, ent, 'move')
+                    action.move_path = [pos, list(dest)]
+                    yield (action, f"move to ({dest[0]}, {dest[1]})")
+            except Exception as e:
+                logger.debug("[JevPlan] out-of-battle move leaves failed: %s", e)
             return
 
         pc = getattr(ent, 'npc', None)

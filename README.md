@@ -689,6 +689,10 @@ BibTeX for the repository:
 | Document | Description |
 |----------|-------------|
 | [AGENTS.md](AGENTS.md) | AI agent quick reference and patterns |
+| [docs/LLM_SETUP.md](docs/LLM_SETUP.md) | **LLM + voice setup for the web UI** (conversation LLMs, JEV System One, NPC voice design/TTS) |
+| [docs/AI_CONFIG.md](docs/AI_CONFIG.md) | `.ai.yaml` providers, combat controllers, per-NPC AI |
+| [docs/JEV_NPC_BATTLE_AI.md](docs/JEV_NPC_BATTLE_AI.md) | JEV "System One" NPC battle AI |
+| [docs/PLAYER_INSTRUCTIONS.md](docs/PLAYER_INSTRUCTIONS.md) | Step-by-step player instructions via System One |
 | [docs/CAMPAIGN_BUILDING.md](docs/CAMPAIGN_BUILDING.md) | Campaign creation guide |
 | [docs/CAMPAIGN_ASSET_GENERATOR.md](docs/CAMPAIGN_ASSET_GENERATOR.md) | AI asset generation |
 | [docs/CONVERSATION_RAG.md](docs/CONVERSATION_RAG.md) | NPC RAG conversation system |
