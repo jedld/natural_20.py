@@ -31,6 +31,8 @@ This project provides a complete [Gymnasium](https://gymnasium.farama.org/) comp
 
 natural_20.py is a complete D&D 5e simulation engine with:
 
+It is the actively maintained successor to the original Ruby-based [jedld/natural_20](https://github.com/jedld/natural_20) project, which is now deprecated.
+
 - **Core simulation**: Map rendering, line of sight, cover computation, turn-based battle system
 - **AI research**: Gymnasium-compatible environments for reinforcement learning and LLM agents
 - **Web VTT**: Full-featured virtual tabletop with real-time multiplayer support
