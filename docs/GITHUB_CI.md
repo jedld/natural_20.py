@@ -26,22 +26,35 @@ A single account-wide key is deliberately not used (read-only blast radius per r
 
 The `n20-webapp` repo runs its own `python-tests.yml` / `js-tests.yml`
 (the engine repo's `webapp` job above is the same suite from the monorepo
-side). Its Python workflow checks out:
+side). Both standalone workflows **reproduce the monorepo layout** instead
+of checking this repo out at the workspace root:
 
 - the **public engine** (`jedld/natural_20.py`, default token; override via
-  the `NATURAL20_ENGINE_REPO` Actions variable) into `natural_20.py/`, and
-- the **private campaigns repo** into `user_levels/` via its own read-only
-  deploy key secret `N20_CAMPAIGNS_SSH_KEY` (a *separate* key from the
-  engine repo's secret of the same name; LFS enabled).
+  the `NATURAL20_ENGINE_REPO` Actions variable) is checked out into
+  `natural_20.py/` **first**, and
+- this repo is checked out into `natural_20.py/n20-webapp/`, and
+- the **private campaigns repo** into `natural_20.py/user_levels/` via its
+  own read-only deploy key secret `N20_CAMPAIGNS_SSH_KEY` (a *separate* key
+  from the engine repo's secret of the same name; LFS enabled).
 
-A follow-up step symlinks `user_levels` next to the workspace because
-`tests/webapp` modules resolve campaigns two different ways: cwd-relative
-(`Session(root_path='user_levels/wild_sheep_chase')`) **and**
+Tests then run exactly like the parent repo's jobs (`pytest
+n20-webapp/tests/webapp` with CWD = `natural_20.py/`, `TEMPLATE_DIR`
+pointed at the engine `templates/`; `npm ci && npm run ci:test` in
+`natural_20.py/n20-webapp/`). This matters because `tests/webapp` modules
+resolve engine fixtures and campaigns several ways: cwd-relative
+(`Session(root_path='tests/fixtures')`, `Session(root_path='templates')`,
+`Session(root_path='user_levels/wild_sheep_chase')`) **and**
 `dirname(tests/webapp/x.py)/../../..` (the parent of the webapp root, which
-in a monorepo checkout is the engine root). If the campaigns checkout is
-missing, `test_entity_rag_handler`, `test_stack_path_resolution`,
-`test_legendary_phase` and friends fail (only `test_approach_through_door`
-and `test_campaign_config` guard with skips).
+in a monorepo checkout is the engine root). A flat standalone checkout
+breaks all of these at once: the engine `tests/fixtures` and `templates/`
+are missing, and the webapp's own `templates/` (Jinja) and `user_levels/`
+shadow the engine-root detection in `test_campaign_config` and
+`campaign_config.py`. `path_compute.test.js` likewise probes
+`../../../tests/fixtures/path_compute_vectors.json` from
+`webapp/static/`. If the campaigns checkout is missing,
+`test_entity_rag_handler`, `test_stack_path_resolution`, `test_legendary_phase`
+and friends fail (only `test_approach_through_door` and `test_campaign_config`
+guard with skips).
 
 Note: Actions minutes on the **private** `n20-webapp` repo draw on the
 account's paid/spending-limit plan. If payments fail or the spending limit
