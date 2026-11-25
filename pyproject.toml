@@ -16,6 +16,7 @@ dependencies = [
     "inflect",
     "collections-extended",
     "lark",
+    "numpy",
 ]
 
 [project.optional-dependencies]
@@ -26,5 +27,53 @@ dev = ["pytest", "pytest-xdist", "termcolor", "prompt_toolkit"]
 where = ["."]
 include = ["natural20*"]
 
+# Bundled SRD data ships with the distribution so non-editable installs
+# (wheel / sdist / git+) find it via templates_root()'s data-scheme fallback.
+# Per-directory patterns only: data-files cannot copy directory entries, so
+# a recursive ``templates/**/*`` glob breaks the wheel build.
 [tool.setuptools.data-files]
-"natural20/templates" = ["templates/**/*"]
+"natural20/templates" = [
+    "templates/*.csv",
+    "templates/*.json",
+    "templates/*.txt",
+    "templates/*.yml",
+]
+"natural20/templates/assets" = [
+    "templates/assets/*.png",
+    "templates/assets/*.webp",
+]
+"natural20/templates/assets/characters" = ["templates/assets/characters/*.png"]
+"natural20/templates/assets/editor" = ["templates/assets/editor/*.png"]
+"natural20/templates/assets/maps" = ["templates/assets/maps/*.png"]
+"natural20/templates/assets/sounds" = ["templates/assets/sounds/*.mp3"]
+"natural20/templates/backgrounds" = ["templates/backgrounds/*.yml"]
+"natural20/templates/char_classes" = ["templates/char_classes/*.yml"]
+"natural20/templates/characters" = ["templates/characters/*.yml"]
+"natural20/templates/edit" = ["templates/edit/*.yml"]
+"natural20/templates/feats" = ["templates/feats/*.yml"]
+"natural20/templates/items" = ["templates/items/*.yml"]
+"natural20/templates/locales" = ["templates/locales/*.yml"]
+"natural20/templates/maps" = ["templates/maps/*.yml"]
+"natural20/templates/npcs" = ["templates/npcs/*.yml"]
+"natural20/templates/races" = ["templates/races/*.yml"]
+"natural20/templates/rulesets" = ["templates/rulesets/*.yml"]
+"natural20/templates/rulesets/5e-2024" = ["templates/rulesets/5e-2024/*.yml"]
+"natural20/templates/rulesets/5e-2024/backgrounds" = ["templates/rulesets/5e-2024/backgrounds/*.yml"]
+"natural20/templates/rulesets/5e-2024/char_classes" = ["templates/rulesets/5e-2024/char_classes/*.yml"]
+"natural20/templates/rulesets/5e-2024/items" = ["templates/rulesets/5e-2024/items/*.yml"]
+"natural20/templates/rulesets/5e-2024/races" = ["templates/rulesets/5e-2024/races/*.yml"]
+"natural20/expansion_packs/players_handbook_2024" = ["expansion_packs/players_handbook_2024/*.md"]
+"natural20/expansion_packs/players_handbook_2024/assets" = ["expansion_packs/players_handbook_2024/assets/*.png"]
+"natural20/expansion_packs/players_handbook_2024/backgrounds" = ["expansion_packs/players_handbook_2024/backgrounds/*.yml"]
+"natural20/expansion_packs/players_handbook_2024/char_classes" = ["expansion_packs/players_handbook_2024/char_classes/*.yml"]
+"natural20/expansion_packs/players_handbook_2024/feats" = ["expansion_packs/players_handbook_2024/feats/*.yml"]
+"natural20/expansion_packs/players_handbook_2024/items" = ["expansion_packs/players_handbook_2024/items/*.yml"]
+"natural20/expansion_packs/players_handbook_2024/npcs" = ["expansion_packs/players_handbook_2024/npcs/*.yml"]
+"natural20/expansion_packs/tashas_cauldron" = ["expansion_packs/tashas_cauldron/*.md"]
+"natural20/expansion_packs/tashas_cauldron/assets/items" = ["expansion_packs/tashas_cauldron/assets/items/*.png"]
+"natural20/expansion_packs/tashas_cauldron/char_classes" = ["expansion_packs/tashas_cauldron/char_classes/*.yml"]
+"natural20/expansion_packs/tashas_cauldron/items" = ["expansion_packs/tashas_cauldron/items/*.yml"]
+"natural20/expansion_packs/tashas_sidekicks" = ["expansion_packs/tashas_sidekicks/*.md"]
+"natural20/expansion_packs/tashas_sidekicks/char_classes" = ["expansion_packs/tashas_sidekicks/char_classes/*.yml"]
+"natural20/expansion_packs/xanathars_guide" = ["expansion_packs/xanathars_guide/*.md"]
+"natural20/expansion_packs/xanathars_guide/items" = ["expansion_packs/xanathars_guide/items/*.yml"]
