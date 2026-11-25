@@ -156,6 +156,23 @@ class MoveAction(Action):
         current_moves = self.move_path or opts.get('move_path')
         jumps = self.jump_index or []
 
+        if battle is not None and len(current_moves) > 1:
+            # A deferred reaction can interrupt a move and then DISPLACE the
+            # mover (a push rider, a knockback, a teleport).  Replaying the
+            # stale path must never teleport the creature back onto it:
+            # resume from the current square when it is still on the path,
+            # otherwise drop the move (the movement budget was not spent, so
+            # the creature can simply move again).
+            where = map.position_of(self.source)
+            if where is not None and list(current_moves[0]) != list(where):
+                anchor = next(
+                    (i for i, mv in enumerate(current_moves) if list(mv) == list(where)),
+                    None)
+                if anchor is None:
+                    return self
+                current_moves = current_moves[anchor:]
+                jumps = []
+
         actual_moves = []
         additional_effects = []
 
@@ -197,9 +214,18 @@ class MoveAction(Action):
 
         actual_moves = self.check_movement_acrobatics(actual_moves, movement.acrobatics_check_locations, battle)
 
-        if self.source.unconscious():
+        if self.source.incapacitated():
+            # Dead, unconscious, stunned, paralyzed, petrified or asleep: no
+            # movement. This matters when an interrupted move is re-run
+            # after a deferred reaction — the opportunity attack may have
+            # killed or disabled the mover in the meantime (unconscious()
+            # is False for the dead). Grappled and restrained movers are
+            # handled through the zero movement budget instead: they are
+            # not incapacitated, and a grappler may still drag its catch.
             if battle is not None:
-                battle.entity_state_for(self.source)['movement'] = 0
+                _state = battle.entity_state_for(self.source)
+                if _state is not None:
+                    _state['movement'] = 0
             return self
 
         # cutoff = False
@@ -354,9 +380,25 @@ class MoveAction(Action):
                         result = battle.trigger_opportunity_attack(enemy_opportunity['source'], entity, *attack_location)
                         if hasattr(result, 'send'):
                             raise AsyncReactionHandler(enemy_opportunity['source'], result, self, 'opportunity_attack')
-                except (AsyncReactionHandler, GeneratorExit):
+                except AsyncReactionHandler as exc:
                     # Deferred (player) reaction: the full path re-runs when
                     # resolve resumes, so snap the mover back for now.
+                    if mover_map is not None and start_position is not None \
+                            and entity in mover_map.entities \
+                            and list(mover_map.entities[entity]) != start_position:
+                        mover_map.move_to(entity, start_position[0], start_position[1], battle)
+                    if exc.action is not self:
+                        # A handler from deeper inside the attack (the
+                        # mover's own Shield / Silvery Barbs window raised by
+                        # the attack's own resolution) only carries the
+                        # attack as its action. Without this back-reference
+                        # the resumer replays the attack and the interrupted
+                        # move is dropped, stranding the mover at its
+                        # pre-move square even when the reaction deflected
+                        # the attack (Nov-26 report: Crysania's Shield).
+                        exc.interrupted_action = self
+                    raise
+                except GeneratorExit:
                     if mover_map is not None and start_position is not None \
                             and entity in mover_map.entities \
                             and list(mover_map.entities[entity]) != start_position:

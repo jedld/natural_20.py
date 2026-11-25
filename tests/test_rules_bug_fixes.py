@@ -2418,6 +2418,208 @@ class CrawlerContinuesAfterOpportunityAttackTest(unittest.TestCase):
                          'the crawler was not knocked down, so it keeps moving')
 
 
+class DeferredReactionKeepsInterruptedMoveTest(unittest.TestCase):
+    """Nov-26 report: a deferred reaction raised INSIDE a move's opportunity
+    attack (the mover casting Shield at the opportunity) escaped with only
+    the attack as its action. The webapp resume then replayed the attack and
+    silently dropped the interrupted move, stranding the mover even though
+    Shield deflected the attack. The handler must carry the interrupted move
+    (``interrupted_action``) so the resumer replays the whole path."""
+
+    def test_nested_reaction_handler_keeps_the_interrupted_move(self):
+        from unittest import mock
+        from natural20.action import AsyncReactionHandler
+
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        brute = session.npc('legendary_brute', {'name': 'boss'})
+        battle.add(fighter, 'a', position=[16, 15])
+        battle.add(brute, 'b', position=[15, 13])
+        battle.start()
+        fighter.reset_turn(battle)
+        brute.reset_turn(battle)
+
+        move = MoveAction(session, fighter, 'move')
+        move.move_path = [[16, 15], [16, 14], [16, 13], [16, 12]]
+
+        attack_action = mock.Mock(name='attack_action')
+
+        def nested_shield_window(source, entity, cur_x, cur_y, action=None):
+            # What shield_spell.check(...) does when the defender's
+            # controller defers: raise a handler whose action is the ATTACK.
+            raise AsyncReactionHandler(entity, iter([]), attack_action, 'shield')
+
+        battle.trigger_opportunity_attack = nested_shield_window
+        with mock.patch('natural20.actions.move_action.retrieve_opportunity_attacks',
+                        lambda entity, moves, battle: [{'source': brute, 'path': 1}]):
+            with self.assertRaises(AsyncReactionHandler) as ctx:
+                move.resolve(session, map_, {'battle': battle})
+        handler = ctx.exception
+        self.assertIsNot(handler.action, move,
+                         'the nested handler belongs to the attack, not the move')
+        self.assertIs(handler.interrupted_action, move,
+                      'the escaping handler must keep the interrupted move')
+        self.assertEqual([16, 15], list(map_.position_of(fighter)),
+                         'the mover snaps back while the reaction is pending')
+
+        # Simulate the webapp resume: the attack already resolved (the
+        # brute's reaction is spent, so no further opportunity fires) and
+        # the interrupted move replays to its destination.
+        with mock.patch('natural20.actions.move_action.retrieve_opportunity_attacks',
+                        lambda entity, moves, battle: []):
+            resolved = move.resolve(session, map_, {'battle': battle})
+            battle.commit(resolved)
+        self.assertEqual([16, 12], list(map_.position_of(fighter)),
+                         'the interrupted move must resume to its destination')
+
+
+class DeadMoverCannotResumeMoveTest(unittest.TestCase):
+    """Companion guard: if the deferred opportunity attack killed the mover,
+    replaying the interrupted move must not walk a corpse. unconscious() is
+    False for the dead, so resolve() has to fail closed for both."""
+
+    def test_dead_mover_loses_the_replayed_move(self):
+        from unittest import mock
+
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        brute = session.npc('legendary_brute', {'name': 'boss'})
+        battle.add(fighter, 'a', position=[16, 15])
+        battle.add(brute, 'b', position=[15, 13])
+        battle.start()
+        fighter.reset_turn(battle)
+        brute.reset_turn(battle)
+
+        move = MoveAction(session, fighter, 'move')
+        move.move_path = [[16, 15], [16, 14], [16, 13], [16, 12]]
+        fighter.make_dead()
+
+        with mock.patch('natural20.actions.move_action.retrieve_opportunity_attacks',
+                        lambda entity, moves, battle: []):
+            resolved = move.resolve(session, map_, {'battle': battle})
+            battle.commit(resolved)
+        self.assertEqual([16, 15], list(map_.position_of(fighter)),
+                         'a dead mover must not resume its move')
+
+
+class InterruptedMoveDisablementTest(unittest.TestCase):
+    """Nov-26 follow-up: when the opportunity attack genuinely interrupts
+    the move — knocking the mover unconscious, grappling, stunning or
+    otherwise incapacitating it — the replayed move must not run. A prone
+    (toppled but conscious) mover may still crawl to the destination."""
+
+    PATH = [[16, 15], [16, 14], [16, 13], [16, 12]]
+
+    def _battle(self):
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        brute = session.npc('legendary_brute', {'name': 'boss'})
+        battle.add(fighter, 'a', position=[16, 15])
+        battle.add(brute, 'b', position=[15, 13])
+        battle.start()
+        fighter.reset_turn(battle)
+        brute.reset_turn(battle)
+        return session, map_, battle, fighter
+
+    def _replay(self, session, map_, battle, fighter):
+        from unittest import mock
+        move = MoveAction(session, fighter, 'move')
+        move.move_path = [list(p) for p in self.PATH]
+        with mock.patch('natural20.actions.move_action.retrieve_opportunity_attacks',
+                        lambda entity, moves, battle: []):
+            resolved = move.resolve(session, map_, {'battle': battle})
+            battle.commit(resolved)
+        return list(map_.position_of(fighter))
+
+    def test_unconscious_mover_does_not_resume(self):
+        session, map_, battle, fighter = self._battle()
+        fighter.statuses.append('unconscious')
+        self.assertEqual([16, 15], self._replay(session, map_, battle, fighter),
+                         'an unconscious mover must not resume its move')
+
+    def test_stunned_mover_does_not_resume(self):
+        session, map_, battle, fighter = self._battle()
+        fighter.statuses.append('stunned')
+        self.assertEqual([16, 15], self._replay(session, map_, battle, fighter),
+                         'a stunned creature cannot move (SRD)')
+
+    def test_paralyzed_mover_does_not_resume(self):
+        session, map_, battle, fighter = self._battle()
+        fighter.statuses.append('paralyzed')
+        self.assertEqual([16, 15], self._replay(session, map_, battle, fighter),
+                         'a paralyzed creature cannot move (SRD)')
+
+    def test_grappled_mover_does_not_resume(self):
+        session, map_, battle, fighter = self._battle()
+        fighter.statuses.append('grappled')
+        self.assertEqual([16, 15], self._replay(session, map_, battle, fighter),
+                         'a grappled mover has no movement to resume')
+
+    def test_restrained_mover_does_not_resume(self):
+        session, map_, battle, fighter = self._battle()
+        fighter.statuses.append('restrained')
+        self.assertEqual([16, 15], self._replay(session, map_, battle, fighter),
+                         'a restrained creature has speed 0 and cannot move')
+
+    def test_prone_mover_still_finishes_its_path(self):
+        # Toppled but conscious: crawling is still movement.
+        session, map_, battle, fighter = self._battle()
+        battle.entity_state_for(fighter)['movement'] = 60
+        fighter.do_prone()
+        self.assertEqual([16, 12], self._replay(session, map_, battle, fighter),
+                         'a prone mover crawls the rest of the interrupted path')
+
+
+class DisplacedMoverResumeTest(unittest.TestCase):
+    """If the interrupting reaction DISPLACED the mover (push rider,
+    knockback, teleport), replaying the interrupted move must not teleport
+    it back onto the stale path. It resumes from its current square when
+    that square is still on the path, and otherwise drops the move."""
+
+    PATH = [[16, 15], [16, 14], [16, 13], [16, 12]]
+
+    def _battle(self):
+        session = _session()
+        map_ = Map(session, 'large_map')
+        battle = Battle(session, map_)
+        fighter = PlayerCharacter.load(session, 'high_elf_fighter.yml')
+        brute = session.npc('legendary_brute', {'name': 'boss'})
+        battle.add(fighter, 'a', position=[16, 15])
+        battle.add(brute, 'b', position=[15, 13])
+        battle.start()
+        fighter.reset_turn(battle)
+        brute.reset_turn(battle)
+        return session, map_, battle, fighter
+
+    def _replay(self, session, map_, battle, fighter):
+        from unittest import mock
+        move = MoveAction(session, fighter, 'move')
+        move.move_path = [list(p) for p in self.PATH]
+        with mock.patch('natural20.actions.move_action.retrieve_opportunity_attacks',
+                        lambda entity, moves, battle: []):
+            resolved = move.resolve(session, map_, {'battle': battle})
+            battle.commit(resolved)
+        return list(map_.position_of(fighter))
+
+    def test_mover_pushed_off_path_is_not_teleported_back(self):
+        session, map_, battle, fighter = self._battle()
+        map_.move_to(fighter, 15, 14, battle)  # e.g. a push rider
+        self.assertEqual([15, 14], self._replay(session, map_, battle, fighter),
+                         'the stale path must not teleport the displaced mover')
+
+    def test_mover_still_on_path_resumes_from_its_square(self):
+        session, map_, battle, fighter = self._battle()
+        map_.move_to(fighter, 16, 14, battle)  # still on the path
+        self.assertEqual([16, 12], self._replay(session, map_, battle, fighter),
+                         'the mover resumes from where it now stands')
+
+
 class PassThroughCreatureRunTest(unittest.TestCase):
     """Nov-23 item 6: passing through occupied squares must handle a RUN of
     consecutive creatures and diagonal lines, not just a single blocker."""

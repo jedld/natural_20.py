@@ -701,6 +701,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
       return True
   
   def speed(self):
+    if self.restrained():
+      # SRD: a restrained creature's speed is 0 (Entity.speed does the
+      # same; this override must not skip it).
+      return 0
     if getattr(self, '_in_shell', False):
       return 0
     if _wild_shape.is_wild_shaped(self):

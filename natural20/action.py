@@ -34,6 +34,12 @@ class AsyncReactionHandler(GameLoopControl):
         self.generator = generator
         self.source = source
         self.action = action
+        # Set by an enclosing action (e.g. MoveAction) when this handler
+        # escapes mid-resolution: the resumer re-runs `action` for the
+        # reaction and then `interrupted_action` so the interrupted action
+        # is not silently dropped (Nov-26 report: Shield during an
+        # opportunity attack swallowed the mover's remaining move).
+        self.interrupted_action = None
 
     def resolve(self):
         for gen in self.generator:

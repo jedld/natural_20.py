@@ -446,6 +446,31 @@ games; fixed on `master` with regression tests in
   cover, sight and range use the real board position, and a mover knocked
   unconscious or knocked down ends its move on that square instead of
   snapping back to its starting square.
+- **Deferred reactions keep the interrupted move** (Nov-26 fix): a
+  player reaction taken *inside* the opportunity attack — the mover's own
+  Shield or Silvery Barbs window — escapes `resolve()` as an
+  `AsyncReactionHandler` carrying only the attack, so the resuming webapp
+  (`/reaction` in `blueprints/battle.py` and `app.py`) used to re-run the
+  attack and silently drop the interrupted move, stranding the mover even
+  when Shield deflected the attack. `MoveAction` now tags the escaping
+  handler with `interrupted_action`, and `/reaction` re-runs it after the
+  reaction commits. 5e: the attack interrupts the move, it does not end
+  it.
+- **A resumed move fails closed when the attack disables the mover**
+  (`MoveAction.resolve` + `Entity.available_movement`): replaying the
+  interrupted path respects what the attack did — death, unconsciousness,
+  stun, paralysis, petrification and sleep block the replay outright
+  (`incapacitated()` guard); grapple leaves no movement budget; restraint
+  zeroes `speed()` (both `Entity.speed` and the `PlayerCharacter.speed`
+  override, and a 0 speed now also caps in-battle `available_movement`,
+  even mid-turn after a Dash top-up). A prone (toppled but conscious)
+  mover still crawls the rest of the path. If the reaction *displaced*
+  the mover (push rider, knockback, teleport) the stale path never
+  teleports it back: the move resumes from the current square when that
+  square is still on the path, and is otherwise dropped with the movement
+  budget unspent. Regression tests: `tests/test_rules_bug_fixes.py`
+  (`DeferredReactionKeepsInterruptedMoveTest`, `DeadMoverCannotResumeMoveTest`,
+  `InterruptedMoveDisablementTest`, `DisplacedMoverResumeTest`).
 - **One concentration save per hit** (`Entity.take_damage` +
   `Battle.commit`): an attack whose damage lands as several items
   (weapon hit plus `additional_damage` riders) pools the damage through

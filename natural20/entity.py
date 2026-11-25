@@ -2998,7 +2998,16 @@ class Entity(EntityStateEvaluator, Notable):
 
         entity_state = battle.entity_state_for(self)
         if entity_state:
-            return entity_state.get('movement')
+            remaining = entity_state.get('movement')
+            if remaining is None:
+                return self.speed()
+            # A 0 current speed (restrained, shell defense, ...) leaves no
+            # movement even if the turn's budget was granted earlier. (A
+            # plain speed drop mid-turn does not claw back Dash's extra
+            # movement, so this only fails closed at 0.)
+            if self.speed() <= 0:
+                return 0
+            return remaining
         else:
             return self.speed()
 
