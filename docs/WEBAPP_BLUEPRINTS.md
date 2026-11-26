@@ -716,9 +716,18 @@ Human players can type a free-text intent ("open the door and walk in") and have
 - Ready (Hold) parsing also prefers System One: `webapp/ready_action_handler.parse_ready_action_request` tries `parse_player_instruction` first (two Choice calls, options enumerated from the entity's actual weapons/spells/items), then the generative LLM, then the heuristic parser; `_validate_5e_legality` still applies.
 - MCP mirror: `actions.instruction` (op=start|step|stop).
 - Frontend: `openInstructionModal` in `engine.js` (textarea, Run, live step list, Stop) driven by `.action-instruction` clicks; auto-continues `/instruction/step` while status is `step`.
+- The Instruct button lives in the normal action bar, so anything that breaks bar access (a 403 from `/actions` when the clicked token has no controller entry for the player) also removes it — see "Character selection ownership (sheet-stem uids)".
 - Tests: `tests/test_instruction_follow.py` (engine), `n20-webapp/tests/webapp/test_instruction_follow.py` (ready parsing + route wiring).
 
-## Related docs
+## Character selection ownership (sheet-stem uids)
+
+`/actions` and `/actions/batch` render a PC's action bar only for the DM or for users listed in that **entity uid**'s controllers entry (`helpers/action_bar.resolve_actions_for_id` → `entity_owners`). A selectable entry in `index.json` is keyed by *display name* (`crysania`), but a PC loaded straight from its sheet keeps the **sheet stem** as `entity_uid` (`characters/high_elf_mage.yml` → `high_elf_mage`). If selection and entity uid drift apart, the played token ends up with no controllers entry and its whole bar (attacks, spells, Instruct) silently disappears with `403 Forbidden` — typically after a server restart clears in-memory controllers.
+
+`helpers/pvp.ensure_character_entity_loaded` therefore **adopts** an already-loaded entity whose uid equals the sheet stem instead of spawning a duplicate token at a `player_spawn_point` (NPC/sidekick sheets are never adopted). `auth._materialize_login_pick` then claims the controller under the **entity's real uid** as well as the selection name, and refuses the pick ("Character is already taken") when another player already controls that entity.
+
+DM repair for an already-orphaned token: `POST /admin/users` `{"op":"assign_character","username":...,"character_uid":<entity uid>,"spawn":false}` (also MCP `dm.user_admin`), and `POST /delete_entity` for any duplicate tokens (undoable via Ctrl+Z).
+
+Tests: `n20-webapp/tests/webapp/test_character_materialization.py` (adoption, no-duplicate, npc exclusion, uid claim + second-player refusal).
 
 - `AGENTS.md` — agent orientation, MCP catalogue, battle/spell conventions
 - `docs/PLAYER_INSTRUCTIONS.md` — System One step-by-step player instructions + System One Ready parsing

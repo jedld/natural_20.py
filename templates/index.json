@@ -1765,11 +1765,15 @@
   "default_controllers": [
     {
       "entity_uid": "gomerin",
-      "controllers": []
+      "controllers": [
+        "gomerin"
+      ]
     },
     {
       "entity_uid": "crysania",
-      "controllers": []
+      "controllers": [
+        "crysania"
+      ]
     },
     {
       "entity_uid": "shorvalu",
@@ -1781,7 +1785,21 @@
     },
     {
       "entity_uid": "betty",
-      "controllers": []
+      "controllers": [
+        "betty"
+      ]
+    },
+    {
+      "entity_uid": "Crysania",
+      "controllers": [
+        "crysania"
+      ]
+    },
+    {
+      "entity_uid": "high_elf_mage",
+      "controllers": [
+        "crysania"
+      ]
     }
   ]
 }
