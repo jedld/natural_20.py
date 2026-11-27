@@ -219,6 +219,7 @@ overlays SRD 5.2 text/metadata onto the shared spell catalogue.
 | **Searing Smite** | Not offered as post-hit BA | **Bonus action** after melee/unarmed hit; ongoing fire + CON save to end (not concentration) |
 | **Shining Smite** | Offered as post-hit BA (no 2014 counterpart, so not gated) | Same: 2d6 radiant (+1d6/slot above 2nd), target glows, attacks vs it have advantage, no Invisible benefit |
 | **Aura of Vitality** | Cast as an action, no heal on cast; BA heal usable the same turn | Cast as a **bonus action** and heals one creature on cast (that turn's pulse); Cleric/Druid/Paladin list |
+| **Shield** | +5 AC until the start of your next turn | +2 AC (SRD 5.2 reprint); engine width via `ruleset.shield_ac_bonus()` |
 
 | **Cure Wounds** | 1d8 + mod, +1d8 per slot above 1st | 2d8 + mod, +2d8 per slot above 1st |
 | **Healing Word** | 1d4 + mod, +1d4 per slot above 1st | 2d4 + mod, +2d4 per slot above 1st |
@@ -251,6 +252,43 @@ Reactions (Shield, Counterspell) are not counted.
 - **Outcome:** a successful counter replaces the spell's result with the check events plus `spell_countered`. The caster still loses the action. Under 2014 rules the caster's slot is also spent; under 2024 rules it isn't. A failed counter lets the next eligible creature try, then the spell resolves normally.
 - **Async players:** `WebController` prompts raise `AsyncReactionHandler(reaction_type='counterspell')`. Progress is cached on the action (`_counterspell_state`), so re-resolving after the prompt doesn't re-ask or re-charge creatures that already reacted. `Action.add_reaction` stores answers per source, so several creatures can be asked during one action.
 - **Not modelled:** countering a Counterspell (the counter resolves directly, not through `SpellAction.resolve`), and readied spells being released (`skip_consume_at_resolve`).
+
+### Reaction-spell budget (both editions)
+
+A creature gets one **reaction spell** per turn on top of its reaction. The
+battle entity state carries a `reaction_spell` counter (reset in
+`Entity.reset_turn`), `Battle.can_cast_reaction_spell` /
+`Battle.consume_reaction_spell` read and spend it, `SpellAction.can_cast`
+refuses reaction spells once it is spent, and `consume_resource`
+(`natural20/spell/spell.py`) spends it for every reaction-spell cast
+(Counterspell, Shield, Defensive Cast, Hellish Rebuke, ...). Opportunity
+attacks and other non-spell reactions still use the plain `reaction`.
+Override with `ruleset_overrides: {reaction_spell_per_turn: N}`.
+
+### Defensive reactions on an attack roll
+
+`natural20/utils/attack_util.py` `after_attack_roll_hook` offers each
+prepared reaction spell on the target a chance to answer the attack via its
+`after_attack_roll`:
+
+- **Shield** (both editions) only prompts when its AC bonus could turn the
+  hit into a miss (near-miss window `AC .. AC+bonus-1`). The bonus is
+  edition-scoped by `Ruleset.shield_ac_bonus()` (+5 / +2), used by the
+  window, the effect's `ac_bonus` handler and the force-miss check.
+- **Defensive Cast** (PHB 2024; `Natural20::DefensiveCast`,
+  `natural20/spell/defensive_cast_spell.py`) prompts when the attack
+  actually hits. Its options come from the spell YAML
+  `defensive_cast_options` list: `{id: bolster, temp_hp_base: 2,
+  temp_hp_ability: <optional>}` grants temp HP (committed as
+  `battle` `temp_hp`), `{id: dueling, ac_bonus: 2, speed_bonus: 10}` grants
+  AC (and optional speed) until the start of the defender's next turn and
+  can force-miss the triggering attack. `choose_defensive_cast_option`
+  (used by `GenericController` and the LLM/JEV controllers) prefers the AC
+  option, since it is only offered when it negates the attack. The PHB-only
+  spell YAML lives in `expansion_packs/players_handbook_2024/items/spells.yml`.
+- Web prompts raise `AsyncReactionHandler(reaction_type='defensive_cast')`;
+  the generic reaction modal lists the options
+  (`SpellAction.__str__` appends the option `label`).
 
 ### Dispel Magic
 
