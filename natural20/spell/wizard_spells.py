@@ -636,10 +636,26 @@ class CounterspellSpell(UtilityWizardSpell):
 
 
 class DispelMagicSpell(CounterspellSpell):
-    """Ends spells on one creature: those at or below the slot level end
-    outright, higher ones need a spellcasting check vs DC 10 + spell level."""
+    """Ends spells on one creature, object, or magical effect: those at or
+    below the slot level end outright, higher ones need a spellcasting check
+    vs DC 10 + spell level.
+
+    The "magical effect" option covers persistent spell zones (Spike Growth,
+    Web, ...): aim at any square the zone covers. When several zones overlap
+    the clicked square the web UI shows an effect picker and re-posts with
+    ``opts.effect_id``; the engine resolves it through
+    ``natural20.utils.dispel.zone_for_target``."""
 
     TARGET_TYPES = ['enemies', 'allies', 'self']
+
+    def build_map(self, orig_action):
+        built = super().build_map(orig_action)
+        # Tell the web /action route that coordinate clicks are legal here
+        # (a spell zone has no token to click).
+        for param in built.get('param') or []:
+            if param.get('type') == 'select_target':
+                param['allow_effects'] = True
+        return built
 
     def _dispel_check(self, entity, battle, spell_action):
         from natural20.spell.hold_person_spell import HoldPersonSpell
@@ -654,9 +670,40 @@ class DispelMagicSpell(CounterspellSpell):
                             description=f"dice_roll.spells.{self.properties.get('id', self.name)}")
 
     def resolve(self, entity, battle, spell_action, battle_map):
-        from natural20.utils.dispel import creature_target, spell_level, spells_on
-        target = creature_target(spell_action.target) or entity
+        from natural20.utils.dispel import (
+            creature_target, spell_level, spells_on,
+            zone_for_target, zone_label, zone_spell_level,
+        )
         cast_level = int(getattr(spell_action, 'at_level', None) or self.properties.get('level', 3))
+
+        # --- magical-effect (spell zone) target ---------------------------
+        effect_id = getattr(spell_action, 'effect_id', None)
+        zone = zone_for_target(spell_action.target, battle, battle_map,
+                               effect_id=effect_id)
+        creature = creature_target(spell_action.target)
+        if zone is not None and (effect_id or creature is None):
+            level = zone_spell_level(zone, getattr(entity, 'session', None))
+            check = None
+            ended = level <= cast_level
+            if not ended:
+                check = self._dispel_check(entity, battle, spell_action)
+                ended = check.result() >= 10 + level
+            return [{
+                'type': 'dispel_magic',
+                'source': entity,
+                'target': entity,
+                'effect': self,
+                'spell': self.properties,
+                'cast_level': cast_level,
+                'zone': zone,
+                'outcomes': [{
+                    'label': zone_label(zone), 'zone': zone, 'level': level,
+                    'roll': check, 'dc': 10 + level, 'ended': ended,
+                }],
+            }]
+
+        # --- creature / object target --------------------------------------
+        target = creature or entity
         outcomes = []
         for effect, caster in spells_on(target, battle):
             level = spell_level(effect)
@@ -683,7 +730,25 @@ class DispelMagicSpell(CounterspellSpell):
             return CounterspellSpell.apply(battle, item, session)
         if session is None:
             session = battle.session if battle else item['source'].session
-        from natural20.utils.dispel import end_spell_on
+        from natural20.utils.dispel import end_spell_on, end_spell_zone
+        zone = item.get('zone')
+        if zone is not None:
+            # A single magical effect (persistent spell zone).
+            outcome = (item.get('outcomes') or [{}])[0]
+            session.event_manager.received_event({
+                'event': 'dispel_magic',
+                'source': item['source'],
+                'zone_label': outcome.get('label') or 'a magical effect',
+                'cast_level': item.get('cast_level'),
+                'outcomes': [
+                    {'label': o.get('label'), 'level': o.get('level', 0),
+                     'ended': o.get('ended'), 'roll': o.get('roll'), 'dc': o.get('dc')}
+                    for o in item.get('outcomes') or []
+                ],
+            })
+            if outcome.get('ended'):
+                end_spell_zone(zone)
+            return
         target = item['target']
         session.event_manager.received_event({
             'event': 'dispel_magic',

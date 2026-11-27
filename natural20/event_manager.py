@@ -887,7 +887,8 @@ class EventManager:
             'large_form': lambda event: self.output_logger.log(f"{self.show_name(event)} grows to Large size (Large Form)."),
             'large_form_end': lambda event: self.output_logger.log(f"{self.show_name(event)} returns to normal size."),
             'dispel_magic': lambda event: self.output_logger.log(
-                f"{self.show_name(event)} casts Dispel Magic on {self.show_target_name(event)}"
+                f"{self.show_name(event)} casts Dispel Magic on "
+                + (event['zone_label'] if event.get('zone_label') else self.show_target_name(event))
                 + (f" with a level {event['cast_level']} slot" if event.get('cast_level') else "")
                 + (": " + "; ".join(
                     f"{o['label']} (level {o['level']}) "

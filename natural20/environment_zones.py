@@ -69,6 +69,54 @@ def demote_battle_zones_to_environment(battle) -> None:
     battle.active_zones.clear()
 
 
+def trigger_environment_movement_step(battle_map, entity, from_pos, to_pos,
+                                      *, event_manager=None) -> None:
+    """Out-of-combat twin of ``Battle.trigger_movement_step``.
+
+    ``Battle.trigger_movement_step`` only walks ``battle.active_zones``, so
+    exploration zones (a Spike Growth cast while no battle is running, or a
+    zone that never got promoted into the current battle) never fired their
+    per-square hooks. ``MoveAction.apply`` calls this for the map's
+    ``environment_zones`` after every path square, mirroring the battle
+    dispatch: ``on_movement_step`` (Spike Growth damage, Web ...), and
+    ``on_enter`` only when the entity was not already inside.
+    """
+    if battle_map is None or to_pos is None or not entity:
+        return
+    zones = _zones_for_map(battle_map)
+    if not zones:
+        return
+    target = tuple(to_pos)
+    for zone in list(zones):
+        if getattr(zone, '_dismissed', False):
+            continue
+        if zone.expired():
+            zone.dismiss()
+            continue
+        on_move = getattr(zone, 'on_movement_step', None)
+        if callable(on_move):
+            try:
+                on_move(entity, from_pos, to_pos)
+            except Exception as exc:  # pragma: no cover - defensive
+                if event_manager is not None:
+                    event_manager.received_event({
+                        'source': zone, 'event': 'zone_error',
+                        'phase': 'on_movement_step', 'error': str(exc),
+                    })
+        if not zone.contains(target):
+            continue
+        if from_pos is not None and zone.contains(tuple(from_pos)):
+            continue
+        try:
+            zone.on_enter(entity)
+        except Exception as exc:  # pragma: no cover - defensive
+            if event_manager is not None:
+                event_manager.received_event({
+                    'source': zone, 'event': 'zone_error',
+                    'phase': 'on_enter', 'error': str(exc),
+                })
+
+
 def tick_environment_zones(maps, *, event_manager=None) -> None:
     """Run ``on_turn_start`` zone hooks for every conscious entity once per tick."""
     if not maps:

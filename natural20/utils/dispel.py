@@ -110,3 +110,169 @@ def creature_target(target) -> Optional[object]:
         creatures = [t for t in target if hasattr(t, 'register_effect')]
         return creatures[0] if creatures else None
     return target if hasattr(target, 'register_effect') else None
+
+
+# --- magical effects on the map (PersistentAoEZone) -----------------------
+#
+# SRD Dispel Magic: "Choose one creature, object, or magical effect within
+# range." Persistent spell zones (Spike Growth, Web, Cloudkill, Grease,
+# Sleet Storm, …) are targetable magical effects: either the zone itself,
+# one of its zone-tile markers, or the square the zone covers.
+
+def _live_zones(battle, battle_map) -> list:
+    """All live persistent zones from the battle and/or the map ticking."""
+    zones = []
+    if battle is not None:
+        zones.extend(getattr(battle, 'active_zones', None) or [])
+    if battle_map is not None:
+        zones.extend(getattr(battle_map, 'environment_zones', None) or [])
+    seen = set()
+    live = []
+    for zone in zones:
+        if zone is None or id(zone) in seen:
+            continue
+        seen.add(id(zone))
+        if getattr(zone, '_dismissed', False) or not hasattr(zone, 'contains'):
+            continue
+        live.append(zone)
+    return live
+
+
+def zones_at(battle, battle_map, pos) -> list:
+    """Live spell zones on ``battle_map`` whose area covers square ``pos``."""
+    try:
+        pos = (int(pos[0]), int(pos[1]))
+    except (TypeError, ValueError):
+        return []
+    found = []
+    for zone in _live_zones(battle, battle_map):
+        zone_map = getattr(zone, 'map', None)
+        if battle_map is not None and zone_map is not None and zone_map is not battle_map:
+            continue
+        try:
+            if zone.contains(pos):
+                found.append(zone)
+        except Exception:
+            continue
+    return found
+
+
+def zone_for_target(target, battle=None, battle_map=None, effect_id=None) -> Optional[object]:
+    """Resolve a Dispel Magic target to the zone it points at.
+
+    Accepts the zone itself, a zone-tile marker (anything with a ``zone``
+    attribute), or an ``[x, y]`` square. ``effect_id`` selects a specific
+    zone when several overlap the square (the client's effect picker).
+    """
+    if target is None:
+        return None
+    if effect_id:
+        for zone in _live_zones(battle, battle_map):
+            if str(getattr(zone, 'id', '')) == str(effect_id):
+                return zone
+        return None
+    if hasattr(target, 'contains') and hasattr(target, 'squares'):
+        return target if not getattr(target, '_dismissed', False) else None
+    zone = getattr(target, 'zone', None)
+    if zone is not None and not getattr(zone, '_dismissed', False):
+        return zone
+    if isinstance(target, (list, tuple)) and len(target) == 2 \
+            and all(isinstance(v, int) for v in target):
+        zones = zones_at(battle, battle_map, target)
+        return zones[0] if zones else None
+    return None
+
+
+def _zone_effect_entries(zone) -> list:
+    """Owner-side effect descriptors tied to this exact zone (if any)."""
+    owner = getattr(zone, 'owner', None)
+    if owner is None:
+        return []
+    entries = list(getattr(owner, 'casted_effects', None) or [])
+    for descriptors in (getattr(owner, 'effects', None) or {}).values():
+        entries.extend(descriptors or [])
+    for hooks in (getattr(owner, 'entity_event_hooks', None) or {}).values():
+        entries.extend(hooks or [])
+    return [
+        entry for entry in entries
+        if entry is not None
+        and (entry.get('target') is zone
+             or getattr(entry.get('effect'), 'zone', None) is zone)
+    ]
+
+
+def zone_spell_level(zone, session=None) -> int:
+    """Spell level of the zone's casting spell (0 when unknown).
+
+    Prefers the owner-side effect entry so an upcast zone (Spike Growth
+    cast at 4th level) reports the level Dispel Magic must check against."""
+    for entry in _zone_effect_entries(zone):
+        try:
+            level = spell_level(entry['effect'])
+        except Exception:
+            continue
+        if level > 0:
+            return level
+    spell = getattr(zone, 'spell', None)
+    if isinstance(spell, dict):
+        if spell.get('level') is not None:
+            try:
+                return int(spell.get('level'))
+            except (TypeError, ValueError):
+                pass
+    elif spell is not None:
+        # spell_level() prefers the cast action's at_level (upcasts).
+        try:
+            level = spell_level(spell)
+        except Exception:
+            level = 0
+        if level > 0:
+            return level
+    # Zone names usually match the spell slug (spike_growth, web, ...).
+    if session is not None:
+        meta = (getattr(session, 'spells', None) or {}).get(getattr(zone, 'name', ''))
+        if isinstance(meta, dict) and meta.get('level') is not None:
+            try:
+                return int(meta.get('level'))
+            except (TypeError, ValueError):
+                pass
+    return 0
+
+
+def zone_label(zone) -> str:
+    spell = getattr(zone, 'spell', None)
+    props = spell.get if isinstance(spell, dict) else getattr(spell, 'properties', None)
+    get = props.get if hasattr(props, 'get') else None
+    if get:
+        label = get('label') or get('name')
+        if label:
+            return str(label)
+    return str(getattr(zone, 'name', 'magical effect') or 'magical effect').replace('_', ' ').title()
+
+
+def end_spell_zone(zone) -> bool:
+    """End a persistent zone the generic way.
+
+    Prefers dismissing the caster-side effect tied to this exact zone (drops
+    concentration and runs the spell's own dismiss hook, which removes tiles
+    and unregisters the zone); force-dismisses the zone when no owner-side
+    effect entry is found.
+    """
+    owner = getattr(zone, 'owner', None)
+    if owner is not None:
+        entries = list(getattr(owner, 'casted_effects', None) or [])
+        for descriptors in (getattr(owner, 'effects', None) or {}).values():
+            entries.extend(descriptors or [])
+        for hooks in (getattr(owner, 'entity_event_hooks', None) or {}).values():
+            entries.extend(hooks or [])
+        for entry in entries:
+            if entry is None:
+                continue
+            effect = entry.get('effect')
+            if entry.get('target') is zone or getattr(effect, 'zone', None) is zone:
+                owner.dismiss_effect(effect)
+                break
+    if not getattr(zone, '_dismissed', False):
+        zone.dismiss()
+        return True
+    return True

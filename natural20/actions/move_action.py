@@ -532,12 +532,22 @@ class MoveAction(Action):
                 # Growth, Web, etc.) can react. Done here rather than in
                 # ``Map.move_to`` so teleport-style move_to calls (Misty
                 # Step, Teleporter objects) don't fire on every traversed
-                # square.
-                if battle and hasattr(battle, 'trigger_movement_step'):
-                    prev = None
-                    for step in item['path']:
+                # square. Zones living on the map's ``environment_zones``
+                # (cast out of combat, or never promoted into the current
+                # battle) fire through the same twin dispatcher so Spike
+                # Growth damage works in and out of combat.
+                from natural20.environment_zones import (
+                    trigger_environment_movement_step,
+                )
+                prev = None
+                for step in item['path']:
+                    if battle and hasattr(battle, 'trigger_movement_step'):
                         battle.trigger_movement_step(item['source'], prev, step)
-                        prev = tuple(step)
+                    trigger_environment_movement_step(
+                        item['map'], item['source'], prev, step,
+                        event_manager=session.event_manager,
+                    )
+                    prev = tuple(step)
 
                 if item.get('as_legendary_action'):
                     if battle and item.get('legendary_cost'):

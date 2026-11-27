@@ -65,6 +65,45 @@ def test_moving_outside_is_harmless(tmp_path):
     assert events == []
 
 
+def test_out_of_combat_movement_damage(tmp_path):
+    """Exploration Spike Growth (no battle): walking through the area takes
+    the per-square damage. This mirrors the webapp's out-of-battle commit,
+    which applies the move with ``battle=None``."""
+    from natural20.action import get_action_subclasses
+    from natural20.actions.move_action import MoveAction
+
+    arena = Arena(tmp_path, ruleset='5e-2024', spells=['spike_growth'], with_battle=False)
+    events = []
+    arena.session.event_manager.register_event_listener(
+        'spike_growth_damage', lambda event: events.append(event))
+    arena.cast('spike_growth', 2, CENTER)
+    assert arena.map.environment_zones
+
+    move = MoveAction(arena.session, arena.goblin, 'move')
+    move.target = (8, 2)
+    move.move_path = [(6, 2), (7, 2), (8, 2)]
+    move.resolve(arena.session, arena.map)
+    for item in list(move.result):
+        for klass in get_action_subclasses():
+            klass.apply(None, item, session=arena.session)
+
+    assert [tuple(e['position']) for e in events] == [(7, 2), (8, 2)]
+
+
+def test_environment_zone_fires_even_while_a_battle_runs(tmp_path):
+    """A zone registered on the map (never promoted) still hurts combatants
+    who walk through it: the environment twin dispatch covers it."""
+    arena, zone = _cast(tmp_path)
+    # Simulate a map-registered zone: move it out of the battle list.
+    arena.battle.active_zones.remove(zone)
+    from natural20.environment_zones import register_environment_zone
+    register_environment_zone(zone)
+
+    events = _damage_events(arena)
+    _walk(arena, arena.goblin, [(6, 2), (6, 3), (7, 3)])
+    assert [tuple(e['position']) for e in events] == [(7, 3)]
+
+
 def test_dismiss_removes_thorns(tmp_path):
     arena, zone = _cast(tmp_path)
     arena.caster.dismiss_effect(arena.caster.concentration)
