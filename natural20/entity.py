@@ -3124,11 +3124,17 @@ class Entity(EntityStateEvaluator, Notable):
         if not entity_state:
             return False
 
-        if 'dodge' in entity_state.get('statuses', []) and self.incapacitated():
-            # Dodge ended the moment the dodger became incapacitated; the
+        if 'dodge' in entity_state.get('statuses', []) and (
+                self.incapacitated() or self.grappled() or self.speed() <= 0):
+            # Dodge ended the moment the dodger became incapacitated or lost
+            # its speed (SRD 5.2.1: "ends early if you are incapacitated or
+            # if you lose your speed"). Grapple/restraint set the speed to 0
+            # — the engine models the grappled 0 through the movement budget,
+            # `restrained`/0-speed overrides through speed() — so a dodging
+            # creature that gets grabbed no longer imposes Disadvantage. The
             # eager clear (make_unconscious) plus this read-side guard make
-            # the SRD "ends early" rule hold even if the creature is healed
-            # before its next turn would have cleared it.
+            # the rule hold even if the creature is healed before its next
+            # turn would have cleared it.
             self.end_dodge(battle)
             return False
 

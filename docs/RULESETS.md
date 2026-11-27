@@ -99,6 +99,12 @@ Hook: `Ruleset.grapple_shove_resolution()` → `contested_check` or `target_savi
 `prune_invalid_grapples` for the acting creature and its grapplers. Releases log
 `drop_grapple` with a `reason` (e.g. "target died"). A `grapple_instead` hit deals no damage,
 so it never calls `take_damage` (no death-save failure on an unconscious target).
+When a grappler drags its catch, the target trails one step behind along the grappler's
+path but can never END on an occupied square (`MoveAction.drag_square_free` drops trailing
+steps until the trail's last square is free — the grappler's own square counts as free since
+it is vacating it): the grappler may still pass through an ally's square, the target simply
+stops at the last open square, and `prune_invalid_grapples` ends the grapple at the next
+turn start if that left it out of reach.
 
 AI: `GenericController.grapple_release_action` frees held creatures that are dead, unconscious,
 or not hostile before choosing anything else (also before legendary actions). NPCs get one
@@ -520,11 +526,14 @@ replay bug (Nov-24). Regression tests are in the same
   derives `pays_slot` from `as_scroll`, level 0, or a
   `class_mechanics.free_cast_pool_for` hit at the spell's own level
   (the default builder uses the free pool first).
-- **Dodge ends early on incapacity** (`Entity.end_dodge`): SRD Dodge says
-  the benefit ends early if you become incapacitated. `make_unconscious`
-  clears the `dodge` status immediately (like Rage), and `Entity.dodge`
-  re-checks `incapacitated()` on read, so healing the dodger before its
-  next turn does not restore the Dodge.
+- **Dodge ends early on incapacity or lost speed** (`Entity.end_dodge` /
+  `Entity.dodge`): SRD Dodge says the benefit ends early if you become
+  incapacitated **or if you lose your speed**. `make_unconscious` clears
+  the `dodge` status immediately (like Rage), and `Entity.dodge`
+  re-checks `incapacitated()`, `grappled()` and `speed() <= 0` on read —
+  a dodging creature that gets grabbed (or restrained) stops imposing
+  Disadvantage, and healing it before its next turn does not restore the
+  Dodge.
 - **Flexible Casting is level-gated and two-way**
   (`CreateSpellSlotAction`): the SRD table gates the highest *creatable*
   slot by sorcerer level (`MIN_CREATOR_LEVELS`: level 2/3/5/7/9 create

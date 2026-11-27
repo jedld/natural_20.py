@@ -131,6 +131,27 @@ class TestGrapplerRules(unittest.TestCase):
         self.battle.start_turn()
         self.assertFalse(self.fighter.is_grappling())
 
+    def test_dodge_ends_when_grappled(self):
+        # SRD 5.2.1 Dodge: "The benefit of this action ends early if you
+        # are incapacitated or if you lose your speed." A grapple sets the
+        # speed to 0, so a dodging creature that gets grabbed stops
+        # imposing Disadvantage (issue #6 follow-up).
+        self.fighter.do_dodge(self.battle)
+        self.assertTrue(self.fighter.dodge(self.battle))
+        self.fighter.do_grappled_by(self.goblin)
+        self.assertFalse(self.fighter.dodge(self.battle))
+        _, disadvantage = compute_advantages_and_disadvantages(
+            self.session, self.goblin, self.fighter, 'longsword', battle=self.battle)
+        self.assertNotIn('target_dodge', disadvantage)
+
+    def test_dodge_ends_when_speed_lost(self):
+        # Same rule via a speed-0 status the engine models through speed()
+        # (restrained; grapple above covers the movement-budget side).
+        self.fighter.do_dodge(self.battle)
+        self.assertTrue(self.fighter.dodge(self.battle))
+        self.fighter.statuses.append('restrained')
+        self.assertFalse(self.fighter.dodge(self.battle))
+
     def test_status_text_tells_ai_about_halved_speed(self):
         self.goblin.do_grappled_by(self.fighter)
         txt = grapple_status_text(self.fighter)

@@ -40,6 +40,25 @@ def reveal_if_exposed(battle, session, source):
         source.do_hide(previous_stealth)
 
 
+def drag_square_free(map, target, grappler, pos):
+    """Can the dragged ``target`` END its trail at ``pos``?
+
+    SRD 5.2.1 never lets a move END in another creature's space, so a
+    grappler may not leave its catch on an occupied square (issue #6:
+    dragging a hero along a path that crosses an ally dropped the hero on
+    the ally's token). Every trail square is a square the grappler itself
+    moves through, so terrain/objects are already legal for the target;
+    the only thing that can block is a creature token, and the grappler's
+    own token does not count — it is vacating that square this very move.
+    """
+    x, y = pos
+    for p_x, p_y in map.entity_squares_at_pos(target, x, y):
+        token = map.tokens[p_x][p_y]
+        if token and token['entity'] is not target and token['entity'] is not grappler:
+            return False
+    return True
+
+
 class MoveAction(Action):
     """
     Move action
@@ -274,6 +293,19 @@ class MoveAction(Action):
                     lag = i + 1
                     lagged = source_path[:-lag] if len(source_path) > lag else []
                     grappled_entity_movement = [start_pos] + lagged
+
+                    # A dragged creature can never END on an occupied
+                    # square: drop trailing steps until its last square
+                    # is free, so it stops at the last open square of
+                    # the trail instead of overlapping a creature. If
+                    # that leaves it out of reach, the out-of-reach
+                    # rule in grappling.py releases the grapple at the
+                    # next turn start.
+                    while (len(grappled_entity_movement) > 1
+                           and not drag_square_free(
+                               map, grappling_target, self.source,
+                               grappled_entity_movement[-1])):
+                        grappled_entity_movement.pop()
 
                     grapple_effects.append({
                         'source': grappling_target,

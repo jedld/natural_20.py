@@ -58,6 +58,26 @@ class TestGrappleAction(unittest.TestCase):
         print(MapRenderer(self.map).render())
         self.assertEqual(self.map.entity_or_object_pos(self.npc), [1, 2])
 
+    def test_dragged_target_never_ends_on_occupied_square(self):
+        # Issue #6 follow-up: the grappler may pass THROUGH an ally's
+        # square, but the dragged target trails behind and must not END
+        # there (SRD: you can never finish a move in another creature's
+        # space). The target stops at the last free square of the trail.
+        self.map.move_to(self.fighter, 1, 1, self.battle)
+        self.map.move_to(self.npc, 0, 1, self.battle)
+        ally = self.session.npc('goblin')
+        self.battle.add(ally, 'a', position=[1, 2], token='h')
+        self.npc.do_grappled_by(self.fighter)
+        action = MoveAction(self.session, self.fighter, 'move',
+                            {'move_path': [[1, 1], [1, 2], [1, 3]]})
+        self.battle.action(action)
+        self.battle.commit(action)
+        # The ally blocks the normal trail square (1,2): the goblin stops
+        # at (1,1), the fighter's start square (the grappler vacates it).
+        self.assertEqual(self.map.entity_or_object_pos(self.fighter), [1, 3])
+        self.assertEqual(self.map.entity_or_object_pos(ally), [1, 2])
+        self.assertEqual(self.map.entity_or_object_pos(self.npc), [1, 1])
+
     def test_incapacitated_grappled_released(self):
         self.fighter.unconscious()
         self.assertFalse(self.npc.grappled())
