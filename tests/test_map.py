@@ -14,6 +14,23 @@ class TestMap(unittest.TestCase):
         self.assertEqual(len(battle_map.entities), 0)
         self.assertEqual(battle_map.size, [4, 4])
 
+    def test_background_stretch_defaults_false_and_parses_yaml_values(self):
+        session = Session(root_path='tests/fixtures')
+        base_props = {'name': 'Stretch', 'map': {'size': [2, 2], 'base': ['..', '..']}}
+
+        default_map = Map(session, None, name='stretch_default', properties=dict(base_props))
+        self.assertFalse(default_map.background_stretch())
+
+        for raw, expected in (
+            (True, True), (False, False),
+            ('true', True), ('yes', True), ('on', True), ('1', True),
+            ('false', False), ('no', False), ('0', False),
+        ):
+            props = dict(base_props)
+            props['background_stretch'] = raw
+            battle_map = Map(session, None, name='stretch_val', properties=props)
+            self.assertIs(battle_map.background_stretch(), expected, msg=repr(raw))
+
     def test_grid_legend_tokens_spawn_npc_and_item_object(self):
         session = Session(root_path='tests/fixtures')
         battle_map = Map(session, None, name='npc_grid', properties={

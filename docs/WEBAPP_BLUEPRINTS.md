@@ -277,6 +277,36 @@ recent removal with **Ctrl+Z** (Cmd+Z on macOS).
 - Tests: `n20-webapp/tests/webapp/test_entity_delete_undo.py` (server round-trips)
   and the `DM Delete / Ctrl+Z` block in `n20-webapp/webapp/static/engine.test.js`.
 
+## Map settings panel (DM)
+
+The **Maps & Map Sets** modal (`#mapModal`) has a **Map Settings** section
+below the map cards (DM-only, like the whole modal): a map picker
+(`#map-settings-target`) plus one control per setting; every control id is
+`map-setting-<key>` (checkbox for `bool`, `input` for `int`). The panel loads
+values on modal show / map change (`GET /map_settings?map=…`) and posts on
+change (`POST /map_settings` with `{map, settings}` JSON).
+
+- Shared helper: `webapp/blueprints/helpers/map_settings.py` owns the
+  `MAP_SETTINGS_FIELDS` whitelist (`key -> (default, kind, getter)`), the
+  generic apply/persist (`apply_map_settings`, writes top-level keys into the
+  map YAML, omitting default values) and the socket broadcast
+  (`broadcast_map_settings` → `message {type:'map_settings', message:{map, settings}}`).
+- Routes: `GET/POST /map_settings` in `blueprints/assets.py` (403 for
+  non-DMs; unknown keys → 400, unknown map → 404).
+- Client: the `map_settings` socket case in `engine.js`
+  (`EventQueue.applyMapSettingsBroadcast`) live-applies settings to the
+  displayed map; `Utils.updateMapDisplay` and `processMapEvent` honor the
+  `stretch` flag carried by POV-switch JSON and `map` socket payloads
+  (`Map.background_stretch()` engine accessor, added to the `index.html`
+  render context as `background_stretch`).
+- Current setting: `background_stretch` — stretches the background
+  image/video to exactly fit the battlefield grid (`object-fit: fill` +
+  explicit height) instead of cropping with `cover`.
+- MCP mirror: `dm.map_settings` (op=get|set) in `webapp/mcp/tools_dm.py`.
+- To add a setting: extend `MAP_SETTINGS_FIELDS`, add a `map-setting-<key>`
+  control in `index.html`; the endpoint, persistence, broadcast, MCP tool and
+  panel JS are generic.
+
 ## Create new map (unified form)
 
 The map-picker's **Create New Map** tile (`#create-new-map` inside `#mapModal`)

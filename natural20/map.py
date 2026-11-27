@@ -204,6 +204,15 @@ class Map(SerializableObject):
     def background_image(self):
         return self.properties.get('background_image', None)
 
+    def background_stretch(self):
+        """When true the background image/video is stretched to exactly cover
+        the battlefield grid (ignoring its native aspect ratio).
+        YAML: ``background_stretch: true`` at the top of the map file."""
+        value = self.properties.get('background_stretch', False)
+        if isinstance(value, str):
+            return value.strip().lower() in ('1', 'true', 'yes', 'on')
+        return bool(value)
+
     def background_image_for_time_of_day(self, state) -> str | None:
         from natural20.time_of_day import resolve_map_background_image
 

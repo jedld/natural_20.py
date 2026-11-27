@@ -554,6 +554,7 @@ map:
 | `description` | string | — | Map description |
 | `grid_size` | int | `5` | Feet per grid square |
 | `background_image` | string | — | Path to background image (in `assets/`) |
+| `background_stretch` | bool | `false` | Stretch the background image/video to exactly fit the battlefield grid (ignores its native aspect ratio). DM-editable at runtime via the Map Settings panel or MCP `dm.map_settings` |
 | `image_offset_px` | [x, y] | `[0, 0]` | Pixel offset for background image alignment |
 | `default_effect` | object | — | Persistent visual effect (see [Visual Effects](#visual-effects)) |
 | `point_fires` | array | — | Fire/candle particle emitters |
@@ -900,7 +901,17 @@ point_fires:
 ```yaml
 background_image: dungeon_bg.png   # In assets/
 image_offset_px: [0, 0]           # Pixel alignment offset
+background_stretch: false         # Stretch art to fit the battlefield grid
 ```
+
+The DM can also toggle these per map at runtime: the **Maps & Map Sets** panel
+(`#mapModal`) has a **Map Settings** section that reads/writes
+`GET/POST /map_settings` (DM-only). Values persist back into the map YAML and
+are broadcast to every client as a `map_settings` socket message. New settings
+are added by extending `MAP_SETTINGS_FIELDS` in
+`webapp/blueprints/helpers/map_settings.py` plus a control (id
+`map-setting-<key>`) in the panel; the endpoint, persistence, broadcast and
+the MCP `dm.map_settings` tool are generic.
 
 #### Web Extensions
 

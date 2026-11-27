@@ -20,7 +20,7 @@ See **`docs/WEBAPP_BLUEPRINTS.md`** for the full architecture guide (blueprint m
 
 | Blueprint | Module | Routes (examples) |
 |---|---|---|
-| `assets` | `blueprints/assets.py` | `/assets/*`, `/create_map`, `/upload_map_background`, `/delete_map` |
+| `assets` | `blueprints/assets.py` | `/assets/*`, `/create_map`, `/upload_map_background`, `/delete_map`, `/map_settings` (GET/POST, DM-only; helper `helpers/map_settings.py`) |
 | `auth` | `blueprints/auth.py` | `/login`, `/logout`, `/character_selection`, `/select_character` |
 | `ai` | `blueprints/ai.py` | `/ai/*` |
 | `navigation` | `blueprints/navigation.py` | `/`, `/command`, `/path`, `/switch_map`, `/update`, `/map_state`, `/party/invite`, `/party/sidekick_follow` (portrait-dock auto-follow toggle) |
@@ -40,6 +40,7 @@ Shared helpers under `webapp/blueprints/helpers/`:
 - `auth_utils.py`, `template_globals.py`, `action_utils.py`, `effects.py`, `special_effects.py`, `journal_utils.py`
 - `character_builder_utils.py`, `pvp.py`, `llm_init.py`
 - `campaign_config.py`, `cors_config.py`, `perf.py`, `conversation_wiring.py`
+- `map_settings.py` — whitelisted per-map display settings (`MAP_SETTINGS_FIELDS`, e.g. `background_stretch`); shared by `/map_settings` and MCP `dm.map_settings`. Settings persist at the top level of the map YAML and broadcast as a `map_settings` socket message.
 
 Conventions:
 
@@ -156,6 +157,7 @@ MCP tool catalogue (keep this list in sync with `webapp/mcp/tools_*.py`). Design
     - Campaign/player notebook: `dm.notebook` (op=list|get|search|create|update|delete|mkdir|move|share; optional `scope` campaign|player, `owner`, `item_id`, `folder_id`, `title`, `content`, `query`, `usernames`) — login- and campaign-level notes/files in SQLite (`notebook.sqlite`), not tied to a PC or NPC. See `docs/NOTEBOOK.md`.
     - User accounts: `dm.user_admin` (op=list|create|update|delete|assign_character|unassign_character; `username`, `password`, `roles`, `character_uid`, optional `spawn`) — mirrors `GET/POST /admin/users`; persists `logins` and `default_controllers` to campaign `index.json`.
     - Map sets: `dm.map_set` (op=list|activate|create|assign_map|place_party) — party POV worlds; `create`/`assign_map` persist `game.yml`. See `docs/MAP_SETS.md`.
+    - Map settings: `dm.map_settings` (op=get|set, optional `map_name`, `background_stretch`) — per-map display settings stored at the top level of the map YAML (like `background_image`); broadcast to all clients as a `map_settings` socket message. Shared helper `webapp/blueprints/helpers/map_settings.py` (`MAP_SETTINGS_FIELDS` whitelist); mirrors `GET/POST /map_settings` (assets blueprint) and the DM Map Settings panel in `#mapModal`. `background_stretch: true` stretches the map background image/video to exactly fit the battlefield grid (`Map.background_stretch()`).
     - Sidekicks: `dm.sidekick` (op=join|leave|assign_owner|auto_follow|list) — party NPC membership and player owners; `auto_follow` (with `enabled`) toggles out-of-combat auto-follow (sidekicks trail the focused character, chained in a line) synced by `webapp/sidekick_follow.py`; mirrors `POST /admin/sidekick`. See `docs/CAMPAIGN_BUILDING.md`.
     - AI settings: `dm.ai_config` (op=get|save|set_npc|reload; `scope` campaign|webapp, `config`, `key`, `settings`) — `.ai.yaml` providers, combat/conversation/task AI and per-NPC overrides; mirrors `GET/POST /ai/config`, `/ai/config/npc`, `/ai/config/reload`. API keys are masked on read. See `docs/AI_CONFIG.md`.
     - 3D token models: `dm.token_model` (op=list|assign|unassign|delete; `key` = entity uid / NPC type / name, `src` under `<campaign>/assets`, plus `height`/`scale`/`y`/`rotate_y`/`color`/`label`) — binds HeroForge-style figures rendered in `/3d` instead of the billboard token; bindings persist to `<campaign>/vtt3d.yml` `tokens:`. Uploads (STL / `.unity3d` / zip) auto-convert to GLB via `webapp/model_convert/` through `POST /dm/token_models/upload`. Mirrors `GET/POST /dm/token_models*`. Figures face their movement direction and, when prone/dead, topple via a cannon-es rigid body over their own convex hull (`client-3d/src/scene/topple.js`). See `docs/VTT_3D.md` → "Token models".
