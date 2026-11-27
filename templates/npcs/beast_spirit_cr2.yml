@@ -1,0 +1,54 @@
+---
+# Conjure Animals (SRD) CR 2 beast spirit. AC, HP, attack bonus and damage
+# are overwritten from the spell level by SummonSpiritSpell. The spirit
+# vanishes at 0 HP. Stands in for saber-toothed tigers, giant boars, bears
+# and other CR 2 beasts chosen by the summoner.
+kind: Beast Spirit (CR 2)
+description: A fey spirit shaped like a great beast of the wilds.
+outward_appearance: >-
+  A translucent, moonlit predator with leaf-green fire in its eyes; its paws
+  barely bend the grass.
+size: large
+race:
+  - beast
+  - fey
+alignment: neutral
+default_ac: 13
+max_hp: 34
+hp_die: 5d10+5
+speed: 40
+passive_perception: 12
+token:
+  - B
+color: "#166534"
+ability:
+  str: 16
+  dex: 14
+  con: 14
+  int: 3
+  wis: 12
+  cha: 6
+languages:
+  - common
+proficiency_bonus: 2
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 11
+    damage_die: 2d6+3
+    damage_type: piercing
+    multiattack_group: 1
+  - name: claw
+    label: Claw
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 7
+    damage_die: 1d4+3
+    damage_type: slashing
+    multiattack_group: 1

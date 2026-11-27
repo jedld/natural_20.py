@@ -1034,6 +1034,8 @@ class Entity(EntityStateEvaluator, Notable):
         modifier = int(self.ability_mod(next(
             (long for long, s in self.ABILITY_SHORT_NAMES.items() if s == short), short)) or 0)
         modifier += self.d20_test_modifier()
+        from natural20.utils.item_mechanics import item_ability_check_bonus
+        modifier += item_ability_check_bonus(self)
         advantage_modifiers, disadvantage_modifiers = [], []
         if self.poisoned():
             disadvantage_modifiers.append('poisoned')
@@ -2106,6 +2108,8 @@ class Entity(EntityStateEvaluator, Notable):
         magical weapon (``magical: true`` in the weapon definition).
         """
         for res in self.effective_resistances():
+            if isinstance(weapon, dict) and weapon.get('ignores_resistance') == damage_type:
+                return False
             # Handle "non-magical <type>" resistances
             if res.startswith('non-magical '):
                 base_type = res[len('non-magical '):]
@@ -3524,6 +3528,8 @@ class Entity(EntityStateEvaluator, Notable):
 
         modifier += self.proficiency_bonus() if self.proficient(f"{save_type}_save") else 0
         modifier += self.d20_test_modifier()
+        from natural20.utils.item_mechanics import item_save_bonus
+        modifier += item_save_bonus(self)
         op = '+' if modifier >= 0 else ''
 
         advantages = []

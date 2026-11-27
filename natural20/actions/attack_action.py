@@ -1108,6 +1108,17 @@ class AttackAction(Action):
 
             damage = self.check_weapon_bonuses(battle, weapon, damage, attack_roll)
 
+            # Vorpal weapons (2024 DMG): a natural 20 with a weapon whose
+            # YAML sets ``vorpal: true`` removes the target's head — instant
+            # death for creatures that need one. Slashing-immune, headless
+            # (construct/ooze/plant/swarm) or too-big (Huge+) creatures take
+            # an extra 30 slashing damage instead.
+            if crit and isinstance(weapon, dict) and weapon.get('vorpal'):
+                from natural20.utils.vorpal import vorpal_beheading_roll
+                vorpal_roll = vorpal_beheading_roll(self.source, target, weapon, battle)
+                if vorpal_roll is not None:
+                    damage += vorpal_roll
+
             target_uid = getattr(target, 'entity_uid', None)
             if getattr(self.source, '_coordinated_strike_uid', None) and target_uid:
                 if self.source._coordinated_strike_uid == target_uid:

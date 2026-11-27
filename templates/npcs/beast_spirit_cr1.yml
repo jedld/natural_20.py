@@ -1,0 +1,42 @@
+---
+# Conjure Animals (SRD) CR 1 beast spirit (dire wolf, brown bear, giant
+# eagle...). Scaled by SummonSpiritSpell; vanishes at 0 HP.
+kind: Beast Spirit (CR 1)
+description: A fey spirit shaped like a mighty beast of the wilds.
+outward_appearance: >-
+  A shimmering wild thing woven from dusk and leaf-shadow, bright-eyed and
+  silent as it pads.
+size: medium
+race:
+  - beast
+  - fey
+alignment: neutral
+default_ac: 13
+max_hp: 22
+hp_die: 4d8+4
+speed: 40
+passive_perception: 12
+token:
+  - W
+color: "#14532d"
+ability:
+  str: 15
+  dex: 14
+  con: 13
+  int: 3
+  wis: 12
+  cha: 6
+languages:
+  - common
+proficiency_bonus: 2
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 9
+    damage_die: 2d6+2
+    damage_type: piercing
+    multiattack_group: 1

@@ -1344,8 +1344,14 @@ class Map(SerializableObject):
         if entity is None:
             return is_difficult_due_to_objects(pos_x, pos_y, origin=from_pos)
 
+        # Freedom of Movement: terrain and magical speed reducers cannot slow
+        # this creature (entity crowding still counts).
+        freedom = bool(getattr(entity, 'has_effect', lambda _t: False)('freedom_of_movement'))
+
         # Zones that halve a creature's speed inside them (Spirit Guardians).
         for zone in (getattr(battle, 'active_zones', None) or []):
+            if freedom:
+                continue
             slows = getattr(zone, 'slows', None)
             if callable(slows) and not zone.expired() and slows(entity, (pos_x, pos_y)):
                 return True
@@ -1363,6 +1369,8 @@ class Map(SerializableObject):
                 return True
 
             # Check terrain objects
+            if freedom:
+                continue
             if is_difficult_due_to_objects(r_x, r_y, entity, origin=from_pos):
                 return True
             if from_pos is not None and is_difficult_due_to_objects(from_pos[0], from_pos[1], entity, origin=pos):

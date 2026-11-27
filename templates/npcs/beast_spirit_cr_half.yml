@@ -1,0 +1,41 @@
+---
+# Conjure Animals (SRD) CR 1/2 beast spirit (boar, black bear, ape...).
+# Scaled by SummonSpiritSpell; vanishes at 0 HP.
+kind: Beast Spirit (CR 1/2)
+description: A fey spirit shaped like a sturdy beast of the wilds.
+outward_appearance: >-
+  A small-pricked spirit-beast of bramble and mist, snout low to the ground.
+size: medium
+race:
+  - beast
+  - fey
+alignment: neutral
+default_ac: 13
+max_hp: 16
+hp_die: 3d8+3
+speed: 40
+passive_perception: 11
+token:
+  - R
+color: "#1c4c2b"
+ability:
+  str: 14
+  dex: 12
+  con: 13
+  int: 3
+  wis: 11
+  cha: 5
+languages:
+  - common
+proficiency_bonus: 2
+actions:
+  - name: gore
+    label: Gore
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 7
+    damage_die: 2d6+1
+    damage_type: piercing
+    multiattack_group: 1

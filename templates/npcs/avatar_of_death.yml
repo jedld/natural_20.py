@@ -1,0 +1,55 @@
+---
+# Avatar of Death — summoned by the Deck of Many Things (Skull card, SRD).
+# AC 20; HP is set at summon time to half the summoner's maximum.
+kind: Avatar of Death
+description: A ghostly humanoid skeleton in a tattered black robe wielding a spectral scythe.
+outward_appearance: >-
+  A tall hooded skeleton of pale smoke, its scythe a crescent of cold light;
+  where it passes, sound goes quiet.
+size: medium
+race:
+  - undead
+alignment: neutral_evil
+default_ac: 20
+max_hp: 40
+hp_die: 8d8
+speed: 60
+speed_fly: 60
+darkvision: 60
+passive_perception: 13
+token:
+  - S
+color: "#0f172a"
+ability:
+  str: 16
+  dex: 16
+  con: 16
+  int: 16
+  wis: 16
+  cha: 16
+proficiency_bonus: 3
+damage_immunities:
+  - necrotic
+  - poison
+condition_immunities:
+  - charmed
+  - frightened
+  - paralyzed
+  - petrified
+  - poisoned
+  - unconscious
+attributes:
+  - incorporeal_movement
+  - turning_immunity
+actions:
+  - name: reaping_scythe
+    label: Reaping Scythe
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 14
+    damage_die: 1d8+3
+    additional_damage: 1d8
+    additional_damage_type: necrotic
+    multiattack_group: 1

@@ -1682,3 +1682,115 @@ periapt_of_proof_against_poison:
   weight: 0
   damage_immunities: [poison]
   condition_immunities: [poisoned]
+
+stone_of_good_luck_luckstone:
+  cost: 0
+  magical: true
+  rarity: rare
+  name: Stone of Good Luck (Luckstone)
+  flavor_text: A polished agate that feels warm when fortune is near.
+  description: >-
+    While this polished agate is on your person, you gain a +1 bonus to
+    ability checks and saving throws.
+  type: accessory
+  equippable: true
+  weight: 0
+  save_bonus: 1
+  ability_check_bonus: 1
+
+cloak_of_elvenkind:
+  cost: 0
+  magical: true
+  rarity: uncommon
+  name: Cloak of Elvenkind
+  flavor_text: The weave shifts color like sunlight through leaves.
+  description: >-
+    While you wear this cloak with its hood up, Wisdom (Perception) checks
+    made to see you have disadvantage, and you have advantage on Dexterity
+    (Stealth) checks made to hide. Pulling the hood up or down requires an
+    action. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 1
+  requires_attunement: true
+  effect: cloak_of_elvenkind
+
+hat_of_disguise:
+  cost: 0
+  magical: true
+  rarity: uncommon
+  name: Hat of Disguise
+  flavor_text: A wide-brimmed hat that seems to blur the face beneath it.
+  description: >-
+    While wearing this hat, you can cast the Disguise Self spell with it.
+    The spell ends if the hat is removed. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0.5
+  requires_attunement: true
+  usable: true
+  activation: action
+  item_class: MagicSpellItem
+  spell: disguise_self
+  level: 1
+
+pearl_of_power:
+  cost: 0
+  magical: true
+  rarity: uncommon
+  name: Pearl of Power
+  flavor_text: A lustrous pearl on a fine chain, humming faintly with magic.
+  description: >-
+    While this pearl is on your person, you can use an action to speak its
+    command word and regain one expended spell slot. If the expended slot
+    was of 4th level or higher, the new slot is 3rd level. Once used, it
+    can't be used again until the next dawn. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  usable: true
+  activation: action
+  item_class: PearlOfPowerItem
+  charges: 1
+
+charm_of_animal_conjuring:
+  cost: 0
+  magical: true
+  rarity: rare
+  name: Charm of Animal Conjuring
+  flavor_text: A carved bone charm that smells of musk and green growing things.
+  description: >-
+    This charm allows you to cast the Conjure Animals spell (3rd-level
+    version) as an action. Once used three times, the charm vanishes from
+    you. Requires attunement.
+  type: accessory
+  equippable: true
+  weight: 0
+  requires_attunement: true
+  usable: true
+  activation: action
+  item_class: MagicSpellItem
+  spell: conjure_animals
+  level: 3
+  charges: 3
+
+deck_of_many_things:
+  cost: 0
+  magical: true
+  rarity: very_rare
+  name: Deck of Many Things
+  flavor_text: Ivory cards whose pictures seem to move when you are not looking.
+  description: >-
+    Drawing cards from this deck invites fortune or disaster. Declare how
+    many cards (1-3) you will draw, then draw them one at a time; drawn
+    cards fade from the deck (the Fool and the Jester return to it).
+    Mechanical effects are resolved by the engine; story cards are logged
+    for the DM.
+  type: accessory
+  equippable: false
+  weight: 1
+  usable: true
+  activation: action
+  item_class: DeckOfManyThingsItem
+  cards: 22

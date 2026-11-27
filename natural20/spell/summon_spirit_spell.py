@@ -30,9 +30,11 @@ def _config(properties):
 
 
 class SummonSpiritEffect:
-    def __init__(self, source, creature_uid, spell_properties):
+    def __init__(self, source, creature_uid, spell_properties, creature_uids=None):
         self.source = source
-        self.creature_uid = creature_uid
+        self.creature_uids = list(creature_uids) if creature_uids else (
+            [creature_uid] if creature_uid else [])
+        self.creature_uid = self.creature_uids[0] if self.creature_uids else None
         self.spell_properties = dict(spell_properties or {})
 
     @property
@@ -45,15 +47,33 @@ class SummonSpiritEffect:
     def label(self):
         return self.spell_properties.get('label') or self.id
 
-    def creature(self):
+    def creatures(self):
         session = getattr(self.source, 'session', None)
-        return session.entity_by_uid(self.creature_uid) if session is not None and self.creature_uid else None
+        if session is None:
+            return []
+        return [session.entity_by_uid(uid) for uid in self.creature_uids
+                if uid and session.entity_by_uid(uid) is not None]
+
+    def creature(self):
+        found = self.creatures()
+        return found[0] if found else None
 
     def dismiss(self, entity, _descriptor=None, opts=None):
-        creature = self.creature()
+        creatures = self.creatures()
+        count = len(creatures)
+        self.creature_uids = []
         self.creature_uid = None
-        if creature is None:
-            return
+        for creature in creatures:
+            self._dismiss_one(creature)
+        if count:
+            session = getattr(self.source, 'session', None)
+            if session is not None:
+                session.event_manager.received_event({
+                    'event': 'summons_dismissed', 'source': self.source,
+                    'count': count, 'reason': 'spell_ended',
+                })
+
+    def _dismiss_one(self, creature):
         session = creature.session
         from natural20.utils.combat_comms import battle_for
         battle = battle_for(creature)
@@ -72,9 +92,6 @@ class SummonSpiritEffect:
                 battle_map.remove(creature, battle=battle)
             except Exception:
                 pass
-        session.event_manager.received_event({
-            'event': 'summons_dismissed', 'source': self.source, 'count': 1, 'reason': 'spell_ended',
-        })
 
 
 def spirit_overrides(caster, properties, variant_key, level, spell_action=None):
@@ -182,47 +199,71 @@ class SummonSpiritSpell(Spell):
         in_battle = battle is not None and source in getattr(battle, 'entities', {})
         group = battle.entities[source].get('group') if in_battle else getattr(source, 'group', 'a')
 
-        source.remove_effect(str(spell.get('id') or 'summon_spirit'))
-        name = f"{variant.get('label') or item['variant'].title()} Spirit"
-        creature = session.npc(variant['npc'], {'name': name, 'group': group, 'overrides': item['overrides']})
-        creature.group = group
-        creature.properties['summoner_uid'] = source.entity_uid
-        creature.properties['summon_name'] = spell.get('id')
-        creature.properties['vanish_on_death'] = True
+        level = int(item.get('level') or spell.get('level') or 1)
+        count = int(variant.get('count', 1) or 1)
+        multipliers = cfg.get('count_multipliers') or {}
+        for slot in sorted(int(k) for k in multipliers):
+            if level >= slot:
+                count *= int(multipliers.get(slot, multipliers.get(str(slot), 1)))
 
-        x, y = item['target']
-        if not battle_map.placeable(creature, x, y, battle):
-            from natural20.utils.summons import _placement_squares
-            spot = next((sq for sq in _placement_squares(battle_map, (x, y), 3)
-                         if battle_map.placeable(creature, sq[0], sq[1], battle)), None)
-            if spot is None:
-                return None
-            x, y = spot
-        battle_map.place((x, y), creature, None, battle)
-        if in_battle:
-            from natural20.utils.summons import _summon_controller
-            controller, fresh = _summon_controller(source, battle)
-            if fresh and hasattr(controller, 'register_handlers_on'):
-                try:
-                    controller.register_handlers_on(creature)
-                except Exception:
-                    pass
-            caster_init = battle.entities[source].get('initiative', 0) or 0
-            battle.add(creature, group, controller=controller, add_to_initiative=True,
-                       custom_initiative=lambda _b, _e: caster_init - 0.01)
-        else:
-            session.register_entity(creature)
+        source.remove_effect(str(spell.get('id') or 'summon_spirit'))
+        base_name = f"{variant.get('label') or item['variant'].title()} Spirit"
+        from natural20.utils.summons import _placement_squares
+        created = []
+        for idx in range(max(1, count)):
+            name = base_name if count == 1 else f"{base_name} {idx + 1}"
+            creature = session.npc(variant['npc'],
+                                   {'name': name, 'group': group, 'overrides': item['overrides']})
+            creature.group = group
+            creature.properties['summoner_uid'] = source.entity_uid
+            creature.properties['summon_name'] = spell.get('id')
+            creature.properties['vanish_on_death'] = True
+
+            x, y = item['target']
+            if created:
+                # Pack the extra spirits around the first placement square.
+                ox, oy = created[0][0], created[0][1]
+                spot = next((sq for sq in _placement_squares(battle_map, (ox, oy), 3)
+                             if battle_map.placeable(creature, sq[0], sq[1], battle)), None)
+                if spot is None:
+                    continue
+                x, y = spot
+            if not battle_map.placeable(creature, x, y, battle):
+                spot = next((sq for sq in _placement_squares(battle_map, (x, y), 3)
+                             if battle_map.placeable(creature, sq[0], sq[1], battle)), None)
+                if spot is None:
+                    continue
+                x, y = spot
+            battle_map.place((x, y), creature, None, battle)
+            if in_battle:
+                from natural20.utils.summons import _summon_controller
+                controller, fresh = _summon_controller(source, battle)
+                if fresh and hasattr(controller, 'register_handlers_on'):
+                    try:
+                        controller.register_handlers_on(creature)
+                    except Exception:
+                        pass
+                caster_init = battle.entities[source].get('initiative', 0) or 0
+                battle.add(creature, group, controller=controller, add_to_initiative=True,
+                           custom_initiative=lambda _b, _e: caster_init - 0.01)
+            else:
+                session.register_entity(creature)
+            created.append((x, y, creature))
+
+        if not created:
+            return None
 
         duration = int(spell.get('duration_seconds', 3600))
-        effect = SummonSpiritEffect(source, creature.entity_uid, spell)
-        source.add_casted_effect({'target': creature, 'effect': effect,
+        uids = [c.entity_uid for (_x, _y, c) in created]
+        effect = SummonSpiritEffect(source, uids[0], spell, creature_uids=uids)
+        source.add_casted_effect({'target': created[0][2], 'effect': effect,
                                   'expiration': session.game_time + duration})
         if battle is not None and hasattr(battle, 'start_concentration'):
             battle.start_concentration(source, effect)
         else:
             source.concentration_on(effect)
         session.event_manager.received_event({
-            'event': 'summons_arrived', 'source': source, 'npc_label': name, 'count': 1,
-            'summoned_uids': [creature.entity_uid],
+            'event': 'summons_arrived', 'source': source, 'npc_label': base_name,
+            'count': len(created), 'summoned_uids': uids,
         })
-        return creature
+        return created[0][2]

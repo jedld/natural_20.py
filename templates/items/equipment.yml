@@ -1304,3 +1304,145 @@ yew_wand:
   type: druidic_focus
   spellcasting_focus: druid
   weight: 1
+
+iron_pot:
+  cost: 2
+  name: Pot, Iron
+  flavor_text: A blackened pot that has outlived more stew than it can count.
+  description: An iron pot can hold 1 gallon of liquid.
+  type: gear
+  weight: 5
+
+blanket:
+  cost: 0.5
+  name: Blanket
+  flavor_text: A thick, quilted blanket made to keep you warm in cold weather.
+  description: A thick, quilted blanket made to keep you warm in cold weather.
+  type: gear
+  weight: 3
+
+signal_whistle:
+  cost: 0.05
+  name: Signal Whistle
+  flavor_text: A small whistle whose shrill call carries far.
+  description: A small whistle used for signaling.
+  type: gear
+  weight: 0
+
+case_map_or_scroll:
+  cost: 1
+  name: Case, Map or Scroll
+  flavor_text: A capped leather tube that keeps maps and scrolls dry.
+  description: A water-resistant case for storing maps or scrolls.
+  type: gear
+  weight: 0.5
+
+chalk:
+  cost: 0.01
+  name: Chalk (1 piece)
+  flavor_text: A stub of white chalk for marks, maps and warnings.
+  description: A piece of chalk for marking surfaces.
+  type: gear
+  weight: 0
+
+pellet:
+  cost: 0.002
+  name: Sling Bullets
+  flavor_text: A pouch of carved stone shot, quiet and lethal in a practiced hand.
+  description: Ammunition for a sling. A pouch can hold up to 20 sling bullets.
+  type: ammo
+  ammo: pellet
+  weight: 0.015
+
+hunting_trap:
+  cost: 5
+  name: Hunting Trap
+  flavor_text: Steel jaws hidden under leaves, waiting for the next warm shadow.
+  description: >-
+    When a creature steps on the trap's plate it is restrained until it
+    escapes a DC 13 Dexterity check or takes damage (DM adjudicated).
+  type: gear
+  weight: 25
+
+herbalism_kit:
+  cost: 5
+  name: Herbalism Kit
+  flavor_text: Clippers, a mortar and pestle, and rows of labeled pouches and vials.
+  description: >-
+    This kit contains instruments used by herbalists to create remedies and
+    potions. Proficiency with this kit lets you add your proficiency bonus to
+    any ability checks you make to identify or apply herbs. Proficiency with
+    this kit is required to create antitoxin and any potion of healing.
+  type: tool
+  weight: 3
+
+disguise_kit:
+  cost: 25
+  name: Disguise Kit
+  flavor_text: Putty, wigs, falsified moustaches and a steady hand.
+  description: >-
+    This pouch of cosmetics, hair dye and small props lets you create the
+    kind of disguise that will change a face completely. Proficiency with
+    this kit lets you add your proficiency bonus to any ability checks you
+    make to create disguises that change a person's physical appearance.
+  type: tool
+  weight: 3
+
+cooks_utensils:
+  cost: 1
+  name: Cook's Utensils
+  flavor_text: A well-used knife, spoons and a worn cutting board.
+  description: >-
+    These utensils include a chef's knife, spoons, ladle and other tools.
+    Proficiency with this set of utensils lets you add your proficiency
+    bonus to any ability checks you make while preparing a meal.
+  type: tool
+  weight: 1
+
+dynamite:
+  cost: 5
+  name: Dynamite (stick)
+  flavor_text: A waxed paper stick with a HISsing fuse.
+  description: >-
+    As an action, a creature can light a stick of dynamite and throw it at a
+    point up to 60 feet away. Each creature within 5 feet of that point must
+    make a DC 12 Dexterity saving throw, taking 3d6 bludgeoning damage on a
+    failed save, or half as much on a successful one. Each additional bound
+    stick increases the damage by 1d6 (max 10d6) and the radius by 5 feet
+    (max 20 feet).
+  type: gear
+  usable: false
+  consumable: true
+  weight: 0.5
+
+oil_of_slipperiness:
+  cost: 0
+  magical: true
+  rarity: uncommon
+  name: Oil of Slipperiness
+  flavor_text: A sticky black unguent that flows like water once poured.
+  description: >-
+    Applying the oil takes 10 minutes. The affected creature then gains the
+    effect of a Freedom of Movement spell for 8 hours. Alternatively it can
+    be poured on the ground to cover a 10-foot square, duplicating Grease
+    there for 8 hours (DM adjudicated).
+  type: potion
+  usable: true
+  consumable: true
+  activation: action
+  weight: 0.5
+  item_class: PotionEffectItem
+  effect: freedom_of_movement
+  duration_seconds: 28800
+
+spell_scroll_tongues:
+  spell: tongues
+  level: 3
+  cost: 325
+  name: Tongues Spell Scroll (3rd Level)
+  flavor_text: The letters crawl across the page like insects eager to be read aloud.
+  type: scroll
+  item_class: SpellScroll
+  usable: true
+  consumable: true
+  weight: 0.05

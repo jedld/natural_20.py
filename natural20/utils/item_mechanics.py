@@ -139,7 +139,8 @@ def _summary(entity):
     if cached is not None and cached[0] == key:
         return cached[1]
     summary = {'set': {}, 'bonus': [], 'proficiency_bonus': 0,
-               'cannot_be_surprised': False, 'regain_hp': []}
+               'cannot_be_surprised': False, 'regain_hp': [],
+               'save_bonus': 0, 'ability_check_bonus': 0}
     for item_key, item in active_items(entity):
         for ability, value in (item.get('ability_set') or {}).items():
             ability = _ability_key(ability)
@@ -160,6 +161,8 @@ def _summary(entity):
         regain = item.get('regain_hp')
         if isinstance(regain, dict) and int(regain.get('amount') or 0) > 0:
             summary['regain_hp'].append((str(item_key), regain))
+        summary['save_bonus'] += int(item.get('save_bonus') or 0)
+        summary['ability_check_bonus'] += int(item.get('ability_check_bonus') or 0)
     entity.__dict__[_CACHE_ATTR] = (key, summary)
     return summary
 
@@ -226,6 +229,20 @@ def item_proficiency_bonus(entity):
 def cannot_be_surprised(entity):
     summary = _summary(entity)
     return bool(summary and summary['cannot_be_surprised'])
+
+
+def item_save_bonus(entity):
+    """Flat saving-throw bonus from equipped items (``save_bonus`` in item YAML,
+    e.g. Stone of Good Luck)."""
+    summary = _summary(entity)
+    return int(summary['save_bonus']) if summary else 0
+
+
+def item_ability_check_bonus(entity):
+    """Flat ability-check bonus from equipped items (``ability_check_bonus`` in
+    item YAML, e.g. Stone of Good Luck)."""
+    summary = _summary(entity)
+    return int(summary['ability_check_bonus']) if summary else 0
 
 
 REGAIN_ANCHOR_ATTR = 'item_regain_hp_anchor'

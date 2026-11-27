@@ -3672,3 +3672,159 @@ seeming:
   ai_in_combat: false
   spell_list_classes: [Bard, Sorcerer, Wizard]
   spell_class: Natural20::Seeming
+freedom_of_movement:
+  label: Freedom of Movement
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a bootlace tied around a greased shaft
+  description: >-
+    You touch a willing creature. For the duration, the target's movement is
+    unaffected by difficult terrain, and spells and other magical effects can
+    neither reduce the target's speed nor cause the target to be paralyzed or
+    restrained. The target can also spend 5 feet of movement to automatically
+    escape from nonmagical restraints, such as manacles or a creature that has
+    it grappled. Being underwater imposes no penalties on the target's movement
+    or attacks.
+  duration: 8h
+  duration_seconds: 28800
+  level: 4
+  name: Freedom of Movement
+  range: touch
+  school: abjuration
+  type: buff
+  hostile: false
+  ai_in_combat: false
+  spell_list_classes: [Cleric, Druid, Ranger]
+  spell_class: Natural20::FreedomOfMovement
+conjure_animals:
+  label: Conjure Animals
+  casting_time: 1:action
+  components: [verbal, somatic]
+  description: >-
+    You summon fey spirits that take the form of beasts and appear in unoccupied
+    spaces you can see within range. Choose one: one beast of challenge rating
+    2 or lower, two beasts of CR 1 or lower, four beasts of CR 1/2 or lower, or
+    eight beasts of CR 1/4 or lower. Each beast is also considered fey and
+    disappears when it drops to 0 hit points or the spell ends. The summoned
+    creatures are friendly to you and your companions and share a group
+    initiative. Using a Higher-Level Spell Slot: twice as many creatures with a
+    5th-level slot, three times as many with a 7th-level slot, and four times
+    as many with a 9th-level slot.
+  duration: 1h
+  duration_seconds: 3600
+  concentration: true
+  level: 3
+  upcast: true
+  name: Conjure Animals
+  range: 60
+  school: conjuration
+  type: summon
+  hostile: false
+  ai_no_recast: true
+  summon_spirit:
+    base_level: 3
+    ac_base: 13
+    hp_per_slot: 5
+    damage_bonus_base: 2
+    count_multipliers: {5: 2, 7: 3, 9: 4}
+    variants:
+      cr2: {npc: beast_spirit_cr2, hp: 34, count: 1, label: "CR 2 beast (one)"}
+      cr1: {npc: beast_spirit_cr1, hp: 22, count: 2, label: "CR 1 beasts (two)"}
+      cr_half: {npc: beast_spirit_cr_half, hp: 16, count: 4, label: "CR 1/2 beasts (four)"}
+      cr_quarter: {npc: beast_spirit_cr_quarter, hp: 11, count: 8, label: "CR 1/4 beasts (eight)"}
+  spell_list_classes: [Ranger]
+  spell_class: Natural20::SummonSpirit
+confusion:
+  label: Confusion
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: three nut shells
+  description: >-
+    This spell assails a creature's mind, causing it to act confused. On its
+    turn, a confused creature can't take reactions and must roll a d6 to
+    determine its behavior. At the end of its turn it can repeat the Wisdom
+    saving throw to end the effect.
+  duration: 1m
+  duration_seconds: 60
+  concentration: true
+  level: 8
+  name: Confusion
+  range: 90
+  school: enchantment
+  type: control
+  condition_save:
+    save: wisdom
+    conditions: [confused]
+    repeat_save: end_of_turn
+  spell_list_classes: [Bard, Sorcerer, Wizard]
+  spell_class: Natural20::ConditionSave
+wall_of_thorns:
+  label: Wall of Thorns
+  casting_time: 1:action
+  components: [verbal, somatic, material]
+  material: a handful of thorns
+  description: >-
+    You create a wall of tough, pliable, tangled brush bristling with needle-sharp
+    thorns. The area is difficult terrain. A creature that enters the area for the
+    first time on a turn or starts its turn there takes 7d8 piercing damage, or
+    half as much on a successful Dexterity saving throw (once per turn). A creature
+    takes 1d10 piercing damage for every 5 feet it moves into or within the area.
+    The wall sheds dim light in 40 feet around the area.
+  duration: 10m
+  duration_seconds: 600
+  concentration: true
+  level: 6
+  name: Wall of Thorns
+  range: 120
+  radius: 20
+  damage_per_step: 1d10
+  enter_damage: 7d8
+  save: dexterity
+  school: conjuration
+  type: area
+  hostile: true
+  ai_no_recast: true
+  spell_list_classes: [Druid]
+  spell_class: Natural20::WallOfThorns
+regenerate:
+  label: Regenerate
+  casting_time: 1:minute
+  components: [verbal, somatic, material]
+  material: a holy symbol
+  description: >-
+    You touch a creature and stimulate its natural healing ability. The target
+    regains 1d4 hit points at the start of each of its turns for the duration.
+    Severed limbs are reattached at the end of the duration (cosmetic in the
+    VTT). Casting time longer than an action means the spell cannot be cast
+    while a battle is ongoing.
+  duration: 1h
+  duration_seconds: 3600
+  level: 7
+  name: Regenerate
+  range: touch
+  school: transmutation
+  type: buff
+  hostile: false
+  ai_in_combat: false
+  spell_list_classes: [Bard, Cleric, Druid]
+  spell_class: Natural20::Regenerate
+wind_walk:
+  label: Wind Walk
+  casting_time: 1:minute
+  components: [verbal, somatic]
+  description: >-
+    You and up to ten willing creatures you can see assume a gaseous form,
+    becoming mists until the spell ends. While in mist form, a target's only
+    action is a Fly speed of 300 feet, it has resistance to non-magical damage,
+    and it can't attack, cast spells or manipulate objects.
+  duration: 8h
+  duration_seconds: 28800
+  level: 6
+  name: Wind Walk
+  range: 30
+  school: transmutation
+  type: utility
+  hostile: false
+  ai_in_combat: false
+  spell_list_classes: [Druid]
+  spell_class: Natural20::WindWalk

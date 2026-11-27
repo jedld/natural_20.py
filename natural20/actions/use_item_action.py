@@ -198,6 +198,15 @@ class UseItemAction(Action):
         elif item_class == 'ThrownFlaskItem':
             from natural20.item_library.thrown_flask import ThrownFlaskItem
             klass = ThrownFlaskItem
+        elif item_class == 'PearlOfPowerItem':
+            from natural20.item_library.pearl_of_power import PearlOfPowerItem
+            klass = PearlOfPowerItem
+        elif item_class == 'DeckOfManyThingsItem':
+            from natural20.item_library.deck_of_many_things import DeckOfManyThingsItem
+            klass = DeckOfManyThingsItem
+        elif item_class == 'MirrorWardItem':
+            from natural20.item_library.mirror_ward import MirrorWardItem
+            klass = MirrorWardItem
         else:
             raise Exception(f"item class {item_class} not found")
         return klass

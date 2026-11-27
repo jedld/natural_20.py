@@ -103,6 +103,26 @@ class PotionEffectItem(Object):
             roll = DieRoll.roll('4d4+4', entity=entity, battle=result.get('battle'),
                                 description='Potion of Greater Healing')
             target.heal(effective_heal_roll(target, roll).result())
+        elif effect == 'freedom_of_movement':
+            # Oil of Slipperiness: full Freedom of Movement effect, not just
+            # the status marker (difficult terrain, paralysis/restraint
+            # immunity and nonmagical restraint escape).
+            from natural20.spell.freedom_of_movement_spell import FreedomOfMovementEffect
+            target.remove_effect('freedom_of_movement')
+            target.remove_effect('condition_immunity')
+            fof = FreedomOfMovementEffect(entity, self.properties)
+            if 'freedom_of_movement' not in (target.statuses or []):
+                target.statuses.append('freedom_of_movement')
+            target.register_effect('freedom_of_movement', FreedomOfMovementEffect,
+                                   effect=fof, source=entity,
+                                   duration=result.get('duration'))
+            target.register_effect('condition_immunity', FreedomOfMovementEffect,
+                                   effect=fof, source=entity,
+                                   duration=result.get('duration'))
+            target.add_casted_effect({'target': target, 'effect': fof,
+                                      'expiration': (getattr(target, 'session', None).game_time
+                                                     if getattr(target, 'session', None) else 0)
+                                      + int(result.get('duration') or 0)})
         elif effect:
             if effect not in target.statuses:
                 target.statuses.append(effect)

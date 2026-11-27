@@ -2255,6 +2255,13 @@ A spell YAML `summon_spirit` block names the variants (picked with
 slot level. Attacks use the caster's spell attack bonus, and `save_dc: spell`
 uses the caster's spell save DC. The spirit acts right after the caster in
 initiative. It disappears when concentration ends (`SummonSpiritEffect`).
+A variant may set `count: N` to summon N copies of the same spirit (they share
+the group initiative slot), and the block can set `count_multipliers:
+{5: 2, 7: 3, 9: 4}` to multiply the count when cast with those slot levels or
+higher. Conjure Animals (SRD, `templates/items/spells.yml`) is the reference:
+its CR 2/1/½/¼ variants (`count` 1/2/4/8, doubled/tripled/quadrupled at 5th/
+7th/9th level) use the generic beast spirit NPCs
+`templates/npcs/beast_spirit_cr*.yml`.
 It also vanishes when it drops to 0 HP: the spell sets the NPC property
 `vanish_on_death`, and `make_dead` then ends the summoner's spell (and
 concentration) through `natural20.utils.summons.vanish_on_death` instead of
@@ -2944,11 +2951,35 @@ ioun_stone_of_awareness:
 
 ioun_stone_of_regeneration:
   regain_hp: {amount: 15, every_seconds: 3600, min_hp: 1}   # heals as the campaign clock advances
+
+stone_of_good_luck_luckstone:
+  save_bonus: 1                      # flat bonus to every saving throw while equipped/attuned
+  ability_check_bonus: 1             # flat bonus to every ability check while equipped/attuned
 ```
 
 Item bonuses are applied on top of the stored scores, so `ability:` on a
 sheet holds the creature's own scores. Accessories with a `magic_bonus` (Ring
-of Protection, Ioun Stone of Protection) add it to AC.
+of Protection, Ioun Stone of Protection) add it to AC. `save_bonus` and
+`ability_check_bonus` are flat ints read by `natural20/utils/item_mechanics.py`
+from every save throw and ability check while the item counts as attuned.
+
+#### Weapon combat riders
+
+Magic weapon YAML can also carry:
+
+```yaml
+vorpal_greatsword:
+  magic_bonus: 3
+  ignores_resistance: slashing   # damage from this weapon skips that resistance
+  vorpal: true                   # natural 20 beheads headed creatures
+                                 # (natural20/utils/vorpal.py); immune/immune-to-slashing
+                                 # or headless creatures take a massive extra roll instead
+```
+
+`ignores_resistance` is honored by `Entity.resistant_to` (and the resistance
+bypass also applies to the vorpal massive-damage fallback). The beheading
+itself resolves as a massive-damage roll, so death saves, massive damage and
+death attribution all work normally.
 
 #### Dancing weapons
 

@@ -206,6 +206,37 @@ Repo path: `expansion_packs/players_handbook_2024/`. **Not SRD.** It holds 2024 
 
 - the Gloom Stalker ranger subclass (`char_classes/ranger.yml`, which inherits the SRD 5.2 ranger overlay);
 - the Wayfarer background;
-- the Lucky, Sharpshooter and Crossbow Expert feats.
+- the Lucky, Sharpshooter and Crossbow Expert feats;
+- the DMG 2024 weapons `vorpal_greatsword`, `laser_rifle` and `energy_cell`
+  (`items/magic_items.yml`; vorpal beheading is generic engine support, see
+  [CAMPAIGN_BUILDING.md → Weapon combat riders](CAMPAIGN_BUILDING.md#weapon-combat-riders)).
 
 Opt in with `"expansion_packs": {"players_handbook_2024": "players_handbook_2024"}` and use `ruleset: 5e-2024`. The pack README maps each feature to its YAML mechanic and lists the simplifications.
+
+## Xanathar's Guide pack
+
+Repo path: `expansion_packs/xanathars_guide/`. **Not SRD.** Non-SRD spells the
+character imports need (e.g. `frostbite`, `create_bonfire`, `healing_spirit` in
+`items/spells.yml`) and the Urchin background (`backgrounds/urchin.yml`).
+Opt in with `"expansion_packs": {"xanathars_guide": "xanathars_guide"}`.
+
+## Elemental Evolution pack
+
+Repo path: `expansion_packs/elemental_evolution/`. **Not SRD.** Elemental
+Evolution subclass spells; currently `investiture_of_flame`
+(`items/spells.yml` — flame-aura zone plus the `FlameLineAction` follow-up
+action granted while the spell is active). Opt in with
+`"expansion_packs": {"elemental_evolution": "elemental_evolution"}`.
+
+## Explorer's Guide to Wildemount pack
+
+Repo path: `expansion_packs/wildemount/`. **Not SRD.** Wildemount magic items,
+currently `mirror_of_reflected_pasts` (`items/magic_items.yml`, item class
+`MirrorWardItem` — command-word paralysis gaze with repeat saves and 24 h
+immunity). Opt in with `"expansion_packs": {"wildemount": "wildemount"}`.
+
+## Icewind Dale: Rime of the Frostmaiden pack
+
+Repo path: `expansion_packs/icewind_dale/`. **Not SRD.** IWD adventuring gear
+(`items/equipment.yml`: `crampons`, `snowshoes`, `clothing_cold_weather`).
+Opt in with `"expansion_packs": {"icewind_dale": "icewind_dale"}`.

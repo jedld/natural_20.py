@@ -151,6 +151,18 @@ def _build_spell_class_registry():
     from natural20.spell.sending_spell import SendingSpell
     import natural20.actions.npc_area_action  # noqa: F401  (NpcAreaAction.apply)
     from natural20.spell.synaptic_static_spell import SynapticStaticSpell
+    from natural20.spell.freedom_of_movement_spell import (
+        FreedomOfMovementSpell, FreedomOfMovementEffect)
+    from natural20.spell.wall_of_thorns_spell import WallOfThornsSpell
+    from natural20.spell.regenerate_spell import RegenerateSpell
+    from natural20.spell.wind_walk_spell import WindWalkSpell
+    from natural20.spell.frostbite_spell import FrostbiteSpell
+    from natural20.spell.create_bonfire_spell import CreateBonfireSpell
+    from natural20.spell.healing_spirit_spell import HealingSpiritSpell
+    from natural20.spell.rune_strike_spell import RuneStrikeSpell
+    from natural20.spell.investiture_of_flame_spell import InvestitureOfFlameSpell
+    # Import action modules so Battle.commit sees their apply() hooks.
+    from natural20.actions import flame_line_action  # noqa: F401
     from natural20.spell.seeming_spell import SeemingSpell
     from natural20.spell.summon_spirit_spell import SummonSpiritSpell
     from natural20.spell.utility_spells import (
@@ -337,6 +349,16 @@ def _build_spell_class_registry():
         'SynapticStaticSpell': SynapticStaticSpell,
         'SeemingSpell': SeemingSpell,
         'SummonSpiritSpell': SummonSpiritSpell,
+        'FreedomOfMovementSpell': FreedomOfMovementSpell,
+        'FreedomOfMovementEffect': FreedomOfMovementEffect,
+        'WallOfThornsSpell': WallOfThornsSpell,
+        'RegenerateSpell': RegenerateSpell,
+        'WindWalkSpell': WindWalkSpell,
+        'FrostbiteSpell': FrostbiteSpell,
+        'CreateBonfireSpell': CreateBonfireSpell,
+        'HealingSpiritSpell': HealingSpiritSpell,
+        'RuneStrikeSpell': RuneStrikeSpell,
+        'InvestitureOfFlameSpell': InvestitureOfFlameSpell,
         'SummonFiendSpell': SummonSpiritSpell,
     }
     return spell_classes

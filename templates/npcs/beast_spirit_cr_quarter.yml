@@ -1,0 +1,42 @@
+---
+# Conjure Animals (SRD) CR 1/4 beast spirit (wolf, giant owl, constrictor
+# snake...). Scaled by SummonSpiritSpell; vanishes at 0 HP.
+kind: Beast Spirit (CR 1/4)
+description: A fey spirit shaped like a nimble beast of the wilds.
+outward_appearance: >-
+  A slender wisp of a creature, fur and feathers suggested more than drawn,
+  eyes like green lanterns.
+size: medium
+race:
+  - beast
+  - fey
+alignment: neutral
+default_ac: 13
+max_hp: 11
+hp_die: 2d8+2
+speed: 40
+passive_perception: 12
+token:
+  - F
+color: "#22683c"
+ability:
+  str: 12
+  dex: 14
+  con: 12
+  int: 3
+  wis: 12
+  cha: 6
+languages:
+  - common
+proficiency_bonus: 2
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 5
+    damage_die: 2d4+1
+    damage_type: piercing
+    multiattack_group: 1

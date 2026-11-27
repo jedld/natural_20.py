@@ -1424,10 +1424,10 @@ class PlayerCharacter(Entity, Fighter, Rogue, Wizard, Cleric, Paladin, Warlock, 
         if feature in (self.properties.get(choice_key) or []):
           return True
 
-      progression = properties.get('progression', {})
+      progression = properties.get('progression') or {}
       class_level = self.properties.get('classes', {}).get(klass, self.level())
       for level in range(1, class_level + 1):
-        h_features = progression.get(f"level_{level}", { "class_features": [] }).get('class_features', [])
+        h_features = (progression.get(f"level_{level}") or {"class_features": []}).get('class_features', [])
         if feature in  h_features:
           return True
 
