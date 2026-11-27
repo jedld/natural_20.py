@@ -163,3 +163,10 @@ class Ruleset(ABC):
     def grappled_attack_disadvantage(self) -> bool:
         """2024 Grappled condition: disadvantage on attacks against anyone but the grappler."""
         return bool(self._override("grappled_attack_disadvantage", False))
+
+    def squeeze_attack_modifiers(self) -> bool:
+        """2014 squeezing changes attack rolls (the squeezing creature attacks at
+        disadvantage and attacks against it gain advantage, our engine's model of
+        the SRD 5.1 +-2). 2024 squeezing is purely a movement constraint: no
+        attack modifiers."""
+        return bool(self._override("squeeze_attack_modifiers", True))

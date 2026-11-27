@@ -40,7 +40,7 @@ def reveal_if_exposed(battle, session, source):
         source.do_hide(previous_stealth)
 
 
-def drag_square_free(map, target, grappler, pos):
+def drag_square_free(map, target, grappler, pos, grappler_stay_squares=()):
     """Can the dragged ``target`` END its trail at ``pos``?
 
     SRD 5.2.1 never lets a move END in another creature's space, so a
@@ -48,11 +48,17 @@ def drag_square_free(map, target, grappler, pos):
     dragging a hero along a path that crosses an ally dropped the hero on
     the ally's token). Every trail square is a square the grappler itself
     moves through, so terrain/objects are already legal for the target;
-    the only thing that can block is a creature token, and the grappler's
-    own token does not count — it is vacating that square this very move.
+    what can block is a creature token — except the grappler's, for the
+    squares it is VACATING this very move. A Large grappler only partly
+    vacates its old footprint, so the squares it keeps occupying
+    (``grappler_stay_squares``, its footprint at the move's end) also
+    block the target: a 2x2 grappler stepping west or north must not drop
+    its catch inside its own body (issue #6 item 5).
     """
     x, y = pos
     for p_x, p_y in map.entity_squares_at_pos(target, x, y):
+        if (p_x, p_y) in grappler_stay_squares:
+            return False
         token = map.tokens[p_x][p_y]
         if token and token['entity'] is not target and token['entity'] is not grappler:
             return False
@@ -280,6 +286,21 @@ class MoveAction(Action):
         for index, safe_moves in enumerate(move_segments):
             movement = compute_actual_moves(self.source, safe_moves, map, battle, movement_budget, manual_jump=jumps)
 
+            movement_cost = movement_budget - movement.budget
+
+            # Trim the grappler's own path first: the dragged targets trail
+            # along the path it ACTUALLY takes, and their clamp must know
+            # the grappler's final footprint. Ending a move squeezed (in a
+            # space sized for the reduced footprint) is allowed, matching
+            # the reachable-squares menu, which already pathfinds through
+            # squeeze-only gaps (issue #6 item 2: the two used to disagree).
+            for move in reversed(movement.movement):
+                if map.placeable(self.source, *move, battle, squeeze=True):
+                    break
+                else:
+                    movement.movement.remove(move)
+                    movement_cost -= 1
+
             grapple_effects = []
             if self.source.is_grappling():
                 # The source's full path is [start, step1, ..., dest]. Each
@@ -288,6 +309,10 @@ class MoveAction(Action):
                 # trailing steps off instead of popping a shared list, so a
                 # short path or several grappled targets can't underflow.
                 source_path = movement.movement
+                dest_x, dest_y = source_path[-1]
+                grappler_stay = set(
+                    tuple(sq) for sq in map.entity_squares_at_pos(
+                        self.source, dest_x, dest_y))
                 for i, grappling_target in enumerate(self.source.grappling_targets()):
                     start_pos = map.entity_or_object_pos(grappling_target)
                     lag = i + 1
@@ -304,7 +329,8 @@ class MoveAction(Action):
                     while (len(grappled_entity_movement) > 1
                            and not drag_square_free(
                                map, grappling_target, self.source,
-                               grappled_entity_movement[-1])):
+                               grappled_entity_movement[-1],
+                               grappler_stay)):
                         grappled_entity_movement.pop()
 
                     grapple_effects.append({
@@ -319,16 +345,6 @@ class MoveAction(Action):
                         'dragged_by': self.source,
                         'position': grappled_entity_movement[-1]
                     })
-            # print(f"budget: {movement_budget}  {movement.budget}")
-            movement_cost = movement_budget - movement.budget
-
-            for move in reversed(movement.movement):
-                if  map.placeable(self.source, *move, battle, squeeze=False):
-                    break
-                else:
-                    movement.movement.remove(move)
-                    movement_cost -= 1
-
             self.result.append({
                 'source': self.source,
                 'map': map,

@@ -1,0 +1,70 @@
+# SRD 5.2.1 (2024) Ogre stat block. Shadows templates/npcs/ogre.yml when the
+# campaign ruleset is 5e-2024 (issue #6 item 1): 68 HP (8d10+24), Greatclub is
+# bludgeoning, Javelin works as both a melee (5 ft) and thrown (30/120 ft)
+# weapon, passive Perception 8, 450 XP, no Stealth skill.
+---
+kind: Ogre
+description: Ogres are hulking giants notorious for their quick tempers. When its
+  rage is incited, an ogre lashes out in a frustrated tantrum until it runs out of
+  objects or creatures to smash.
+size: large
+race:
+- giant
+alignment: chaotic_evil
+default_ac: 11
+max_hp: 68
+hp_die: 8d10+24
+speed: 40
+passive_perception: 8
+darkvision: 60
+token:
+  - O┐
+  - └┘
+color: green
+ability:
+  str: 19
+  dex: 8
+  con: 16
+  int: 5
+  wis: 7
+  cha: 7
+languages:
+- common
+- giant
+cr: 2
+xp: 450
+proficiency_bonus: 2
+attributes: []
+actions:
+  - name: Greatclub
+    type: melee_attack
+    if: equipped:greatclub
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 13
+    damage_die: 2d8+4
+    damage_type: bludgeoning
+  - name: Javelin (melee)
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: piercing
+  - name: Javelin
+    type: ranged_attack
+    range: 30
+    range_max: 120
+    targets: 1
+    attack: 6
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: piercing
+    ammo: javelin
+equipped:
+  - greatclub
+default_inventory:
+  - type: javelin
+    qty: 3

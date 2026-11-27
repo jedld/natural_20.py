@@ -1,0 +1,51 @@
+# SRD 5.2.1 (2024) Owlbear stat block. Shadows templates/npcs/owlbear.yml when
+# the campaign ruleset is 5e-2024 (issue #6 item 1): climb speed 40 ft,
+# Perception +5 and Stealth +2 (passive Perception 15), Multiattack is two
+# Rend attacks (+7, 2d8+5 slashing), and there is no Keen Sight and Smell.
+---
+kind: Owlbear
+description: A monstrous cross between giant owl and bear, an owlbear’s reputation for ferocity and aggression makes it one of the most feared predators of the wild.
+size: large
+race:
+  - monstrosity
+alignment: unaligned
+default_ac: 13
+max_hp: 59
+hp_die: 11d8
+speed: 40
+speed_climb: 40
+passive_perception: 15
+darkvision: 60
+token:
+  - \/
+  - └┘
+color: light_magenta
+ability:
+  str: 20
+  dex: 12
+  con: 17
+  int: 3
+  wis: 12
+  cha: 7
+skills:
+  perception: 5
+  stealth: 2
+languages:
+cr: 3
+xp: 700
+proficiency_bonus: 2
+attributes:
+  - multiattack
+multiattack:
+  - rend,rend
+actions:
+  - name: rend
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 7
+    damage: 14
+    damage_die: 2d8+5
+    damage_type: slashing
+    multiattack_group: 1
+default_inventory: []

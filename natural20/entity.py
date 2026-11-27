@@ -2244,6 +2244,10 @@ class Entity(EntityStateEvaluator, Notable):
     def hidden(self):
         return 'hidden' in self.statuses
     
+    def do_squeeze(self):
+        if 'squeezed' not in self.statuses:
+            self.statuses.append('squeezed')
+
     def unsqueeze(self):
         if 'squeezed' in self.statuses:
             self.statuses.remove('squeezed')
@@ -3272,57 +3276,51 @@ class Entity(EntityStateEvaluator, Notable):
     # @param map [Natural20::BattleMap]
     # @param target_position [Array<Integer,Integer>]
     # @param adjacent_only [Boolean] If false uses melee distance otherwise uses fixed 1 square away
-    def melee_squares(self, map, target_position=None, adjacent_only=False, squeeze=False) -> List[Tuple[int, int]]:
-        result = []
+    def melee_squares(self, map, target_position=None, adjacent_only=False, squeeze=None) -> List[Tuple[int, int]]:
+        """Squares this creature threatens with melee from its current body.
+
+        Reach is a Chebyshev ring around the creature's BODY squares: every
+        square within ``melee_distance`` of ANY body square, minus the body
+        itself (issue #6 item 4: the old anchor-offset math collapsed a 2x2
+        creature's ring to 8 wrong cells and, with ``adjacent_only``, leaked
+        the body's own cells because tuples were tested against lists). For
+        a Medium creature this is the classic 8-cell ring; a Large 2x2
+        creature with 5 ft reach threatens the 12 cells directly around it.
+        While squeezed the body is the reduced footprint, matching the
+        squares the token actually occupies on the map.
+        """
+        if squeeze is None:
+            squeeze = self.squeezed()
+        cur_x, cur_y = target_position or map.entity_or_object_pos(self)
+        body = set(tuple(sq) for sq in map.entity_squares_at_pos(self, cur_x, cur_y, squeeze))
+
         if adjacent_only:
-            cur_x, cur_y = target_position or map.entity_or_object_pos(self)
-            entity_squares = map.entity_squares_at_pos(self, cur_x, cur_y, squeeze)
-            for sq in entity_squares:
-                for x_off in range(-1, 2):
-                    for y_off in range(-1, 2):
-                        if x_off == 0 and y_off == 0:
-                            continue
-
-                        # adjust melee position based on token size
-                        adjusted_x_off = x_off
-                        adjusted_y_off = y_off
-
-                        position = (sq[0] + adjusted_x_off, sq[1] + adjusted_y_off)
-
-                        if (position in entity_squares) or (position in result) or (position[0] < 0) or (position[0] >= map.size[0]) or (position[1] < 0) or (position[1] >= map.size[1]):
-                            continue
-
-                        result.append(position)
+            step = 1
         else:
-            melee_distance = self.melee_distance()
+            melee_fn = getattr(self, 'melee_distance', None)
+            melee_distance = melee_fn() if callable(melee_fn) else None
             if melee_distance is None or melee_distance <= 0:
                 # Entities with no melee attack still interact with adjacent squares.
                 melee_distance = 5
             feet_per_grid = map.feet_per_grid if map.feet_per_grid and map.feet_per_grid > 0 else 5
             step = max(1, int(melee_distance // feet_per_grid))
-            cur_x, cur_y = target_position or map.entity_or_object_pos(self)
-            for x_off in range(-step, step+1):
-                for y_off in range(-step, step+1):
+
+        result: List[Tuple[int, int]] = []
+        seen = set()
+        for (bx, by) in sorted(body):
+            for x_off in range(-step, step + 1):
+                for y_off in range(-step, step + 1):
                     if x_off == 0 and y_off == 0:
                         continue
-
-                    # adjust melee position based on token size
-                    adjusted_x_off = x_off
-                    adjusted_y_off = y_off
-
-                    if x_off < 0:
-                        adjusted_x_off -= self.token_size() - 1
-                    if y_off < 0:
-                        adjusted_y_off -= self.token_size() - 1
-
-                    position = (cur_x + adjusted_x_off, cur_y + adjusted_y_off)
-
+                    position = (bx + x_off, by + y_off)
+                    if position in body or position in seen:
+                        continue
                     if (position[0] < 0) or (position[0] >= map.size[0]) or (position[1] < 0) or (position[1] >= map.size[1]):
                         continue
-
+                    seen.add(position)
                     result.append(position)
         return result
-    
+
     # Retrieves the item count of an item in the entity's inventory
     # @param inventory_type [str]
     # @return [int]

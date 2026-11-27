@@ -269,9 +269,12 @@ class TestNpc(unittest.TestCase):
 
         self.assertTrue(npc.darkvision(60))
 
-        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 9)
+        # Issue #6 item 4: with melee reach fixed to a proper ring around the
+        # Large creature's body squares, the adjacent fighter at (0,5) is now
+        # reachable, which also offers the 'interact' action (was 9 actions).
+        self.assertEqual(len(npc.available_actions(session, None, map=battle_map)), 10)
         available_actions = [action.name() for action in npc.available_actions(session, None, map=battle_map)]
-        self.assertEqual(available_actions, ['attack', 'attack', 'hide', 'look', 'move', 'shove', 'push', 'help', 'pickpocket'])
+        self.assertEqual(available_actions, ['attack', 'attack', 'hide', 'look', 'move', 'shove', 'push', 'help', 'interact', 'pickpocket'])
         battle.set_current_turn(npc)
         first_attack = [a for a in npc.available_actions(session, battle, map=battle_map) if a.name() == 'attack'][0]
         first_attack.target = fighter

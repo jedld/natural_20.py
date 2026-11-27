@@ -1,0 +1,23 @@
+name: Open Arena
+description: Fully open floor used for Large creature footprint, reach and cover tests
+map:
+  base:
+    - "##########"
+    - "#........#"
+    - "#........#"
+    - "#........#"
+    - "#........#"
+    - "#........#"
+    - "##########"
+  base_1:
+    - ".........."
+    - ".........."
+    - "......o..."
+    - ".........."
+    - ".........."
+    - ".........."
+    - ".........."
+legend:
+  o:
+    name: Wood Barrel
+    type: barrel

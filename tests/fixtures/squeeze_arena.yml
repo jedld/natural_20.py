@@ -1,0 +1,11 @@
+name: Squeeze Arena
+description: Open floor split by wall blocks with one-square-wide gaps that force Large creatures to squeeze
+map:
+  base:
+    - "##########"
+    - "#........#"
+    - "#.###.##.#"
+    - "#.###.##.#"
+    - "#........#"
+    - "#........#"
+    - "##########"

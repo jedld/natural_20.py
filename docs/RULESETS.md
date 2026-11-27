@@ -104,7 +104,10 @@ path but can never END on an occupied square (`MoveAction.drag_square_free` drop
 steps until the trail's last square is free — the grappler's own square counts as free since
 it is vacating it): the grappler may still pass through an ally's square, the target simply
 stops at the last open square, and `prune_invalid_grapples` ends the grapple at the next
-turn start if that left it out of reach.
+turn start if that left it out of reach. A Large (2x2) grappler only
+partly vacates its old footprint, so the squares it still occupies at the end
+of the move (`grappler_stay_squares`) also block the trail's end — the catch
+can never be dropped inside the grappler's own body.
 
 AI: `GenericController.grapple_release_action` frees held creatures that are dead, unconscious,
 or not hostile before choosing anything else (also before legendary actions). NPCs get one
@@ -560,6 +563,56 @@ replay bug (Nov-24). Regression tests are in the same
   survives the reaction now finishes its path; only a knock-down from
   this very attack cuts the move short (it still ends on the provoking
   square).
+- **Squeezing actually sets its status and owns the footprint**
+  (Nov-25 report, Large creatures): `Map.move_to` used to call the
+  read-only `Entity.squeezed()` getter, so the `squeezed` status was
+  never set and nothing downstream saw it. `Entity.do_squeeze()` is the
+  setter now. `Map.entity_squares` / `entity_squares_at_pos` default to
+  the creature's own status (`squeeze=None`): while squeezed, a Large
+  creature *occupies, threatens and is targeted as* its single reduced
+  cell — including cells the 2x2 body used to cover inside walls.
+  `MoveAction` trims its path with `placeable(..., squeeze=True)` so a
+  move may END squeezed, matching the reachable-squares menu (which
+  already pathfinds through squeeze-only gaps). The squeeze attack
+  modifiers (disadvantage for the squeezing creature, advantage on
+  attacks against it — our engine's model of the SRD 5.1 ±2) are
+  edition-gated by `Ruleset.squeeze_attack_modifiers()`: on for 2014,
+  off for 2024, where squeezing is purely a movement constraint. The +1
+  movement cost per squeezed square applies in both editions
+  (`natural20/utils/movement.py`).
+- **Cover takes the GREATEST cover over all square pairs**
+  (`natural20/utils/ac_utils.cover_calculation`): with multi-square
+  creatures, the result used to be decided by the first source-target
+  square pair that had any LOS line, making it loop-order dependent.
+  Every pair with line of sight is now scanned and the best cover wins,
+  matching the DMG grid convention ("draw lines to each of the target's
+  squares; apply the greatest applicable cover"). Pairs without LOS are
+  skipped and never lower the target's cover; unreachability is the
+  separate LOS check callers already do.
+- **Melee reach is a Chebyshev ring around the BODY squares**
+  (`Entity.melee_squares`): reach covers every square within
+  `melee_distance` of ANY body square, minus the body itself. A Medium
+  creature keeps the classic 8-cell ring; a Large 2x2 creature with 5-ft
+  reach threatens the 12 cells around it. The old anchor-offset math
+  collapsed the Large ring to 8 wrong cells (and `adjacent_only` leaked
+  the body's own squares because tuples were tested against lists).
+  While squeezed, the ring follows the squeezed cell.
+- **A Large grappler never drops its catch inside its own body**
+  (`MoveAction` + `drag_square_free(..., grappler_stay_squares=)`): a
+  2x2 grappler only partly vacates its old footprint. The grappler's own
+  path is now trimmed *before* the drag trails are built, and the
+  squares the grappler still occupies at the move's end block the
+  target's trail end, so a 2x2 grappler stepping west or north cannot
+  leave its catch under itself.
+- **SRD 5.2.1 Ogre and Owlbear overlays**
+  (`templates/rulesets/5e-2024/npcs/`): full NPC sheets shadow the base
+  templates when the campaign runs `ruleset: 5e-2024` (Ogre 68 HP
+  8d10+24, bludgeoning Greatclub, melee-or-thrown Javelin, passive
+  Perception 8; Owlbear climb 40, Perception +5 / Stealth +2, passive
+  15, Multiattack two Rend +7 2d8+5 slashing, no Keen Sight and Smell).
+  The 2014 base templates were also corrected (Ogre 7d8+21 / 450 XP /
+  Stealth -1 / bludgeoning Greatclub; Owlbear 11d8, `perception`
+  spelling, claws 2d6+4 slashing).
 
 ## Changing edition mid-campaign
 

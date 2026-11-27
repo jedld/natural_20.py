@@ -7,7 +7,7 @@ race:
 alignment: unaligned
 default_ac: 13
 max_hp: 59
-hp_die: 7d10+21
+hp_die: 11d8
 speed: 40
 passive_perception: 13
 darkvision: 60
@@ -23,7 +23,7 @@ ability:
   wis: 12
   cha: 7
 skills:
-  perceiption: 3
+  perception: 3
 languages:
 cr: 3
 xp: 700
@@ -48,8 +48,8 @@ actions:
     range: 5
     targets: 1
     attack: 7
-    damage: 14
-    damage_die: 2d8+5
-    damage_type: piercing
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: slashing
     multiattack_group: 1
 default_inventory: []

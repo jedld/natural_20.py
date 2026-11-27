@@ -9,7 +9,7 @@ race:
 alignment: chaotic_evil
 default_ac: 11
 max_hp: 59
-hp_die: 7d10+21
+hp_die: 7d8+21
 speed: 40
 passive_perception: 9
 darkvision: 60
@@ -25,12 +25,12 @@ ability:
   wis: 7
   cha: 7
 skills:
-  stealth: 6
+  stealth: -1
 languages:
 - common
 - giant
 cr: 2
-xp: 250
+xp: 450
 proficiency_bonus: 2
 attributes: []
 actions:
@@ -42,7 +42,7 @@ actions:
     attack: 6
     damage: 13
     damage_die: 2d8+4
-    damage_type: slashing
+    damage_type: bludgeoning
   - name: Javelin
     type: ranged_attack
     range: 30

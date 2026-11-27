@@ -64,6 +64,12 @@ def cover_calculation(map, source, target, entity_1_pos=None, entity_2_pos=None,
                 if isinstance(cover_type, int) and naturally_stealthy and (cover_type - target.size_identifier) >= 1:
                     return 1
 
-            return max_ac
-
-    return 0
+    # No early return inside the source-square loop: with multi-square
+    # creatures the result used to be decided by the first source square
+    # that had any LOS line, making the outcome loop-order dependent
+    # (issue #6 item 3). We now scan EVERY source-target square pair with
+    # line of sight and keep the greatest cover, matching the DMG grid
+    # convention: "draw lines to each of the target's squares; apply the
+    # greatest applicable cover". Pairs without LOS are skipped and never
+    # lower the target's cover; being unreachable is a separate LOS check.
+    return max_ac

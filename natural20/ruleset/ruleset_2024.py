@@ -81,3 +81,6 @@ class Ruleset2024(Ruleset2014):
 
     def grappled_attack_disadvantage(self) -> bool:
         return bool(self._override("grappled_attack_disadvantage", True))
+
+    def squeeze_attack_modifiers(self) -> bool:
+        return bool(self._override("squeeze_attack_modifiers", False))

@@ -231,7 +231,16 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
 
     if source.prone():
         disadvantage.append('prone')
-    if source.squeezed():
+    # SRD 5.1 squeezing changes attack rolls (engine model: disadvantage for
+    # the squeezing creature, advantage on attacks against it). SRD 5.2.1
+    # (2024) squeezing is purely a movement constraint, so the modifiers are
+    # edition-gated (issue #6 item 2).
+    _ruleset = getattr(session, 'ruleset', None)
+    try:
+        _squeeze_mods = bool(_ruleset.squeeze_attack_modifiers()) if _ruleset is not None else True
+    except Exception:
+        _squeeze_mods = True
+    if _squeeze_mods and source.squeezed():
         disadvantage.append('squeezed')
     if source.restrained():
         disadvantage.append('restrained')
@@ -246,7 +255,7 @@ def compute_advantages_and_disadvantages(session, source, target, weapon,
         disadvantage.append('target_poisoned')
     if not source.proficient_with_equipped_armor():
         disadvantage.append('armor_proficiency')
-    if target.squeezed():
+    if _squeeze_mods and target.squeezed():
         advantage.append('squeezed')
 
     if weapon and 'heavy' in weapon.get('properties', []) and source.size == 'small':

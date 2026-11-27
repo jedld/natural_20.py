@@ -891,7 +891,7 @@ class Map(SerializableObject):
             source_token_size = entity.token_size() - 1 if requires_squeeze(entity, cur_x, cur_y, self, battle) else entity.token_size()
 
             if requires_squeeze(entity, pos_x, pos_y, self, battle):
-                entity.squeezed()
+                entity.do_squeeze()
                 destination_token_size = entity.token_size() - 1
             else:
                 entity.unsqueeze()
@@ -1723,8 +1723,12 @@ class Map(SerializableObject):
             return self.interactable_objects[obj]
         raise ValueError(f'entity/object with uid {uid} not found on this map')
 
-    def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=False):
+    def entity_squares_at_pos(self, entity, pos1_x, pos1_y, squeeze=None):
         entity_1_squares = []
+        # Squeeze defaults to the creature's own status: a squeezed creature
+        # occupies the reduced footprint at any position (see entity_squares).
+        if squeeze is None:
+            squeeze = entity.squeezed() if hasattr(entity, 'squeezed') else False
         # Do not let squeezing reduce occupied footprint below 1x1
         token_size = max(1, entity.token_size() - 1) if squeeze else entity.token_size()
         for ofs_x in range(token_size):
@@ -2118,9 +2122,20 @@ class Map(SerializableObject):
             return False
         return bool(reach) and sighting_distance * self.feet_per_grid <= reach
 
-    def entity_squares(self, entity, squeeze=False):
+    def entity_squares(self, entity, squeeze=None):
+        """The squares ``entity`` actually occupies on the map.
+
+        ``squeeze=None`` (default) asks the creature: while it is squeezed
+        its footprint is the reduced one the token was placed with, so
+        reach, opportunity attacks, distance and targeting all see the
+        single occupied cell instead of the full 2x2 — including cells
+        inside the wall the body no longer covers (issue #6 item 2).
+        Pass an explicit True/False to override.
+        """
         if not entity:
             raise ValueError('invalid entity')
+        if squeeze is None:
+            squeeze = entity.squeezed() if hasattr(entity, 'squeezed') else False
         _position = self.entity_or_object_pos(entity)
         if _position is None:
             return []
