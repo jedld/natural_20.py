@@ -415,6 +415,45 @@ _SPELL_VISUAL_HINTS: dict[str, str] = {
     "rope_trick": (
         "rope rising into a shimmering hidden doorway in the air, extradimensional refuge"
     ),
+    "frostbite": (
+        "glacier-blue frost crystals with spreading white rime, bitter cold burst glyph"
+    ),
+    "create_bonfire": (
+        "small conjured campfire flame with dancing orange sparks, glowing bonfire embers"
+    ),
+    "healing_spirit": (
+        "translucent four-legged spirit beast of soft green healing light, glowing summon outline"
+    ),
+    "summon_elemental": (
+        "swirling elemental vortex quadrant of flame, water, wind and stone, conjuration circle"
+    ),
+    "wind_walk": (
+        "billowing pale mist figure shape with swift wind swirls and motion streaks"
+    ),
+    "freedom_of_movement": (
+        "snapped manacle chains with a striding boot and light motion swirls, unbound stride"
+    ),
+    "regenerate": (
+        "glowing green knitting light around a limb outline, mending sparks, restorative spiral"
+    ),
+    "wall_of_thorns": (
+        "thick braided bramble wall of sharp thorns, green-brown tangled briar barrier"
+    ),
+    "confusion": (
+        "overlapping dizzy swirl spirals with orbiting stars and tilted discordant glyphs"
+    ),
+    "conjure_animals": (
+        "conjuration light burst with stag, boar and owl silhouettes forming from sparks"
+    ),
+    "investiture_of_flame": (
+        "elemental flame transformation aura with dripping fire droplets and ember wings"
+    ),
+    "rune_strike": (
+        "carved glowing rune on a weapon blade edge, arcane sigil with strike sparks"
+    ),
+    "defensive_cast": (
+        "arcane ward shield glyph with radiant barrier rim and bulwark sparkles"
+    ),
 }
 
 _FIRE_SPELL_SLUGS = frozenset(
