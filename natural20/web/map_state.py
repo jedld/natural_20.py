@@ -421,6 +421,8 @@ def classify_object_kind(obj: dict, catalog: dict | None = None) -> str | None:
         return 'tree'
     if type_name == 'briar':
         return 'briar'
+    if type_name == 'spike_growth_tile':
+        return 'thorns'
     cover = obj.get('cover')
     if cover in _COVER_LEVELS:
         return 'cover'

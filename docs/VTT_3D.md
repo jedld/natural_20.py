@@ -23,6 +23,7 @@ Maps stay 2D grids. The 3D view **extrudes and drapes**:
 | Portcullis | `geometry.doors[].kind: portcullis` | Rusted iron grate; raises when open |
 | Chests | object `kind: chest` | Wooden chest; lid open/closed, iron lock when locked |
 | Barrels / cover | `kind: barrel`, `cover`, trees | Barrel with hoops, crate, tree, briar |
+| Spike Growth | object `kind: thorns` (`type: spike_growth_tile`) | Per-square thorn patch: translucent bramble cover + scattered hard spikes (shared geometry, seeded per cell so the zone reads as one continuous field); cast FX already in `spellCatalog.js` |
 | Teleporters | `teleporter_marker` | Floor rune/portal (not a solid box) |
 | Trapdoors | object `kind: trap_door` / `secret_trapdoor` | Wooden floor hatch + iron ring; open punches a hole and swings the lid |
 | Pit traps | object `kind: pit_trap` | Perceived: cracked cover; sprung: hole + spikes; disarmed: hole |
