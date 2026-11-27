@@ -35,9 +35,10 @@ class TestMessageSpell(unittest.TestCase):
         self.battle.start(combat_order=[self.wizard, self.goblin])
         self.wizard.reset_turn(self.battle)
 
-    def _cast_message(self, target=None):
+    def _cast_message(self, target=None, message='psst'):
         target = target or self.goblin
-        action = SpellAction.build(self.session, self.wizard)['next'](['message', 0])['next'](target)
+        action = (SpellAction.build(self.session, self.wizard)['next'](['message', 0])
+                  ['next'](target)['next'](message))
         self.battle.action(action)
         self.battle.commit(action)
         return action
@@ -78,7 +79,8 @@ class TestMessageSpell(unittest.TestCase):
         from unittest.mock import patch
 
         with patch('natural20.spell.message_spell.message_spell_reachable', return_value=False):
-            action = SpellAction.build(self.session, self.wizard)['next'](['message', 0])['next'](far)
+            action = (SpellAction.build(self.session, self.wizard)['next'](['message', 0])
+                      ['next'](far)['next']('hello?'))
             self.battle.action(action)
             self.battle.commit(action)
             self.assertTrue(any(item.get('type') == 'message_spell_failed' for item in action.result))
@@ -114,6 +116,40 @@ class TestMessageSpell(unittest.TestCase):
         self.assertFalse(spell_action_provokes_hostility(action))
         spell_props = self.session.load_spell('message')
         self.assertIs(spell_props.get('provokes_hostility'), False)
+
+    def test_build_chain_prompts_for_message(self):
+        """After the target, the build asks for the whisper text."""
+        step = SpellAction.build(self.session, self.wizard)['next'](['message', 0])
+        self.assertEqual(step['param'][0]['type'], 'select_target')
+        step = step['next'](self.goblin)
+        self.assertIsInstance(step, dict)
+        self.assertEqual(step['param'][0]['type'], 'text_input')
+        self.assertEqual(step['param'][0]['field'], 'message')
+        action = step['next']('psst, meet me at the gate')
+        self.assertIsInstance(action, SpellAction)
+        self.assertEqual(action.target, self.goblin)
+        self.assertEqual(action.message, 'psst, meet me at the gate')
+
+    def test_cast_carries_message_into_link_and_event(self):
+        events = []
+        self.session.event_manager.register_event_listener(
+            'message_spell', lambda event: events.append(event))
+        self._cast_message(message='the cellar door is open')
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]['message'], 'the cellar door is open')
+        links = getattr(self.session, 'message_spell_links', None) or {}
+        self.assertEqual(len(links), 1)
+        self.assertEqual(next(iter(links.values())).message, 'the cellar door is open')
+
+    def test_autobuild_handles_the_text_step(self):
+        """AI/auto-target building must not crash on the text_input param."""
+        from natural20.utils.action_builder import autobuild
+        actions = list(autobuild(self.session, SpellAction, self.wizard, self.battle))
+        message_actions = [a for a in actions
+                           if isinstance(a, SpellAction)
+                           and getattr(getattr(a, 'spell_action', None), 'name', '') == 'MessageSpell']
+        self.assertTrue(message_actions, 'Message should still be auto-buildable')
+        self.assertTrue(all(a.message is None for a in message_actions))
 
 
 if __name__ == '__main__':

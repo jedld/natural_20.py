@@ -12,10 +12,28 @@ class MessageSpell(Spell):
     TARGET_TYPES = ['allies', 'enemies']
 
     def build_map(self, orig_action):
+        def ask_message(action):
+            # Second step: the VTT asks for the actual whisper text
+            # (SRD: "you ... whisper a message").
+            def set_message(message):
+                final = action.clone()
+                final.message = (message or '').strip() or None
+                return final
+
+            return {
+                'param': [{
+                    'type': 'text_input',
+                    'field': 'message',
+                    'label': 'What do you whisper?',
+                    'placeholder': 'only the target hears this',
+                }],
+                'next': set_message,
+            }
+
         def set_target(target):
             action = orig_action.clone()
             action.target = target
-            return action
+            return ask_message(action)
 
         return {
             'param': [{
@@ -83,6 +101,7 @@ class MessageSpell(Spell):
             'target': target,
             'map': battle_map,
             'battle': battle,
+            'message': getattr(spell_action, 'message', None),
             'effect': self,
             'spell': self.properties,
         }]
@@ -123,6 +142,7 @@ class MessageSpell(Spell):
             battle_map,
             battle=battle or item.get('battle'),
             duration_seconds=duration_seconds,
+            message=item.get('message'),
         )
 
         item['link_id'] = link.id
@@ -133,6 +153,7 @@ class MessageSpell(Spell):
             'source': source,
             'target': target,
             'link_id': link.id,
+            'message': item.get('message'),
             'spell': item.get('effect'),
         })
         return source

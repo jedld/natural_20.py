@@ -262,8 +262,7 @@ def test_sending_logs_a_message(tmp_path):
     arena = _arena(tmp_path)
     events = []
     arena.session.event_manager.register_event_listener('sending', lambda e: events.append(e))
-    action = arena.build('sending', 3, arena.goblin)
-    action.message = 'Report to the camp.'
+    action = arena.build('sending', 3, arena.goblin, 'Report to the camp.')
     action.resolve(arena.session, arena.map, {'battle': arena.battle})
     arena.battle.commit(action)
     assert events and events[0]['target'] is arena.goblin

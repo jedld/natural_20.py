@@ -743,6 +743,14 @@ def build_params(session, entity, battle, build_info, map=None, auto_target=True
         elif param_type == "select_emanation":
             # Emanation centered on caster — only choice is "self".
             params_list.append([[None, None]])
+        elif param_type == "text_input":
+            # Free text (Message cantrip whisper, Sending). The auto-builder
+            # has no way to compose prose; use the param's default (None →
+            # the spell logs without a message body).
+            if _match:
+                params_list.append(list(_match) if isinstance(_match, list) else [_match])
+            else:
+                params_list.append([param.get('default')])
         else:
             raise ValueError(f"Unknown param type: {param_type}")
 

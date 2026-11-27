@@ -17,10 +17,28 @@ class SendingSpell(Spell):
     TARGET_TYPES = ['allies', 'enemies']
 
     def build_map(self, orig_action):
+        def ask_message(action):
+            # SRD Sending carries a short (25-word) telepathic message;
+            # the VTT prompts for it after the target is picked.
+            def set_message(message):
+                final = action.clone()
+                final.message = (message or '').strip() or None
+                return final
+
+            return {
+                'param': [{
+                    'type': 'text_input',
+                    'field': 'message',
+                    'label': 'Send what message?',
+                    'placeholder': 'twenty-five words or less',
+                }],
+                'next': set_message,
+            }
+
         def set_target(target):
             action = orig_action.clone()
             action.target = target
-            return action
+            return ask_message(action)
 
         return {
             'param': [{

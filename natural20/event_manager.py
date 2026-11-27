@@ -1308,7 +1308,16 @@ class EventManager:
                 f"{self.show_name(event)} commands the hut interior to become {event.get('mode', 'lit')}."
             ),
             'message_spell': lambda event: self.output_logger.log(
-                f"{self.show_name(event)} casts Message on {self.show_target_name(event)}."
+                f"{self.show_name(event)} casts Message on {self.show_target_name(event)}"
+                + (f": \"{event['message']}\"" if event.get('message') else ".")
+                ,
+                # SRD: only the target hears the whisper (and can reply).
+                visibility={'kind': 'entities', 'entity_uids': [
+                    uid for uid in (
+                        getattr(event.get('source'), 'entity_uid', None),
+                        getattr(event.get('target'), 'entity_uid', None),
+                    ) if uid
+                ]},
             ),
             'message_spell_failed': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} tried to cast Message, but the spell fails"

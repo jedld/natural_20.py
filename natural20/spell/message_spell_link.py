@@ -21,6 +21,7 @@ class MessageSpellLink:
     expires_at_game_time: int = 0
     created_at_wall: float = field(default_factory=time.time)
     reply_window_seconds: float = DEFAULT_REPLY_WINDOW_SECONDS
+    message: str | None = None
 
     def other_party(self, speaker):
         if speaker is self.caster:
@@ -65,6 +66,7 @@ def create_message_spell_link(
     *,
     battle=None,
     duration_seconds: int = 6,
+    message: str | None = None,
 ) -> MessageSpellLink:
     cast_round = getattr(battle, 'round', None) if battle is not None and getattr(battle, 'started', False) else None
     game_time = int(getattr(session, 'game_time', 0) or 0)
@@ -75,6 +77,7 @@ def create_message_spell_link(
         map_name=getattr(battle_map, 'name', '') or '',
         cast_round=cast_round,
         expires_at_game_time=game_time + max(int(duration_seconds or 6), 6),
+        message=message,
     )
     register_message_spell_link(session, link)
     return link
