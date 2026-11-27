@@ -407,6 +407,11 @@ line is always kept.
   from combat data: focus fire, healing, protect or warn about a wounded ally,
   retreat, or stay silent. The NPC conversation LLM then voices it in
   character. See [COMBAT_COMMUNICATION.md](COMBAT_COMMUNICATION.md).
+ - **Nerve and personality.** A `battle psychology:` block (stance, the HP
+   threshold where the creature's nerve breaks, its authored weaknesses, and
+   "its nerve has ALREADY broken" once it has) rides on every JEV question;
+   see "Battle psychology" under the hybrid strategist section and
+   `natural20/utils/combat_psychology.py`.
 
 ## Character-sheet block in the state context
 
@@ -526,6 +531,88 @@ Each turn (lazily, before the creature's first decision):
 5. The plan is logged **DM-only** to the combat log as a `strategist_plan`
    event (`visibility='dm'`, handler in `natural20/event_manager.py`).
 
+### Planning follows the creature's own wits (`combat_intelligence`)
+
+A plan is only as clever as the mind that receives it, so the tier from
+`natural20/utils/combat_intelligence.py` (INT 1-3 `instinct`, 4-7
+`simple`, 8-13 `tactical`, 14+ `mastermind`, YAML override `tactics:`;
+see [COMBAT_COMMUNICATION.md](COMBAT_COMMUNICATION.md) → "Intelligence tiers")
+gates the whole strategist layer through
+`combat_intelligence.strategist_policy(entity)`:
+
+| tier | gets a plan? | plan caps (lines/chars/steps) | `MOVE:` tags it may use | reaction line |
+| --- | --- | --- | --- | --- |
+| `instinct` (wolf, dog, beast) | **no plan at all** — the tokens are not spent and the JEV executor's own heuristics run | — | none | no |
+| `simple` (goblin, gnoll) | yes, blunt | 4 / 400 / 1 step | `engage`, `retreat`, `hold` | no |
+| `tactical` (veteran, most humanoids) | yes | 10 / 900 / 3 steps | + `range`, `hide` | yes |
+| `mastermind` (archmage, dragon) | yes, full | 16 / 1400 / 6 steps | all | yes |
+
+The tier's persona text is injected into the strategist's system prompt
+("Plan for the mind this creature actually has: …"), so a simple mind is
+never asked to reason about spell slots, concentration or feints. Enforcement
+is two-sided: the executor also refuses orders above the creature's wits —
+`parse_strategist_move_intent(orders, allowed)` /
+`apply_strategist_move_bias(..., allowed=)` ignore `MOVE:` tags the tier does
+not allow, and `jev_decision.filter_move_leaves_by_wits()` never offers a
+beast `hide`/flanking (`offensive`/`defensive` for `instinct`) move leaves.
+
+Force it per campaign, agent bundle or creature with
+`.ai.yaml combat.strategist: auto|always|off` (AI Settings panel → "Hybrid
+planner scope", stamped onto the controller as `strategist_mode` by every
+hybrid build site) or the NPC/character YAML key `strategist: auto|always|off`.
+An explicit `always`/`off` beats the creature's own YAML key; `auto` defers to
+it. `strategist_mode` is persisted with the controller (`!hybrid_strategist_controller`).
+
+### Battle psychology: nerve, cowardice and weaknesses (`combat_psychology`)
+
+`natural20/utils/combat_psychology.py` gives each creature a *disposition* —
+how it feels about the fight, independent of how clever it is. Nothing is
+persisted; the "nerve has broken" latch lives in battle entity state
+(`morale_broken`) and resets with the fight.
+
+Authoring (NPC/character YAML, all optional; campaign flavor stays in YAML):
+
+```yaml
+combat_personality: cowardly          # one tag or a list
+morale:
+  stance: flighty                     # flighty|cautious|normal|steadfast|fearless|reckless
+  flee_at_hp: 0.5                     # nerve breaks at/below this fraction (1.0 = runs at once,
+                                      # 0 = never); also accepts a percentage
+  flee_when_outnumbered: true
+  never_flee: false                   # alias: ignores_self_preservation
+combat_weaknesses:                    # free text the battle AI is told about
+  - "flees from open daylight"
+```
+
+* No tags: the stance is **inferred** from the creature's own profile text
+  (`personality_traits`, `flaws`, `ideals`, `bonds`, `backstory`,
+  `description`) — an imported character written "I am a coward who runs from
+  any fight" fights like a coward. Unknown creatures default to `normal`
+  (breaks at 20% HP).
+* Undead, constructs and creatures with the `fearless` feature are
+  `fearless` by nature: they never break unless the author writes one.
+* Effects, in every AI path (LLM, JEV, hybrid and the deterministic
+  `GenericController`):
+  - `persona_lines()` render a `battle psychology:` block into the JEV state,
+    the plain LLM instructions and (through the shared state text) the hybrid
+    strategist's prompt: the stance, the exact HP threshold, "its nerve has
+    ALREADY broken this fight", and weaknesses (plus damage
+    `vulnerabilities`).
+  - when the nerve breaks (HP at/below the threshold, or badly outnumbered
+    for the flighty/cautious stances) one combat-log line is emitted
+    (`morale_break` event, handler in `natural20/event_manager.py`) and the
+    break **latches** for the fight.
+  - JEV: `apply_morale_move_bias` hard-filters the move menu exactly like a
+    commander's `MOVE: retreat` and labels the survivors
+    `[its nerve has broken - get away]`.
+  - `GenericController`: `select_action` spends the action on **Dash** and
+    `move_for` picks the escape path away from the nearest threat (reuses
+    `fear.flee_choice(..., source=)`). Cornered creatures fight.
+
+Regression tests: `tests/test_combat_psychology.py`,
+`tests/test_combat_intelligence_strategist.py` (policy),
+`tests/test_strategist_move_intent.py` (intent gating).
+
 Provider resolution: executor = `combat_llm_provider_for` (unchanged; usually
 the JEV battle provider). Strategist = `strategist_llm_provider_for`:
 per-NPC `.ai.yaml` `npcs.<uid|type>.combat.strategist_provider` →
@@ -542,7 +629,8 @@ controller selects in the VTT (H / Hybrid), `/update_controller`, or MCP
 (`provider_resolver` / `strategist_resolver`, installed by
 `ai_config.install_combat_provider_resolver`).
 
-Order blocks are capped at 16 lines / 1400 chars inside the
+Order blocks are capped at 16 lines / 1400 chars (less for lower intelligence
+tiers, see "Planning follows the creature's own wits") inside the
 `N20_JEV_STATE_MAX_CHARS` state budget, and `_fit_state` trims history,
 conversation and heard speech before ever touching them.
 

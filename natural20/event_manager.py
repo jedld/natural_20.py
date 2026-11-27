@@ -509,6 +509,18 @@ class EventManager:
                 if line:
                     self.output_logger.log(f"  {line}", event=event, visibility='dm')
 
+        def morale_break(event):
+            # Battle psychology (utils/combat_psychology): the creature's nerve
+            # broke; it will spend the rest of the fight trying to get away.
+            name = self.show_name(event)
+            reason = event.get('reason')
+            detail = {'wounded': 'badly wounded',
+                      'outnumbered': 'outnumbered'}.get(reason, '')
+            suffix = f" ({detail})" if detail else ""
+            self.output_logger.log(
+                f"{name}'s nerve breaks{suffix} - it looks for a way out.",
+                event=event)
+
         def battle_statistics(event):
             # Combat-end statistics report (utils/battle_statistics): the
             # lines are pre-formatted ([DM]-prefixed) report rows.
@@ -771,6 +783,7 @@ class EventManager:
                 f"{self.show_name(event)}'s Arcane Ward absorbs {event.get('damage')} damage ({event.get('remaining')} left)."),
             'turn_status': turn_status,
             'strategist_plan': strategist_plan,
+            'morale_break': morale_break,
             'battle_statistics': battle_statistics,
             'dodge': lambda event: self.output_logger.log(f"{self.show_name(event)} dodges."),
             'died': died,

@@ -29,7 +29,7 @@ Do **not** add new HTTP routes to `app.py` unless they are bootstrap-only (healt
 | `character` | `blueprints/character.py` | `/character_builder/*`, `/character_editor/*`, journal CRUD, `/inventory/container/*`, `/inventory/use` | `character.*` |
 | `notebook` | `blueprints/notebook.py` | `/notebook`, `/notebook/items`, `/notebook/folders`, `/notebook/shared/<id>` — player/campaign notes (SQLite) | `notebook.*` |
 | `battle` | `blueprints/battle.py` | `/start`, `/action`, `/target`, `/actions`, `/actions/batch`, turn order, combat log | `battle.*` |
-| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/equipment`, `/item_card`, `/attunement` (attune / end / cancel; `force` is DM-only), `/rest`, audio, entity admin, `/update_resource_pool`, `/update_inspiration`, `/admin/map_sets`, `/admin/map_set/*`, `/admin/sidekick`, `/dm/notes`, `/admin/illumination`, `/move_entity`, `/delete_entity`, `/undo_delete_entity` (DM Delete-key + Ctrl+Z), `/admin/users` + `/admin/manage_users` (login/role/PC-assignment management, backed by `webapp/user_management.py`) | `dm.*` |
+| `dm` | `blueprints/dm.py` | `/admin/*`, `/spawn_*`, inventory, `/equipment`, `/item_card`, `/attunement` (attune / end / cancel; `force` is DM-only), `/rest`, audio, entity admin, `/update_resource_pool`, `/update_inspiration`, `/admin/map_sets`, `/admin/map_set/*`, `/admin/sidekick`, `/dm/notes`, `/dm/token_models*` (3D figure uploads/bindings, helper `helpers/token_models.py`; see [VTT_3D.md](VTT_3D.md) → "Token models"), `/admin/illumination`, `/move_entity`, `/delete_entity`, `/undo_delete_entity` (DM Delete-key + Ctrl+Z), `/admin/users` + `/admin/manage_users` (login/role/PC-assignment management, backed by `webapp/user_management.py`) | `dm.*` |
 | `edit` | `blueprints/edit.py` | `/edit/session`, `/edit/overlay`, `/edit/move`, `/edit/map_graph`, `/edit/map_graph/layout` (campaign YAML authoring; per-DM-session edit mode) | `edit.*` |
 | `merchant` | `blueprints/merchant.py` | `/merchant`, `/merchant/preview`, `/merchant/trade` | `merchant.*` |
 | `client_3d` | `blueprints/client_3d.py` | `/3d` — Three.js VTT sibling (see [VTT_3D.md](VTT_3D.md)) | `client_3d.*` |
@@ -50,6 +50,14 @@ The webapp uses a **server-client pathfinding architecture** for combat movement
 
 1. **Server-side** (`natural20/ai/path_compute.py`): Full A* pathfinding with `map.passable()` which checks `map.tokens[]` for battle entities. Respects DnD 5e creature blocking rules (you cannot move through another creature's space unless two sizes larger or squeezing).
 2. **Client-side** (`webapp/static/path_compute.js`): Lightweight A* using a **pathfinding snapshot** built by `natural20/ai/pathfinding_cost_map.build_pathfinding_snapshot()`. The snapshot precomputes tile flags (blocked, difficult, hazard, passability bitmasks) for O(1) client-side lookups.
+
+### Waypoints (`accumulatedPath`)
+
+Both clients support mid-move waypoints (2D: `Q` key pivot points; 3D: `Q` key, `client-3d/src/main.js`). When a request carries `accumulatedPath` (JSON list of `[x, y]` starting at the entity's current square):
+
+- The entity is resolved at `accumulatedPath[0]` (the entity has not actually moved yet).
+- A* runs from the **last** accumulated square (the newest pivot) to the destination, so the response `path` is only the new segment; the accumulated route is charged against the movement budget (`PathCompute.compute_path(accumulated_path=...)`).
+- Clients join the full route as `accumulatedPath.slice(0, -1) + path` (drop the duplicated join square) and send that as `/action`'s `path`; the server's own cost view is `full_path = accumulated_path + path[1:]`.
 
 ### Battle entity blocking
 
@@ -108,6 +116,7 @@ This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid squa
 | `object_spawner_utils.py` | Object catalog categories for the object spawner |
 | `npc_spawner_utils.py` | NPC catalog CR labels, unique flags, and live map-set presence |
 | `asset_utils.py` | Static URL helpers; `/assets/items` and `/assets/objects` resolve campaign (then imports / expansion packs) before bundled static |
+| `token_models.py` | 3D VTT token-model library (`<campaign>/assets/models/tokens/`): upload + auto-convert (STL / `.unity3d` / zip → GLB via `webapp/model_convert/`), assignments in `vtt3d.yml` `tokens:` (`/dm/token_models*`, MCP `dm.token_model`; `docs/VTT_3D.md` → "Token models") |
 | `campaign_config.py` | Campaign path / index loading |
 | `cors_config.py` | CORS origins, SocketIO async mode |
 | `perf.py` | Request timing instrumentation |
@@ -388,6 +397,15 @@ installed by `ai_config.install_combat_provider_resolver`. Details:
 [JEV_NPC_BATTLE_AI.md](JEV_NPC_BATTLE_AI.md) → "Hybrid LLM strategist + JEV
 executor". Tests: `tests/test_hybrid_strategist_controller.py`.
 
+Each hybrid build site also stamps the planner scope from `.ai.yaml`
+`combat.strategist` (`ai_config.strategist_mode_for` + `stamp_strategist_mode`,
+agent-bundle `strategist:` first): `auto` (default, plans only as far as the
+creature's Intelligence allows), `always` or `off`. The AI Settings panel
+exposes it ("Hybrid planner scope" globally, per sidekick and per NPC row, and
+"Planner scope" inside an agent bundle), validated by the `strategist_mode`
+kind in `ai_config._coerce`. Tests: `tests/webapp/test_ai_config.py`
+("combat.strategist" section).
+
 **Named agent bundles (`agent:<name>`)**: the `/battle` start, both
 `/update_controller` routes and MCP `dm.set_controller` also accept
 `agent:<name>` specs (named bundles from the `.ai.yaml` `agents:` registry:
@@ -433,9 +451,33 @@ it.
   `/next_turn` from a DM (players get 409), MCP `actions.end_turn` and
   `dm.battle_admin` `next_turn`, and turning the toggle off. A DM
   disconnecting does not release it. Battle end and save load clear the hold.
-- Routes: DM-only `GET/POST /battle_pacing` (`{dm_ends_ai_turns: bool}`) returns
-  `{dm_ends_ai_turns, dm_connected, held_uid}`. MCP: `dm.battle_admin`
-  `op=pacing` (optional `enabled`).
+- Routes: DM-only `GET/POST /battle_pacing` accepts `dm_ends_ai_turns` and/or
+  `ai_turn_delay` and returns
+  `{dm_ends_ai_turns, dm_connected, held_uid, game_loop_running,
+  waiting_for_reaction, ai_turn_delay}` — the loop diagnostics are
+  combat-freeze diagnostics (see "Stalled combat game loop"). MCP:
+  `dm.battle_admin` `op=pacing` (optional `enabled`, `ai_turn_delay`).
+
+## Battle pacing: delay between AI turns
+
+Consecutive AI turns can chain in well under a second (deterministic AI), so
+their `move`/`turn` socket bursts outrun the browser's animation queue.
+`GameManagement._pause_after_ai_turn` sleeps `socketio.sleep(delay)` after
+each AI (non-`WebController`) turn in `_run_turns` — including
+incapacitated-skip turns — so each turn's animation batch plays before the
+next turn's events land.
+
+- Setting precedence: `session_state['battle_pacing']['ai_turn_delay']`
+  (runtime toggle, saved with the game; `set_ai_turn_delay`) → `game.yml` →
+  `battle_pacing.ai_turn_delay` → constructor `ai_turn_delay=` →
+  `GameManagement.DEFAULT_AI_TURN_DELAY_SECONDS` (0.6). `0` disables.
+- The pause is skipped when the delay is 0, when the battle has already
+  ended, and when no browser is connected (`username_to_sid` all empty) —
+  headless runs, tests and server-only automation never wait. It is not
+  applied after manual turns or DM-held turns.
+- UI: the DM pacing bar has an "AI turn delay" number input
+  (`.dm-pacing-delay`, POSTs `{ai_turn_delay}` to `/battle_pacing`).
+- Tests: `tests/webapp/test_dm_turn_hold.py` (AI-turn delay block).
 - SocketIO `message` types: `dm_turn_hold` (`{id, label}`),
   `dm_turn_hold_end` (`{id}`), `battle_pacing` (state); the client refreshes the
   turn order panel.
@@ -444,6 +486,38 @@ it.
   players see "Waiting for the DM to end this turn…". The existing **Next Turn** button also
   ends a held turn.
 - Tests: `tests/webapp/test_dm_turn_hold.py`.
+
+## Stalled combat game loop and reaction windows
+
+Combat turns advance in a single `GameManagement` background task guarded by
+`_game_loop_task_running` (token-owned; see `_begin_game_loop_task` /
+`_end_game_loop_task`). Symptom of a wedged task: End Turn returns 200, the
+turn index in `/turn_order` moves, but no AI acts and no socket events arrive.
+
+- **Diagnose:** `GET /battle_pacing` (or MCP `dm.battle_admin op=pacing`)
+  reports `game_loop_running`, `waiting_for_reaction`, `held_uid`.
+  `game_loop_running: true` with no reaction and no held turn means the task
+  is wedged.
+- **Self-heal:** `schedule_game_loop` revives a stalled task via
+  `_game_loop_task_appears_stale()` after `GAME_LOOP_STALE_SECONDS` (300 s —
+  longer than any single 180 s-capped LLM decision) when no legitimate
+  waiting state exists; it logs at ERROR level and takes the slot with a new
+  token, so the old task's `finally` cannot clear the new owner's flag.
+  Skipped schedules log at WARNING (they used to be DEBUG and invisible).
+- **Pending reactions:** `POST /end_turn` answers **409**
+  (`Waiting for a reaction.`) while `waiting_for_reaction` is set, so a second
+  End Turn click can no longer advance initiative under an open reaction
+  window and orphan its generator. The client (`reportEndTurnBlocked` in
+  `engine.js`) toasts the reason and re-fetches `GET /reaction` to render the
+  window if the socket event was missed.
+- **`GET /reaction`** returns an **empty 200 body** when nothing is pending
+  (resolved race / duplicate event / late page load) instead of crashing on
+  `waiting_for_reaction_input()[1]`; the client hides the modal on empty
+  content. A 500 here used to leave the reaction UI unrendered while combat
+  waited forever for an input nobody was shown — the usual "End Turn did
+  nothing" freeze.
+- Tests: `tests/webapp/test_game_loop_async.py` (stale revive, token
+  ownership, waiting states) and `tests/webapp/test_reaction_endpoint.py`.
 
 ## Legendary action phase (manual legendary creatures)
 

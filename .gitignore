@@ -45,3 +45,8 @@ logs/
 # Paid third-party expansion content is not published with this repo.
 # Keep local checkouts out of git; copy public-domain SRD content into templates/ instead.
 expansion_packs/
+
+# HeroForge demo model samples are possibly copyrighted; not published.
+# templates/vtt3d.yml only holds runtime token bindings for those samples.
+templates/assets/models/
+templates/vtt3d.yml

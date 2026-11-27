@@ -3,6 +3,7 @@
 import unittest
 from types import SimpleNamespace
 
+from natural20.utils import combat_intelligence
 from natural20.utils.jev_decision import (
     MOVE_INTENT_ENGAGE,
     MOVE_INTENT_HIDE,
@@ -10,6 +11,7 @@ from natural20.utils.jev_decision import (
     MOVE_INTENT_RANGE,
     MOVE_INTENT_RETREAT,
     apply_strategist_move_bias,
+    filter_move_leaves_by_wits,
     parse_strategist_move_intent,
 )
 
@@ -106,6 +108,55 @@ class TestApplyStrategistMoveBias(unittest.TestCase):
     def test_no_orders_passthrough(self):
         out = apply_strategist_move_bias(self.leaves, None)
         self.assertEqual(out, self.leaves)
+
+
+def _wits(intelligence, **props):
+    return SimpleNamespace(name='Creacher', ability_scores={'int': intelligence},
+                           properties=dict(props))
+
+
+class TestWitsGating(unittest.TestCase):
+    """A plan above the creature's own wits is never executed."""
+
+    def setUp(self):
+        self.leaves = [
+            _leaf('move: hide at (7, 2)'),
+            _leaf('move: retreat (back away)'),
+            _leaf('move: engage Goblin: (3, 4)'),
+            _leaf('attack Goblin with Shortbow', 'attack'),
+        ]
+
+    def test_intent_beyond_its_wits_is_ignored(self):
+        orders = "Slip behind the pillar.\nMOVE: hide"
+        simple = ('engage', 'retreat', 'hold')
+        self.assertIsNone(parse_strategist_move_intent(orders, simple))
+        self.assertEqual(parse_strategist_move_intent(orders, ('hide',)),
+                         MOVE_INTENT_HIDE)
+        # unrestricted calls keep working
+        self.assertEqual(parse_strategist_move_intent(orders), MOVE_INTENT_HIDE)
+
+    def test_bias_drops_an_unfollowable_intent(self):
+        wolf = _wits(3)
+        out = apply_strategist_move_bias(self.leaves, "MOVE: hide",
+                                         allowed=combat_intelligence.allowed_move_intents(wolf))
+        self.assertEqual([d for _t, _a, d in out],
+                         [d for _t, _a, d in self.leaves])
+
+    def test_beasts_are_not_offered_positioning_moves(self):
+        beast = _wits(3)
+        kinds = [d for _t, _a, d in filter_move_leaves_by_wits(self.leaves, beast)]
+        self.assertFalse(any(d.startswith('move: hide') for d in kinds))
+        self.assertTrue(any(d.startswith('move: engage') for d in kinds))
+
+    def test_clever_creatures_keep_every_move_option(self):
+        veteran = _wits(12)
+        self.assertEqual(filter_move_leaves_by_wits(self.leaves, veteran), self.leaves)
+
+    def test_filter_never_empties_the_move_menu(self):
+        # Only positioning leaves exist: keep them rather than freeze the beast.
+        leaves = [_leaf('move: hide at (7, 2)'), _leaf('move: offensive flank')]
+        out = filter_move_leaves_by_wits(leaves, _wits(3))
+        self.assertTrue(any(t == 'move' for t, _a, d in out))
 
 
 if __name__ == '__main__':

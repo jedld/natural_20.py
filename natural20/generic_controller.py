@@ -236,6 +236,16 @@ class GenericController(Controller):
         escape = escape_action(battle, entity)
         if escape is not None:
             return escape
+        # Battle psychology: once its nerve has broken, a coward spends the
+        # action getting away (Dash, then move_for carries it off) instead of
+        # trading blows. A cornered creature has no Dash that gains distance
+        # and fights normally.
+        from natural20.utils.combat_psychology import morale_directive
+        if morale_directive(battle, entity):
+            dashes = [a for a in available_actions
+                      if getattr(a, 'action_type', None) == 'dash']
+            if dashes:
+                return dashes[0]
         from natural20.utils.pointless_actions import ai_forbidden_interaction
         available_actions = [a for a in available_actions
                              if not is_unbuilt_spell(a) and not ai_forbidden_interaction(a)]
@@ -298,6 +308,16 @@ class GenericController(Controller):
             # Cornered before dashing: nowhere to run, so the creature may act normally.
             if flee is not None or (battle.entity_state_for(entity) or {}).get('action', 0) <= 0:
                 return flee
+        # Battle psychology: a coward whose nerve has broken runs for the exit
+        # instead of trading blows (natural20.utils.combat_psychology).
+        from natural20.utils.combat_psychology import flee_threat, morale_directive
+        if morale_directive(battle, entity):
+            threat = flee_threat(battle, entity)
+            if threat is not None:
+                flee = flee_choice(entity, battle, available_actions, source=threat)
+                # Cornered: a creature with nowhere to run defends itself.
+                if flee is not None:
+                    return flee
         # environment, entity = self._build_environment(battle, entity)
         scored = self._sort_actions_with_scores(entity, battle, available_actions)
         if not scored:

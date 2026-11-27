@@ -240,13 +240,15 @@ def truncate_path_for_fear(entity, moves, battle_map, battle=None):
     return kept
 
 
-def flee_choice(entity, battle, actions):
+def flee_choice(entity, battle, actions, source=None):
     """Pick the controller step for a creature that must flee ``flee_source``.
 
     Dash first while the action is unspent, then the move that ends farthest
     from the source (only if it gains distance). ``None`` means nothing useful
-    is left (nowhere to run)."""
-    source = flee_source(entity)
+    is left (nowhere to run). ``source`` overrides the fear source, so the
+    same escape plan serves a creature whose nerve has broken
+    (``natural20.utils.combat_psychology``)."""
+    source = source if source is not None else flee_source(entity)
     if source is None or battle is None:
         return None
     battle_map = battle.map_for(entity)

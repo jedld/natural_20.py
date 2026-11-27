@@ -103,15 +103,24 @@ These follow the DMG advice to play creatures according to their Intelligence.
 
 | Tier | INT | Plays like |
 |---|---|---|
-| `instinct` | 1–3 | Attacks the nearest enemy or its last attacker. Hostile options aimed elsewhere are filtered out for both LLM and JEV. It never calls out and ignores callouts. |
-| `simple` | 4–7 | Uses simple tactics. Callouts are limited to `focus`, `help`, `heal`, `retreat`, `regroup`, `taunt`, and `say`, at most 6 words. It ignores enemy callouts it overhears. |
-| `tactical` | 8–13 | Focus fire and protecting allies. Full callouts. It exploits overheard enemy callouts. |
-| `mastermind` | 14+ | Plans ahead: targets healers, casters, and concentration. When choosing a callout language, it picks one its allies know and nearby enemies don't. |
+| `instinct` | 1–3 | Attacks the nearest enemy or its last attacker. Hostile options aimed elsewhere are filtered out for both LLM and JEV. It never calls out and ignores callouts. No `hide`/positioning move leaves, and the hybrid LLM strategist writes it no plan at all. |
+| `simple` | 4–7 | Uses simple tactics. Callouts are limited to `focus`, `help`, `heal`, `retreat`, `regroup`, `taunt`, and `say`, at most 6 words. It ignores enemy callouts it overhears. Its plan is one blunt step and it can only follow `MOVE: engage|retreat|hold`. |
+| `tactical` | 8–13 | Focus fire and protecting allies. Full callouts. It exploits overheard enemy callouts. Full movement vocabulary (`range`, `hide` included) and reaction planning. |
+| `mastermind` | 14+ | Plans ahead: targets healers, casters, and concentration. When choosing a callout language, it picks one its allies know and nearby enemies don't. Gets the complete strategist plan (16 lines) and plans its reactions. |
 
 The tier's guidance text is prepended to the LLM combat instructions. JEV gets a
 `tactics: <tier> (INT n)` line in its state. Override the tier per creature with
 `tactics: instinct|simple|tactical|mastermind` in NPC or character YAML. AI-run
 PCs use their own INT.
+
+The same tiers cap *planning*, not just talking:
+`combat_intelligence.strategist_policy(entity)` decides whether the hybrid
+strategist writes a plan at all and how long it may be, and
+`allowed_move_intents(entity)` limits which `MOVE:` intents the executor will
+honour. A wolf (INT 3) therefore never receives a battle plan; see
+[JEV_NPC_BATTLE_AI.md](JEV_NPC_BATTLE_AI.md) → "Planning follows the creature's
+own wits". Force it with the YAML key `strategist: auto|always|off` or
+`.ai.yaml combat.strategist`.
 
 ## Configuration (`game.yml`)
 

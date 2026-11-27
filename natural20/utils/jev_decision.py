@@ -737,13 +737,28 @@ def set_strategist_orders(battle, entity, orders: Optional[str]) -> None:
         state.pop(STRATEGIST_ORDERS_KEY, None)
 
 
-def parse_strategist_move_intent(orders: Optional[str]) -> Optional[str]:
+def _intent_allowed(intent: Optional[str], allowed) -> Optional[str]:
+    """``intent`` unless the creature's wits do not allow it (``allowed`` tags)."""
+    if intent is None or allowed is None:
+        return intent
+    return intent if intent in tuple(allowed) else None
+
+
+def parse_strategist_move_intent(orders: Optional[str], allowed=None) -> Optional[str]:
     """Map commander's orders text to a movement intent tag, or ``None``.
 
     Prefers an explicit ``MOVE: hold|retreat|range|engage|hide|none`` line
     (case-insensitive). Falls back to keyword heuristics over the free-text
     plan so older plans without the tag still steer the move menu.
+
+    ``allowed`` is an optional iterable of intent tags the creature can act on
+    (``natural20.utils.combat_intelligence.allowed_move_intents``): a clever
+    plan written for a simple creature is not honoured past its wits.
     """
+    return _intent_allowed(_move_intent_from_text(orders), allowed)
+
+
+def _move_intent_from_text(orders: Optional[str]) -> Optional[str]:
     if not orders or not isinstance(orders, str):
         return None
     text = orders.strip()
@@ -827,6 +842,9 @@ def _move_leaf_kind(desc: str) -> str:
 def apply_strategist_move_bias(
     leaves: List[Tuple[str, Any, str]],
     orders: Optional[str],
+    intent: Optional[str] = None,
+    allowed=None,
+    tag: str = '[commander ordered]',
 ) -> List[Tuple[str, Any, str]]:
     """Hard-filter / annotate move leaves to match the commander's MOVE intent.
 
@@ -835,12 +853,17 @@ def apply_strategist_move_bias(
     * ``engage`` — drop retreat leaves.
     * ``hide`` — drop engage / offensive / approach leaves; prefer hide.
 
-    Matching leaves are tagged ``[commander ordered]`` so the decision model
-    still sees the preference even when several intents remain. If filtering
-    would remove every move leaf while the intent was not ``hold``, defensive
-    (then any) moves are restored so the creature is not frozen in place.
+    Matching leaves are tagged ``tag`` (default ``[commander ordered]``) so the
+    decision model still sees the preference even when several intents remain.
+    If filtering would remove every move leaf while the intent was not
+    ``hold``, defensive (then any) moves are restored so the creature is not
+    frozen in place.
+
+    ``intent`` bypasses reading the plan text (used by the morale system), and
+    ``allowed`` drops intents the creature's wits cannot follow.
     """
-    intent = parse_strategist_move_intent(orders)
+    intent = intent if intent is not None else parse_strategist_move_intent(orders, allowed)
+    intent = _intent_allowed(intent, allowed)
     if not intent or not leaves:
         return leaves
 
@@ -869,8 +892,8 @@ def apply_strategist_move_bias(
         kind = _move_leaf_kind(d)
         if kind in drop_kinds:
             continue
-        if kind in prefer_kinds and '[commander ordered]' not in d:
-            d = f"{d} [commander ordered]"
+        if kind in prefer_kinds and tag not in d:
+            d = f"{d} {tag}"
         filtered.append((t, a, d))
 
     if had_moves and not any(t == 'move' for t, _, _ in filtered):
@@ -891,6 +914,142 @@ def apply_strategist_move_bias(
     return filtered
 
 
+MORALE_MOVE_TAG = '[its nerve has broken - get away]'
+
+
+def apply_morale_move_bias(leaves: List[Tuple[str, Any, str]],
+                           battle, entity) -> List[Tuple[str, Any, str]]:
+    """A creature whose nerve has broken moves for escape, not for the fight.
+
+    Reuses the commander's ``retreat`` movement filter: engage/offensive leaves
+    are dropped and retreat/defensive leaves are labelled so the decision model
+    sees why. No-op while its nerve holds (brave, fearless and reckless
+    creatures are never affected — see ``natural20.utils.combat_psychology``).
+    """
+    from natural20.utils import combat_psychology
+    try:
+        directive = combat_psychology.morale_directive(battle, entity)
+    except Exception:
+        return leaves
+    if not directive:
+        return leaves
+    return apply_strategist_move_bias(
+        leaves, None, intent=directive, tag=MORALE_MOVE_TAG)
+
+
+ORDERED_ACTION_TAG = '[commander ordered]'
+
+#: Leaf types an ordered attack/cast can match (movement is steered by the
+#: ``MOVE:`` tag / ``apply_strategist_move_bias`` instead).
+ORDERED_HOSTILE_TYPES = ('attack', 'spell')
+
+#: Verbs that mark an offensive step in the orders text.
+ATTACK_ORDER_VERBS = (
+    'attack', 'strike', 'shoot', 'multiattack', 'focus fire', 'hit ',
+    'bite', 'claw', 'smite', 'sneak attack', 'cast ', 'fire ', 'damage',
+)
+
+#: Phrases that invert an attack mention: plans that order avoidance,
+#: stealth or waiting must not boost the attack leaves.
+ATTACK_ORDER_NEGATIONS = (
+    'do not attack', "don't attack", 'no visible enemies',
+    'no enemies visible', 'no enemies are visible', 'avoid combat',
+    'do not engage', "don't engage", 'stay hidden and wait',
+    'do not reveal', "don't reveal",
+)
+
+
+def _orders_command_attack(orders: str) -> bool:
+    """True when the orders text contains an affirmative attack step."""
+    text = orders.lower()
+    if any(neg in text for neg in ATTACK_ORDER_NEGATIONS):
+        return False
+    return any(verb in text for verb in ATTACK_ORDER_VERBS)
+
+
+def apply_strategist_action_bias(
+    leaves: List[Tuple[str, Any, str]],
+    orders: Optional[str],
+    names: Optional[List[str]] = None,
+    tag: str = ORDERED_ACTION_TAG,
+) -> Tuple[List[Tuple[str, Any, str]], bool]:
+    """Hoist and tag attack/cast leaves matching the commander's attack steps.
+
+    ``MOVE:`` tags hard-steer the move menu, but the numbered attack steps
+    were only prose in the state render, so a small System One model could
+    still pick Hide, Dodge or pass over the ordered attack. Mirrors the move
+    bias for the action menu: when the orders affirmatively command an
+    attack and name creatures the hostile leaves also name, those leaves are
+    tagged (``[commander ordered]``) and hoisted to the front of the menu in
+    their existing relative order (weakest-target-first stays intact).
+
+    Returns ``(leaves, ordered_any)``; the caller annotates the pass leaf
+    with ``ordered_any`` so passing despite a legal ordered attack needs a
+    reason.
+    """
+    if not orders or not leaves or not _orders_command_attack(orders):
+        return leaves, False
+    text = orders.lower()
+    targets = []
+    for name in (names or []):
+        if not isinstance(name, str):
+            continue
+        base = name.split('@')[0].strip().lower()  # drop "@[x, y]" suffixes
+        if len(base) >= 3 and base in text:
+            targets.append(base)
+    # Squares the orders name (e.g. "fire at Gomerin's position [0, 1]"):
+    # blind-attack leaves name no creature, only the unseen creature's square.
+    squares = {f"[{xs.strip()}, {ys.strip()}]"
+               for xs, ys in re.findall(r'\[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]', text)}
+    if not targets and not squares:
+        return leaves, False
+
+    def is_ordered(desc: str) -> bool:
+        dl = desc.lower()
+        if any(n in dl for n in targets):
+            return True
+        m = re.search(r'square \[\s*(-?\d+)\s*,\s*(-?\d+)\s*\]', dl)
+        return bool(m and f"[{m.group(1)}, {m.group(2)}]" in squares)
+
+    ordered: List[Tuple[str, Any, str]] = []
+    rest: List[Tuple[str, Any, str]] = []
+    for leaf in leaves:
+        t, action, desc = leaf
+        if t in ORDERED_HOSTILE_TYPES and is_ordered(desc):
+            if tag not in desc:
+                desc = f"{desc} {tag}"
+            ordered.append((t, action, desc))
+        else:
+            rest.append(leaf)
+    if not ordered:
+        return leaves, False
+    return ordered + rest, True
+
+
+#: Move-leaf kinds each intelligence tier cannot conceptualise without a plan.
+#: ``hide`` (breaking sight lines) and ``offensive`` (flanking/positioning)
+#: need more wits than an instinct- or simple-tier creature has.
+_WIT_MOVE_DROPS = {
+    'instinct': {'hide', 'offensive', 'defensive'},
+    'simple': {'hide', 'offensive'},
+}
+
+
+def filter_move_leaves_by_wits(leaves: List[Tuple[str, Any, str]],
+                               entity) -> List[Tuple[str, Any, str]]:
+    """Drop movement options above the creature's own tactical ability."""
+    try:
+        from natural20.utils.combat_intelligence import tactics_tier
+        drops = _WIT_MOVE_DROPS.get(tactics_tier(entity))
+    except Exception:
+        return leaves
+    if not drops:
+        return leaves
+    kept = [(t, a, d) for t, a, d in leaves
+            if t != 'move' or _move_leaf_kind(d) not in drops]
+    return kept or leaves
+
+
 def _strategist_orders_lines(battle, entity) -> List[str]:
     """The 'commander's orders' block rendered into every JEV question state.
 
@@ -904,7 +1063,12 @@ def _strategist_orders_lines(battle, entity) -> List[str]:
     text = orders.strip()
     if len(text) > MAX_JEV_ORDERS_CHARS:
         text = text[:MAX_JEV_ORDERS_CHARS] + '...'
-    intent = parse_strategist_move_intent(text)
+    try:
+        from natural20.utils.combat_intelligence import allowed_move_intents
+        allowed = allowed_move_intents(entity)
+    except Exception:
+        allowed = None
+    intent = parse_strategist_move_intent(text, allowed)
     out = ["commander's orders (follow these as far as the legal options allow):"]
     if intent:
         out.append(f"(movement intent: {intent})")
@@ -1687,6 +1851,17 @@ class JevActionPlanner:
             except Exception:
                 pass
 
+            # Battle psychology: nerve, courage and authored weaknesses
+            # (natural20.utils.combat_psychology). A coward runs when hurt.
+            try:
+                from natural20.utils import combat_psychology
+                persona = combat_psychology.persona_lines(battle, entity)
+                if persona:
+                    lines.append("battle psychology:")
+                    lines.extend("- " + ln for ln in persona)
+            except Exception:
+                pass
+
             try:
                 summary = _fight_summary(battle, entity, self._display_name)
                 if summary:
@@ -1922,12 +2097,24 @@ class JevActionPlanner:
         return self._finalize_leaves(leaves)
 
     def _finalize_leaves(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
-        """Skirmish filter → cap → strategist move bias → always-available pass."""
+        """Skirmish filter → cap → strategist move bias → wits filter →
+        morale (a creature whose nerve broke runs) → always-available pass."""
+        try:
+            from natural20.utils.combat_intelligence import allowed_move_intents
+            allowed = allowed_move_intents(self._entity)
+        except Exception:
+            allowed = None
         biased = apply_strategist_move_bias(
             self._cap_leaves(self._skirmish_filter(leaves)),
             get_strategist_orders(self._battle, self._entity),
+            allowed=allowed,
         )
-        return self._with_pass(biased)
+        biased = filter_move_leaves_by_wits(biased, self._entity)
+        biased = apply_morale_move_bias(biased, self._battle, self._entity)
+        names = list((getattr(self, '_names', None) or {}).values())
+        biased, ordered_attack = apply_strategist_action_bias(
+            biased, get_strategist_orders(self._battle, self._entity), names)
+        return self._with_pass(biased, ordered_attack=ordered_attack)
 
     def _skirmish_filter(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
         """Shoot-and-hide tactics for creatures with a bonus-action Hide
@@ -1980,13 +2167,16 @@ class JevActionPlanner:
         result.extend(a for a in optimized if _spell_key(a) in point_keys)
         return result
 
-    def _with_pass(self, leaves: List[Tuple[str, Any, str]]) -> List[Tuple[str, Any, str]]:
+    def _with_pass(self, leaves: List[Tuple[str, Any, str]],
+                   ordered_attack: bool = False) -> List[Tuple[str, Any, str]]:
         """Always offer "pass (end turn)" as the final top-level option.
 
         Ending the turn is a legal choice on every turn, so the pass leaf is
         appended *after* capping and can never be squeezed out of the list.
         Strategist ``MOVE: hold`` also forces pass to remain even after a Dash
         with unspent movement (otherwise the hold order could not be obeyed).
+        With an ordered attack hoisted to the front of the menu, the pass
+        label says so — passing anyway must be for a reason.
         """
         if any(t == 'end_turn' for t, _, _ in leaves):
             return leaves
@@ -2003,6 +2193,9 @@ class JevActionPlanner:
         label = 'pass (end turn)'
         if hold:
             label = 'pass (end turn) [commander ordered: hold]'
+        elif ordered_attack:
+            label = ('pass (end turn) [the commander ordered an attack '
+                     'this turn: pass only if the ordered options are illegal]')
         return leaves + [('end_turn', action, label)]
 
     def _dash_unspent(self) -> bool:

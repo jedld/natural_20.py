@@ -7,10 +7,16 @@ class ProneAction(Action):
         
     @staticmethod
     def can(entity, battle):
-        return battle and not entity.prone()
+        # Going prone is allowed out of combat too (5e "Move": falling
+        # prone is always available); like StandAction, gate only on the
+        # creature's own state so the VTT action bar offers it anywhere.
+        return not entity.prone()
 
     def build_map(self):
         return self
+
+    def label(self):
+        return "Go Prone"
 
     @staticmethod
     def build(session, source):
@@ -29,5 +35,6 @@ class ProneAction(Action):
     @staticmethod
     def apply(battle, item, session=None):
         if item["type"] == "prone":
-            battle.event_manager.received_event({'event': 'prone', 'source': item['source']})
+            if battle:
+                battle.event_manager.received_event({'event': 'prone', 'source': item['source']})
             item["source"].do_prone()

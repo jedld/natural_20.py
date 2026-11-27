@@ -74,3 +74,25 @@ class TestUseItemAction(unittest.TestCase):
         self.assertIsInstance(action[0], UseItemAction)
         self.battle.action(action[0])
         self.battle.commit(action[0])
+
+    def test_spell_scroll_spell_class_already_suffixed(self):
+        """Regression: a scroll embedding a spell whose YAML sets ``spell_class``
+        (e.g. Natural20::EnlargeReduceSpell) must not append "Spell" twice
+        when resolving the spell class (EnlargeReduceSpellSpell)."""
+        mage = PlayerCharacter.load(self.session, "high_elf_mage.yml")
+        spellbook = mage.properties.setdefault('spellbook', [])
+        if 'enlarge_reduce' not in spellbook:
+            spellbook.append('enlarge_reduce')
+        mage.add_item('scroll_of_enlarge', 1)
+        ally = PlayerCharacter.load(self.session, "high_elf_fighter.yml")
+        self.battle.add(mage, 'a', position='spawn_point_1', token='C')
+        self.battle.add(ally, 'a', position=[1, 1], token='G')
+        mage.reset_turn(self.battle)
+
+        self.assertIn('scroll_of_enlarge', [i['name'] for i in mage.usable_items()])
+
+        action = (UseItemAction.build(self.session, mage)
+                  ['next']('scroll_of_enlarge')['next']('enlarge')['next'](ally))
+        self.battle.action(action)
+        self.battle.commit(action)
+        self.assertEqual(ally.size(), 'large')

@@ -18,6 +18,13 @@ tier           INT    behaviour
 
 Override per creature with the NPC/character YAML property
 ``tactics: instinct|simple|tactical|mastermind``.
+
+The same tiers cap how much *planning* a creature is credited with, which is
+what gates the hybrid LLM strategist (``natural20.llm_controller.
+HybridStrategistController``) and the movement intents its executor will
+honour: see ``strategist_policy`` and ``allowed_move_intents`` below. A wolf
+(INT 3) never gets a step-by-step battle plan; a mastermind gets the full one.
+Override with the YAML property ``strategist: auto|always|off``.
 """
 
 from __future__ import annotations
@@ -92,8 +99,126 @@ def guidance(entity) -> str:
 
 
 # --------------------------------------------------------------------------- #
-# Communication limits                                                        #
+# What the creature can PLAN (hybrid LLM strategist + move intents)           #
 # --------------------------------------------------------------------------- #
+
+# Per-tier planner capability, used by ``HybridStrategistController``:
+#   plan            - does the creature get a generative turn plan at all
+#   max_lines       - hard cap on the plan text (lines)
+#   max_chars       - hard cap on the plan text (characters)
+#   steps           - how many numbered concrete steps to order
+#   move_tags       - MOVE: intents (``natural20.utils.jev_decision`` tags)
+#                     the creature can understand and follow
+#   reactions       - may the plan spend the reaction on other creatures' turns
+#   guidance        - the persona line the planner is told to write in character
+_STRATEGIST_POLICY = {
+    'instinct': {
+        'plan': False, 'max_lines': 2, 'max_chars': 220, 'steps': 0,
+        'move_tags': (), 'reactions': False,
+        'guidance': (
+            "{name} is a beast of pure instinct (INT {score}). It cannot plan: "
+            "order at most ONE blunt thing (maul the closest foe / run), never "
+            "mention spell slots, cover, flanking, kiting, feints, healing or "
+            "reactions, and use no tactical vocabulary at all."
+        ),
+    },
+    'simple': {
+        'plan': True, 'max_lines': 4, 'max_chars': 400, 'steps': 1,
+        'move_tags': ('engage', 'retreat', 'hold'), 'reactions': False,
+        'guidance': (
+            "{name} is dim-witted (INT {score}). Order at most {steps} simple "
+            "step: attack the nearest foe or whoever hurt it, gang up on a foe "
+            "others already fight, or fall back when badly hurt. No feints, no "
+            "reasoning about spellcasters, concentration, spell slots, cover, "
+            "flanking or reactions."
+        ),
+    },
+    'tactical': {
+        'plan': True, 'max_lines': 10, 'max_chars': 900, 'steps': 3,
+        'move_tags': ('engage', 'retreat', 'range', 'hide', 'hold'),
+        'reactions': True,
+        'guidance': (
+            "{name} is a capable fighter (INT {score}). Give {steps} sound "
+            "steps: focus fire, protect wounded allies, use cover, keep to its "
+            "own strengths. Do not attempt subtle multi-turn deception."
+        ),
+    },
+    'mastermind': {
+        'plan': True, 'max_lines': 16, 'max_chars': 1400, 'steps': 6,
+        'move_tags': ('engage', 'retreat', 'range', 'hide', 'hold'),
+        'reactions': True,
+        'guidance': (
+            "{name} is a brilliant tactician (INT {score}). Plan ahead up to "
+            "{steps} steps: neutralize healers and spellcasters, break "
+            "concentration, exploit vulnerabilities and overheard enemy plans, "
+            "and set up reactions for the other side's turns."
+        ),
+    },
+}
+
+#: Movement intents a creature of each tier can act on (JEV ``MOVE:`` tags).
+STRATEGIST_MOVE_TAGS = {tier: cfg['move_tags'] for tier, cfg in _STRATEGIST_POLICY.items()}
+
+#: ``strategist:`` YAML/override values that force planning on or off.
+STRATEGIST_ALWAYS = ('always', 'force', 'forced', 'on', 'yes')
+STRATEGIST_OFF = ('off', 'never', 'none', 'disable', 'disabled', 'no')
+
+
+def _entity_props(entity) -> dict:
+    props = getattr(entity, 'properties', None)
+    return props if isinstance(props, dict) else {}
+
+
+def strategist_mode(entity) -> str:
+    """The creature's ``strategist:`` YAML override: ``auto|always|off``."""
+    value = str(_entity_props(entity).get('strategist') or '').strip().lower()
+    if value in STRATEGIST_ALWAYS:
+        return 'always'
+    if value in STRATEGIST_OFF:
+        return 'off'
+    return 'auto'
+
+
+def strategist_policy(entity, mode: Optional[str] = None) -> dict:
+    """How much battle planning this creature deserves.
+
+    ``mode`` (``auto|always|off``) overrides the creature's own YAML
+    ``strategist:`` key; ``auto`` follows its intelligence tier. The returned
+    dict carries ``tier``, ``plan``, ``max_lines``, ``max_chars``, ``steps``,
+    ``move_tags``, ``reactions`` and a ``guidance`` line for the prompt.
+    """
+    tier = tactics_tier(entity)
+    policy = dict(_STRATEGIST_POLICY[tier])
+    explicit = str(mode or '').strip().lower()
+    if explicit in STRATEGIST_ALWAYS:
+        mode_final = 'always'
+    elif explicit in STRATEGIST_OFF:
+        mode_final = 'off'
+    else:
+        mode_final = strategist_mode(entity)
+    if mode_final == 'always':
+        policy['plan'] = True
+    elif mode_final == 'off':
+        policy['plan'] = False
+    policy['mode'] = mode_final
+    policy['tier'] = tier
+    policy['move_tags'] = tuple(STRATEGIST_MOVE_TAGS[tier])
+    policy['guidance'] = policy['guidance'].format(
+        name=getattr(entity, 'name', 'It') or 'It',
+        score=intelligence_score(entity),
+        steps=policy['steps'],
+    )
+    return policy
+
+
+def can_plan(entity, mode: Optional[str] = None) -> bool:
+    """Whether a generative strategist should write this creature's turn plan."""
+    return bool(strategist_policy(entity, mode)['plan'])
+
+
+def allowed_move_intents(entity, mode: Optional[str] = None) -> tuple:
+    """The ``MOVE:`` intent tags this creature's wits let it follow."""
+    return strategist_policy(entity, mode)['move_tags']
 
 def can_coordinate(entity) -> bool:
     """Instinct-tier creatures never issue tactical callouts."""

@@ -300,6 +300,85 @@ class TestHybridStrategistController(unittest.TestCase):
         self.assertTrue(clone._strategist_pending)
 
     # ------------------------------------------------------------------ #
+    # Planning follows the creature's own wits (combat_intelligence)      #
+    # ------------------------------------------------------------------ #
+
+    def _add_wolf(self):
+        wolf = self.session.npc('wolf')
+        self.battle.add(wolf, 'b')
+        return wolf
+
+    def test_instinct_creature_is_never_planned(self):
+        wolf = self._add_wolf()          # INT 3
+        self.controller.begin_turn(wolf)
+        self.controller.select_action(self.battle, wolf, self._actions(wolf))
+        self.assertEqual(len(self.strategist.calls), 0,
+                         'no plan should be written for a beast of instinct')
+        self.assertIsNone(get_strategist_orders(self.battle, wolf))
+
+    def test_dm_mode_overrides_the_creature_default(self):
+        wolf = self._add_wolf()
+        self.controller.strategist_mode = 'always'
+        self.controller.begin_turn(wolf)
+        self.controller.select_action(self.battle, wolf, self._actions(wolf))
+        self.assertEqual(len(self.strategist.calls), 1)
+        system = self.strategist.calls[0][0]['content']
+        self.assertIn('beast of pure instinct', system)
+        # an explicit DM mode still wins when the creature says otherwise
+        wolf.properties['strategist'] = 'off'
+        self.controller.begin_turn(wolf)
+        self.controller.select_action(self.battle, wolf, self._actions(wolf))
+        self.assertEqual(len(self.strategist.calls), 2)
+        # auto mode hands the decision back to the creature's own wits
+        self.controller.strategist_mode = 'auto'
+        self.controller.begin_turn(wolf)
+        self.controller.select_action(self.battle, wolf, self._actions(wolf))
+        self.assertEqual(len(self.strategist.calls), 2)
+
+    def test_simple_mind_gets_a_short_blunt_prompt(self):
+        self.goblin.properties['tactics'] = 'simple'
+        self.controller.begin_turn(self.goblin)
+        self.controller.select_action(self.battle, self.goblin,
+                                      self._actions(self.goblin))
+        system = self.strategist.calls[0][0]['content']
+        user = self.strategist.calls[0][-1]['content']
+        self.assertIn('dim-witted', system)
+        self.assertIn("Do NOT write a 'Reaction:' line", system)
+        # no kiting/hiding vocabulary for a simple mind
+        self.assertNotIn('hide (move to a hiding spot)', system)
+        self.assertNotIn('- hide ', user)
+        self.assertIn('- engage (close to melee)', user)
+
+    def test_clean_orders_drops_the_reaction_line_for_a_simple_mind(self):
+        cleaned = self.controller._clean_orders(
+            "1. Bite the elf.\nMOVE: engage\nReaction: opportunity attack",
+            max_lines=4, max_chars=400, allow_reaction=False)
+        self.assertIn('MOVE: engage', cleaned)
+        self.assertNotIn('Reaction:', cleaned)
+
+    def test_battle_psychology_reaches_the_strategist_prompt(self):
+        self.goblin.properties['combat_personality'] = 'cowardly'
+        self.goblin.properties['vulnerabilities'] = ['fire']
+        self.controller.begin_turn(self.goblin)
+        self.controller.select_action(self.battle, self.goblin,
+                                      self._actions(self.goblin))
+        user = self.strategist.calls[0][-1]['content']
+        self.assertIn('battle psychology:', user)
+        self.assertIn('is a coward', user)
+        self.assertIn('breaks and runs at or below 50%', user)
+        self.assertIn('vulnerable to fire', user)
+
+    def test_a_brave_creature_is_never_offered_flight(self):
+        self.goblin.properties['combat_personality'] = 'fearless'
+        self.goblin.properties['morale'] = {'stance': 'fearless'}
+        self.controller.begin_turn(self.goblin)
+        self.controller.select_action(self.battle, self.goblin,
+                                      self._actions(self.goblin))
+        user = self.strategist.calls[0][-1]['content']
+        self.assertIn('never retreats', user)
+        self.assertNotIn('breaks and runs', user)
+
+    # ------------------------------------------------------------------ #
     # Named agent bundles (.ai.yaml ``agents:``)                          #
     # ------------------------------------------------------------------ #
 

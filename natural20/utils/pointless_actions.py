@@ -377,6 +377,11 @@ def is_pointless(battle, entity, action, in_sight=None) -> bool:
         # Nowhere to run to or from: the extra movement has no destination.
         if not conscious_enemies(battle, entity):
             return False
+        # A creature whose nerve has broken (combat_psychology) is fleeing:
+        # its Dash is the plan, not a wasted action.
+        from natural20.utils.combat_psychology import morale_broken
+        if morale_broken(battle, entity):
+            return False
         return (not knows_an_enemy_position(battle, entity) or _dash_in_melee(battle, entity)
                 or _dash_without_destination(battle, entity)
                 or _dash_after_shooting(battle, entity))

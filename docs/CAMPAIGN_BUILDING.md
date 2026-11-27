@@ -1092,6 +1092,53 @@ Notes:
 - The engine accepts both `damage_vulnerabilities` and `vulnerabilities` for vulnerabilities.
 - Per 5e rules, immunity overrides all, and resistance/vulnerability to the same damage type cancel out.
 
+#### Battle personality and morale (`combat_personality`, `morale`)
+
+How a creature *feels* about a fight is separate from how clever it is
+(`tactics:` / INT, see `docs/COMBAT_COMMUNICATION.md`). Both feed every battle
+AI: the deterministic controller, the LLM prompt, the JEV state and the hybrid
+strategist's plan. Nothing is authored in the engine — the flavor stays in
+your YAML.
+
+```yaml
+combat_personality: cowardly            # one tag or a list: [cowardly, greedy]
+morale:
+  stance: flighty                       # flighty|cautious|normal|steadfast|fearless|reckless
+  flee_at_hp: 0.5                       # nerve breaks at/below this fraction of max HP
+                                        # (1.0 = runs from the first blow, 0 = never);
+                                        # 50 is also accepted as a percentage
+  flee_when_outnumbered: true           # break early when the odds are bad enough
+  never_flee: false                     # alias: ignores_self_preservation
+combat_weaknesses:                      # free text the battle AI is told about
+  - "it recoils from open flame"
+strategist: auto                        # auto|always|off — hybrid LLM planner scope
+```
+
+- `combat_personality` tags and the stance vocabulary: `cowardly`, `timid`,
+  `skittish`, `meek` (flighty); `wary`, `cunning`, `devious`, `skulking`,
+  `hit-and-run` (cautious); `brave`, `loyal`, `dutiful`, `protective`,
+  `honorable` (steadfast); `fearless`, `fanatic`, `zealot` (fearless);
+  `reckless`, `savage`, `bloodthirsty`, `relentless` (reckless).
+- Without these keys the stance is **inferred** from the creature's own
+  `personality_traits`, `flaws`, `ideals`, `bonds`, `backstory` and
+  `description`, so a character sheet that says "I am a coward who runs from
+  any fight" already runs away. Default stance: `normal` (breaks at 20% HP).
+- Undead, constructs and creatures with the `fearless` feature are fearless
+  by nature and never break.
+- What happens when the nerve breaks: one combat-log line ("… loses its
+  nerve"), then a Dash-and-run for the deterministic AI, a hard
+  `MOVE: retreat` filter on the JEV move menu, and coward-flavoured orders
+  from the hybrid strategist. A cornered creature stands and fights.
+- `strategist:` (auto/always/off) overrides how much planning the hybrid
+  LLM strategist does for this creature; `auto` follows its Intelligence
+  (a wolf gets no plan). See `docs/JEV_NPC_BATTLE_AI.md`.
+- These are plain YAML properties, so the DM can also set them at runtime
+  with the MCP tool `dm.set_property` (e.g. `combat_personality: cowardly`).
+
+Implementation: `natural20/utils/combat_psychology.py` (disposition, morale
+latch, prompt blocks) and `natural20/utils/combat_intelligence.py` (planner
+capability). Tests: `tests/test_combat_psychology.py`.
+
 #### On-Hit Effects
 
 Actions can trigger effects on a successful hit:
@@ -1733,7 +1780,16 @@ default:
 ```yaml
 battle_pacing:
   dm_ends_ai_turns: true
+  ai_turn_delay: 0.6   # seconds of pause after each AI turn
 ```
+
+`ai_turn_delay` adds a short pause after every AI turn in the game loop so
+browsers can finish playing that turn's movement/attack animations before the
+next turn's events arrive (consecutive deterministic-AI turns otherwise
+chain faster than the client can animate them). The DM can change it live
+with the **AI turn delay** field in the same panel (or MCP
+`dm.battle_admin op=pacing`); `0` disables the pause. The runtime value is
+saved with the game and overrides this default.
 
 When a battle starts, the combat log shows the DM (only) a roster:
 - HP totals for each team.

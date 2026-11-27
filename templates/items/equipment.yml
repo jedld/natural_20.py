@@ -855,6 +855,17 @@ spell_scroll_2nd_level:
   usable: true
   consumable: true
   weight: 0.05
+scroll_of_enlarge:
+  spell: enlarge_reduce
+  level: 2
+  cost: 250
+  name: Scroll of Enlarge
+  flavor_text: A scroll that enlarges one creature as the Enlarge/Reduce spell.
+  type: scroll
+  item_class: SpellScroll
+  usable: true
+  consumable: true
+  weight: 0.05
 vestments:
   cost: 1
   name: Vestments

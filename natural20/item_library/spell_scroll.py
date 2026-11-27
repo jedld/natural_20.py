@@ -33,8 +33,12 @@ class SpellScroll(Object):
     def build_map(self, interact_action):
         session = interact_action.session
         spell = session.load_spell(self.spell)
-        spell_name = spell.get("spell_class", classify(self.spell)) + "Spell"
+        spell_name = spell.get("spell_class", classify(self.spell))
         spell_name = spell_name.replace("Natural20::", "")
+        # spell_loader expects the bare class key; the YAML spell_class may
+        # already end in "Spell" (same guard as SpellAction.build_map)
+        if not spell_name.endswith("Spell"):
+            spell_name += "Spell"
         spell_class = load_spell_class(spell_name)
         interact_action.spell_class = spell_class
         interact_action.spell_action = spell_class(session, interact_action.source, spell_name, spell)

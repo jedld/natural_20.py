@@ -2,8 +2,10 @@
 name: n20-vtt3d-models
 description: >-
   Add or override 3D VTT meshes for campaign objects (secret doors, portcullises,
-  windows, trapdoors, pit traps, stairs, custom glTF). Use when a map object should not use the
-  default oak door or fixture, when authoring user_levels/<campaign>/vtt3d.yml,
+  windows, trapdoors, pit traps, stairs, custom glTF) and bind HeroForge-style 3D
+  figure models to entities (tokens). Use when a map object should not use the
+  default oak door or fixture, when an entity should render as an imported figure
+  instead of the billboard token, when authoring user_levels/<campaign>/vtt3d.yml,
   or when adding a built-in barrier/hatch kind to the Three.js client.
 ---
 
@@ -95,3 +97,19 @@ Trapdoors are **not** wall doors (`TrapDoor` is skipped in `geometry.doors`). Th
 ## Custom glTF
 
 Place the file under `user_levels/<campaign>/assets/` (or `assets/models/`). Set `src` in the catalog. The 3D client loads it with `GLTFLoader` at the object's cell center.
+
+## Entity token models (HeroForge-style figures)
+
+Separate from the object `models:` catalog: the `tokens:` section of `vtt3d.yml` binds **figures to creatures** (uid → NPC type → name, case-insensitive). The engine (`natural20/web/vtt3d_catalog.py`) resolves the spec and emits it as `/map_state` `entities[].model`; the client (`client-3d/src/scene/tokenModels.js`) renders GLB/glTF, OBJ(+MTL) or STL — height-fit in feet, bottom at the base, Z-up auto-corrected, tint for mono figures — and silently keeps the 2D billboard token on any failure.
+
+Preferred flow: the DM **Figures** panel in `/3d` (upload → auto-convert → bind). Endpoints `/dm/token_models*` (DM-only) and MCP `dm.token_model`; library files in `<campaign>/assets/models/tokens/`, bindings persisted into `vtt3d.yml` `tokens:` only.
+
+Manual YAML (hand-authored campaigns):
+
+```yaml
+tokens:
+  pc-ara: { src: models/tokens/ara.glb, height: 6, color: "#c0c0ff", rotate_y: 90 }
+  vampire: { src: models/tokens/vampire }   # extension resolved glb > gltf > obj > stl
+```
+
+Uploads the browser cannot render are converted server-side by `n20-webapp/webapp/model_convert/` (stdlib only): binary/ASCII STL → tinted indexed GLB, UnityFS `.unity3d` bundles → textured GLB (SerializedFile meshes + DXT/RGBA textures), zip archives flattened then converted per member. Tests: `n20-webapp/tests/webapp/test_model_convert.py`, `tests/test_vtt3d_tokens.py`, `n20-webapp/tests/webapp/test_token_models.py`, `client-3d/src/scene/tokenModels.test.js`. Docs: `docs/VTT_3D.md` → "Token models".

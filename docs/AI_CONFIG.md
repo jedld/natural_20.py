@@ -47,6 +47,7 @@ combat:
   npc_agent: brute          # default named agent for NPCs without their own controller/agent
   llm_provider: battle      # profile for llm combat controllers (default: battle -> dm)
   strategist_provider: dm   # profile for hybrid controllers' turn-planner LLM (default: dm; never jev)
+  strategist: auto          # hybrid planner scope: auto (follows each creature's INT) | always | off
   force_llm: false          # NPC_LLM_COMBAT_ENABLED equivalent; beats per-NPC settings
 agents:                     # named agent bundles: kind + profiles + standing orders in one entry
   brute:
@@ -54,6 +55,7 @@ agents:                     # named agent bundles: kind + profiles + standing or
     controller: hybrid      # ai | llm | hybrid | manual
     provider: battle        # executor / SystemOne (JEV) profile; omit = normal combat chain
     strategist_provider: dm # hybrid planner profile; omit = normal strategist chain
+    strategist: auto        # planner scope for this bundle; omit = combat.strategist
     directives: |           # fed into the JEV state, LLM prompt and strategist plan each turn
       Focus archers and casters first. Open with the javelin volley, then close.
       Never pursue a fleeing enemy; hold the corridor.
@@ -113,6 +115,15 @@ Where each setting is used:
   `combat.strategist_provider`, then `combat.strategist_provider`, then the `dm` slot — a
   `jev` provider is never selected for planning. See `docs/JEV_NPC_BATTLE_AI.md` →
   "Hybrid LLM strategist + JEV executor".
+- **Hybrid planner scope (`combat.strategist`).** By default a creature is only
+  planned for as far as its own Intelligence allows (`auto`: an INT 3 beast gets
+  no plan, a mastermind gets the full one — see
+  `natural20/utils/combat_intelligence.strategist_policy`). Set
+  `combat.strategist: always|off` (global, `sidekicks:`, `npcs:` or an agent
+  bundle) to force it: `ai_config.strategist_mode_for(entity)` and
+  `stamp_strategist_mode` apply it to every hybrid controller that is built,
+  while under `auto` the creature's own YAML `strategist:` key decides. The AI
+  Settings panel shows it as "Hybrid planner scope" / "Planner scope".
 - **Conversation and task providers.** `LLMConversationController.generate_response` tags each call
   with `entity_uid` and `ai_role`. A conversation id of the form `<uid>:goal|movement|environment|long_rest*`
   is a task. `LLMHandler.npc_provider_resolver`, installed by `configure_ai`, swaps in the profile's

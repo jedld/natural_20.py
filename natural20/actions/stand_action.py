@@ -19,6 +19,9 @@ class StandAction(Action):
     def build_map(self):
         return self
 
+    def label(self):
+        return "Stand Up"
+
     @staticmethod
     def build(session, source):
         action = StandAction(session, source, "stand")

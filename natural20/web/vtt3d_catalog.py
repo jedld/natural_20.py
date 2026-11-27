@@ -319,3 +319,182 @@ def resolve_vtt3d_model(obj, catalog: dict | None = None, *, role: str = 'object
         merged.update(inline)
         return merged
     return inline or base
+
+
+# ---------------------------------------------------------------------------
+# entity token models (``vtt3d.yml`` -> ``tokens:``)
+# ---------------------------------------------------------------------------
+
+#: preferred entry-file order when a token ``src`` names a directory
+TOKEN_ENTRY_EXTS = ('.glb', '.gltf', '.obj', '.stl')
+
+
+def _norm_token_spec(raw: Any) -> dict | None:
+    """Normalize one ``tokens:`` entry into a client-facing model spec."""
+    if isinstance(raw, str) and raw.strip():
+        raw = {'src': raw}
+    if not isinstance(raw, dict):
+        return None
+    spec: dict = {}
+    src = raw.get('src') or raw.get('model') or raw.get('url') or raw.get('gltf')
+    if src:
+        src = str(src).strip().lstrip('/')
+        if src.startswith('assets/'):
+            src = src[len('assets/'):]
+        if src:
+            spec['src'] = src
+    for key in ('scale', 'y', 'height', 'rotate_y'):
+        if raw.get(key) is None:
+            continue
+        try:
+            spec[key] = float(raw[key])
+        except (TypeError, ValueError):
+            pass
+    color = raw.get('color') or raw.get('tint')
+    if color:
+        spec['color'] = str(color).strip()
+    label = raw.get('label') or raw.get('name')
+    if label:
+        spec['label'] = str(label).strip()
+    if raw.get('library') is not None:
+        spec['library'] = bool(raw['library'])
+    return spec or None
+
+
+def load_vtt3d_tokens(session) -> dict[str, dict]:
+    """Campaign token-model assignments keyed by entity uid / NPC type / name.
+
+    Keys are matched case-insensitively by :func:`resolve_token_model`.
+    """
+    tokens: dict[str, dict] = {}
+    for data in _vtt3d_sources(session):
+        block = data.get('tokens')
+        if not isinstance(block, dict):
+            continue
+        for key, raw in block.items():
+            spec = _norm_token_spec(raw)
+            if spec:
+                tokens[str(key).strip()] = spec
+    return tokens
+
+
+def entity_token_keys(entity) -> list[str]:
+    """Candidate lookup keys for an entity, highest priority first."""
+    keys: list[str] = []
+    if entity is None:
+        return keys
+    uid = getattr(entity, 'entity_uid', None) or _props_of(entity).get('entity_uid') or _props_of(entity).get('uid')
+    if uid:
+        keys.append(str(uid).strip())
+    npc_type = getattr(entity, 'npc_type', None) or _props_of(entity).get('id')
+    if npc_type:
+        keys.append(str(npc_type).strip())
+    name = getattr(entity, 'name', None) or _props_of(entity).get('name')
+    if name:
+        keys.append(str(name).strip())
+        # spawned NPC copies are named "Type #3"; also try the bare base name
+        base = keys[-1].rsplit('#', 1)[0].strip()
+        if base and base not in keys:
+            keys.append(base)
+    return keys
+
+
+#: size categories in ascending order (5e)
+_SIZE_ORDER = ('tiny', 'small', 'medium', 'large', 'huge', 'gargantuan')
+
+
+def natural_size_category(entity) -> str | None:
+    """The entity's base size category, ignoring active ``size_override``
+    effects (Enlarge/Reduce, Goliath Large Form, ...) — the size a token
+    model was authored at."""
+    if entity is None:
+        return None
+    size = _props_of(entity).get('size')
+    if size:
+        return str(size).strip().lower()
+    race_props = getattr(entity, 'race_properties', None) or {}
+    if race_props.get('size'):
+        return str(race_props['size']).strip().lower()
+    return None
+
+
+def model_size_scale(entity) -> float | None:
+    """Linear scale multiplier for a token model when the entity's *current*
+    size differs from the size it was authored at.
+
+    ``entity.size()`` already honors registered ``size_override`` effects
+    (Enlarge/Reduce, Large Form, ...); comparing it against the base size
+    yields the visual scale. 5e size changes double/halve linear dimensions
+    per category step, so one Enlarge on a Medium creature is ``2.0``.
+    Returns None when unchanged or not comparable.
+    """
+    if entity is None:
+        return None
+    natural = natural_size_category(entity)
+    current = None
+    size_fn = getattr(entity, 'size', None)
+    if callable(size_fn):
+        try:
+            current = str(size_fn() or '').strip().lower() or None
+        except Exception:
+            current = None
+    if not current:
+        current = natural
+    if not current or not natural or current == natural:
+        return None
+    if current not in _SIZE_ORDER or natural not in _SIZE_ORDER:
+        return None
+    return float(2 ** (_SIZE_ORDER.index(current) - _SIZE_ORDER.index(natural)))
+
+
+def resolve_token_model(entity, tokens: dict | None) -> dict | None:
+    """Match an entity against the campaign ``tokens:`` catalog."""
+    if not tokens:
+        return None
+    lowered = {str(k).strip().lower(): v for k, v in tokens.items()}
+    for key in entity_token_keys(entity):
+        spec = lowered.get(key.lower())
+        if spec:
+            return dict(spec)
+    return None
+
+
+def resolve_token_src(root: Any, src: str | None) -> str | None:
+    """Resolve a token ``src`` (file or directory) to a serveable asset path.
+
+    Directory sources pick their entry file by extension preference
+    (``glb`` > ``gltf`` > ``obj`` > ``stl``). Returns the path relative to
+    ``<campaign>/assets`` or None when nothing exists on disk.
+    """
+    if not src or root is None:
+        return None
+    src = str(src).strip().lstrip('/')
+    if src.startswith('assets/'):
+        src = src[len('assets/'):]
+    assets_root = Path(root) / 'assets'
+    target = (assets_root / src)
+    try:
+        target = target.resolve()
+        if not str(target).startswith(str(assets_root.resolve())):
+            return None
+    except Exception:
+        return None
+    if target.is_file():
+        return src
+    if target.is_dir():
+        name = target.name
+        for ext in TOKEN_ENTRY_EXTS:
+            candidate = target / f'{name}{ext}'
+            if candidate.is_file():
+                return f'{src}/{candidate.name}'
+        for ext in TOKEN_ENTRY_EXTS:
+            try:
+                matches = sorted(target.glob(f'*{ext}'))
+            except Exception:
+                matches = []
+            if matches:
+                return f'{src}/{matches[0].name}'
+    for ext in TOKEN_ENTRY_EXTS:
+        if (assets_root / f'{src}{ext}').is_file():
+            return f'{src}{ext}'
+    return None

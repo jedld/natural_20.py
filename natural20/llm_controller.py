@@ -599,8 +599,14 @@ class LlmMcpController(GenericController):
 				"Only pick from the provided actions."
 			)
 		from natural20.utils.combat_intelligence import guidance
+		try:
+			from natural20.utils.combat_psychology import persona_lines
+			psyche = " ".join(persona_lines(None, entity))
+		except Exception:
+			psyche = ""
+		psyche = (psyche + " ") if psyche else ""
 		return (
-			f"{guidance(entity)} "
+			f"{guidance(entity)} {psyche}"
 			"Choose the single best action for this turn in this D&D-like tactical sim, as this creature would. "
 			"Guidelines: prefer lethal or high-impact attacks when safe; avoid provoking opportunity attacks unless payoff is high; "
 			"use movement to get line of sight or optimal range; conserve limited resources when impact is low; "
@@ -3129,32 +3135,52 @@ class HybridStrategistController(LlmMcpController):
 	# provider. Restored controllers rebind the strategist lazily on use.
 	strategist_resolver = None
 
+	# ``auto`` (default) follows the creature's intelligence tier (a wolf gets
+	# no plan), ``always`` plans for every creature, ``off`` never plans. The
+	# webapp stamps it from ``.ai.yaml`` ``combat.strategist``; an explicit
+	# ``always``/``off`` overrides the entity's own YAML ``strategist:`` key.
+	strategist_mode = None
+
 	MAX_ORDERS_CHARS = 1400
 	MAX_ORDERS_LINES = 16
 	MAX_ORDER_OPTIONS = 40
+
+	MOVE_TAG_GLOSSARY = {
+		'hold': 'hold (do not move)',
+		'retreat': 'retreat (step out of reach / fall back)',
+		'range': 'range (stay at range; do not close to melee)',
+		'engage': 'engage (close to melee)',
+		'hide': 'hide (move to a hiding spot)',
+	}
+
+	REACTION_RULE_ON = (
+		"A final line starting with 'Reaction:': what to do with your "
+		"reaction during the other creatures' turns (opportunity attacks, "
+		"counterspell, protective reactions), or 'Reaction: hold'."
+	)
+	REACTION_RULE_OFF = (
+		"Do NOT write a 'Reaction:' line at all - this creature cannot "
+		"think ahead to other creatures' turns."
+	)
 
 	STRATEGIST_SYSTEM_PROMPT = (
 		"You are the tactical advisor for {name}, a creature fighting in a "
 		"D&D 5e combat. A separate fast decision model will EXECUTE your "
 		"plan by choosing among the legal actions, so your job is only to "
 		"decide what to do, not to pick action indexes.\n"
+		"Plan for the mind this creature actually has: {guidance}\n"
 		"Using the battle state and the legal options provided, write "
-		"step-by-step orders:\n"
+		"orders:\n"
 		"1. One line of overall strategy for this turn (who to focus, "
 		"positioning, what to avoid).\n"
-		"2. Numbered concrete steps in execution order for this turn "
-		"(movement first if it matters, then action, bonus action, free "
-		"interactions). Name specific targets, distances and spell/attack "
-		"names.\n"
+		"2. At most {steps} numbered concrete steps in execution order for "
+		"this turn (movement first if it matters, then action, bonus "
+		"action, free interactions). Name specific targets, distances and "
+		"spell/attack names.\n"
 		"3. One line starting with 'MOVE:' using exactly one tag so the "
-		"executor can prioritize matching movement leaves: "
-		"hold (do not move) | retreat (step out of reach / fall back) | "
-		"range (stay at range; do not close to melee) | "
-		"engage (close to melee) | hide (move to a hiding spot) | "
-		"none (no movement preference).\n"
-		"4. A final line starting with 'Reaction:': what to do with your "
-		"reaction during the other creatures' turns (opportunity attacks, "
-		"counterspell, protective reactions), or 'Reaction: hold'.\n"
+		"executor can prioritize matching movement leaves: {move_tags} "
+		"| none (no movement preference).\n"
+		"4. {reaction_rule}\n"
 		"The 'rules for those options' and 'seen in this fight' blocks are "
 		"the ORACLE: the exact mechanics this engine implements for each "
 		"option, spell, effect and trait. Trust them over your memory of "
@@ -3236,6 +3262,11 @@ class HybridStrategistController(LlmMcpController):
 		except Exception:
 			pass
 
+	def strategist_policy_for(self, entity) -> dict:
+		"""Planning capability for ``entity`` under this controller's mode."""
+		from natural20.utils.combat_intelligence import strategist_policy
+		return strategist_policy(entity, getattr(self, 'strategist_mode', None))
+
 	def _ensure_orders(self, battle, entity, available_actions=None) -> None:
 		"""Generate this turn's strategist orders once, if a hybrid setup is live.
 
@@ -3243,9 +3274,25 @@ class HybridStrategistController(LlmMcpController):
 		``begin_turn``: the webapp VTT runs its own combat loop and never
 		calls controller ``begin_turn`` (only ``Battle.while_active`` does),
 		which would otherwise plan exactly once per creature per battle.
-		``begin_turn`` still forces a fresh plan when a host loop calls it."""
+		``begin_turn`` still forces a fresh plan when a host loop calls it.
+
+		Creatures whose wits cannot hold a plan (``combat_intelligence``
+		tiers) are not planned for at all: a wolf acts on instinct and the JEV
+		executor's own heuristics, so no tokens are spent writing a plan it
+		would not follow."""
 		if entity is None or not self._is_jev_live():
 			return  # no JEV executor to feed -> nothing to plan for
+		from natural20.utils.jev_decision import set_strategist_orders
+		try:
+			policy = self.strategist_policy_for(entity)
+		except Exception:
+			policy = None
+		if policy is not None and not policy['plan']:
+			try:
+				set_strategist_orders(battle, entity, None)
+			except Exception:
+				pass
+			return
 		try:
 			ctx = self._get_entity_context(entity)
 		except Exception:
@@ -3265,6 +3312,7 @@ class HybridStrategistController(LlmMcpController):
 		strategist = self.strategist_provider
 		if not self._strategist_is_usable(strategist):
 			return
+		policy = self.strategist_policy_for(entity)
 		from natural20.utils.jev_decision import (
 			JevActionPlanner, _leaf_desc, set_strategist_orders)
 		from natural20.utils import oracle
@@ -3323,16 +3371,14 @@ class HybridStrategistController(LlmMcpController):
 					 "effects and traits already observed on the battlefield):\n"
 					 + "\n".join("- " + line for line in observed))
 		# Movement is decided later by the executor's strategic move menu, not
-		# from available_actions — ground the MOVE: tag vocabulary here.
+		# from available_actions — ground the MOVE: tag vocabulary here, and
+		# only with the intents this creature's wits can actually follow.
+		tag_lines = [f"- {self.MOVE_TAG_GLOSSARY[t]}" for t in policy['move_tags']]
+		tag_lines.append("- none — no movement preference")
 		user += (
 			"\nmovement intents the executor understands (emit exactly one "
-			"line `MOVE: <tag>`):\n"
-			"- hold — do not move this turn\n"
-			"- retreat — fall back / step out of enemy reach\n"
-			"- range — stay at range; do not close to melee\n"
-			"- engage — close to melee with a foe\n"
-			"- hide — move to a hiding spot\n"
-			"- none — no movement preference\n"
+			"line `MOVE: <tag>`; any other intent is beyond what this "
+			"creature can do):\n" + "\n".join(tag_lines) + "\n"
 		)
 		user += "\n\nWrite this turn's orders for {name} now.".format(name=entity.name)
 
@@ -3344,10 +3390,17 @@ class HybridStrategistController(LlmMcpController):
 			user = "Standing orders for {name} (agent profile {label}):\n{persona}\n\n{body}".format(
 				name=entity.name, label=label, persona=persona, body=user)
 
+		move_tags = " | ".join(self.MOVE_TAG_GLOSSARY[t] for t in policy['move_tags']) or 'none'
 		messages = [
 			{'role': 'system',
 			 'content': self.STRATEGIST_SYSTEM_PROMPT.format(
-				 name=entity.name, max_lines=self.MAX_ORDERS_LINES)},
+				 name=entity.name,
+				 max_lines=min(self.MAX_ORDERS_LINES, policy['max_lines']),
+				 steps=max(1, policy['steps']),
+				 guidance=policy['guidance'],
+				 move_tags=move_tags,
+				 reaction_rule=(self.REACTION_RULE_ON if policy['reactions']
+								else self.REACTION_RULE_OFF))},
 			{'role': 'user', 'content': user},
 		]
 		try:
@@ -3355,7 +3408,12 @@ class HybridStrategistController(LlmMcpController):
 		except Exception as e:
 			logger.warning("[HybridStrategist] strategist LLM call failed: %s", e)
 			return
-		orders = self._clean_orders(reply)
+		orders = self._clean_orders(
+			reply,
+			max_lines=min(self.MAX_ORDERS_LINES, policy['max_lines']),
+			max_chars=min(self.MAX_ORDERS_CHARS, policy['max_chars']),
+			allow_reaction=policy['reactions'],
+		)
 		if not orders:
 			return
 
@@ -3371,15 +3429,22 @@ class HybridStrategistController(LlmMcpController):
 		except Exception as e:  # pragma: no cover - logging must not break combat
 			logger.debug("[HybridStrategist] plan log event failed: %s", e)
 
-	def _clean_orders(self, reply) -> Optional[str]:
+	def _clean_orders(self, reply, max_lines: Optional[int] = None,
+					 max_chars: Optional[int] = None,
+					 allow_reaction: bool = True) -> Optional[str]:
 		"""Trim the LLM reply to a bounded, plain-text multi-line plan.
 
 		``MOVE:`` / ``Reaction:`` lines are pinned so a verbose strategist
 		that burns the line budget on chain-of-thought cannot drop the tags
-		the JEV executor uses to constrain movement and reactions.
+		the JEV executor uses to constrain movement and reactions. The budget
+		follows the creature's intelligence tier (``combat_intelligence``);
+		``allow_reaction`` drops the reaction line for creatures that cannot
+		think ahead to other creatures' turns.
 		"""
 		if not isinstance(reply, str):
 			return None
+		max_lines = self.MAX_ORDERS_LINES if max_lines is None else max_lines
+		max_chars = self.MAX_ORDERS_CHARS if max_chars is None else max_chars
 		text = re.sub(r'<\|[^|]+\|>', '', reply)
 		text = re.sub(r'</?think[^>]*>', '', text, flags=re.IGNORECASE)
 		text = text.replace('```', '').strip()
@@ -3395,12 +3460,13 @@ class HybridStrategistController(LlmMcpController):
 				move_line = line
 				continue
 			if lower.startswith('reaction:'):
-				reaction_line = line
+				if allow_reaction:
+					reaction_line = line
 				continue
 			body.append(line)
 
 		# Prefer concrete steps; drop trailing reasoning once we hit the budget.
-		budget = self.MAX_ORDERS_LINES
+		budget = max_lines
 		reserved = (1 if move_line else 0) + (1 if reaction_line else 0)
 		body = body[: max(0, budget - reserved)]
 		lines = list(body)
@@ -3411,11 +3477,11 @@ class HybridStrategistController(LlmMcpController):
 		if not lines:
 			return None
 		joined = "\n".join(lines)
-		if len(joined) > self.MAX_ORDERS_CHARS:
+		if len(joined) > max_chars:
 			# Keep pinned tags even under the char cap.
 			pinned = [ln for ln in (move_line, reaction_line) if ln]
 			pinned_text = ("\n" + "\n".join(pinned)) if pinned else ""
-			head_budget = max(0, self.MAX_ORDERS_CHARS - len(pinned_text) - 3)
+			head_budget = max(0, max_chars - len(pinned_text) - 3)
 			head = "\n".join(body)
 			if len(head) > head_budget:
 				head = head[:head_budget] + '...'
@@ -3496,7 +3562,11 @@ class HybridStrategistController(LlmMcpController):
 	# ------------------------------------------------------------------ #
 
 	def to_dict(self) -> dict:
-		return super().to_dict()
+		base = super().to_dict()
+		mode = getattr(self, 'strategist_mode', None)
+		if mode:
+			base['strategist_mode'] = mode
+		return base
 
 	@staticmethod
 	def from_dict(data: dict) -> 'HybridStrategistController':
@@ -3509,4 +3579,5 @@ class HybridStrategistController(LlmMcpController):
 		for key in ('agent_name', 'agent_persona', 'agent_profile',
 		            'agent_strategist_profile'):
 			setattr(controller, key, data.get(key))
+		controller.strategist_mode = data.get('strategist_mode')
 		return controller

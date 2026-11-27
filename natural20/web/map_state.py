@@ -16,6 +16,10 @@ from natural20.web.vtt3d_catalog import (
     DOOR_KINDS,
     HATCH_KINDS,
     load_vtt3d_catalog,
+    load_vtt3d_tokens,
+    model_size_scale,
+    resolve_token_model,
+    resolve_token_src,
     resolve_vtt3d_model,
     resolve_vtt3d_walls,
 )
@@ -270,9 +274,12 @@ def build_map_geometry(battle_map, catalog=None) -> dict:
     }
 
 
-def entities_from_tiles(tiles: Iterable[dict], battle_map=None) -> list[dict]:
+def entities_from_tiles(tiles: Iterable[dict], battle_map=None,
+                        tokens: dict | None = None) -> list[dict]:
     """Visible creature tokens (origin square only) from renderer tiles."""
     entities = []
+    session = getattr(battle_map, 'session', None) if battle_map is not None else None
+    assets_root = getattr(session, 'root_path', None) if session is not None else None
     for tile in tiles:
         token = tile.get('entity')
         uid = tile.get('id')
@@ -304,11 +311,35 @@ def entities_from_tiles(tiles: Iterable[dict], battle_map=None) -> list[dict]:
             entry['grapple_tooltip'] = tile.get('grapple_tooltip') or ''
         if isinstance(tile.get('death_saves'), dict):
             entry['death_saves'] = dict(tile['death_saves'])
-        light = visual_light_from_entity(_lookup_map_entity(battle_map, uid)) if battle_map is not None else None
+        # entity hover quick-actions (loot/carry on corpses, etc.) come from
+        # JsonRenderer as tile attributes; forward them for VTT 3D chips
+        if tile.get('quick_interact'):
+            entry['quick_interact'] = tile['quick_interact']
+        entity = _lookup_map_entity(battle_map, uid) if battle_map is not None else None
+        light = visual_light_from_entity(entity) if entity is not None else None
         if light is None:
             light = tile.get('light') if isinstance(tile.get('light'), dict) else None
         if light:
             entry['light'] = light
+        model = resolve_token_model(entity, tokens) if entity is not None else None
+        if model is None and tokens:
+            # fall back to the tile identity (name) when the entity is gone
+            model = resolve_token_model({'name': entry.get('name')}, tokens)
+        if model and model.get('src'):
+            scale = model_size_scale(entity)
+            if scale is not None:
+                # Enlarge/Reduce and other size_override effects: the figure
+                # was authored at the creature's natural size, so the client
+                # multiplies it by this linear factor
+                model['size_scale'] = scale
+            src = model['src']
+            if src.startswith('http://') or src.startswith('https://'):
+                entry['model'] = model
+            else:
+                resolved = resolve_token_src(assets_root, src)
+                if resolved:
+                    model['src'] = resolved
+                    entry['model'] = model
         entities.append(entry)
     return entities
 
@@ -687,7 +718,9 @@ def build_map_state(
         },
         'tiles': flat_tiles,
         'geometry': geometry,
-        'entities': entities_from_tiles(flat_tiles, battle_map),
+        'entities': entities_from_tiles(flat_tiles, battle_map,
+                                        tokens=load_vtt3d_tokens(
+                                            getattr(battle_map, 'session', None))),
         'objects': objects,
         'lights': lights,
         'effects': map_visual_effects(battle_map),

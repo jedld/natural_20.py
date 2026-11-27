@@ -103,6 +103,28 @@ class TestEnlargeReduceSpell(TransmutationSpellTestCase):
         mods = self.ally.collect_modifiers('damage_roll', {'weapon': {'type': 'melee_attack'}})
         self.assertTrue(any(m['value'] == '1d4' for m in mods))
 
+    def test_enlarge_scales_3d_token_models(self):
+        """map_state's ``model.size_scale`` follows the size_override effect so
+        3D figure tokens grow/shrink with the spell (see vtt3d_catalog)."""
+        from natural20.web.vtt3d_catalog import model_size_scale
+
+        # natural size before the spell
+        self.assertIsNone(model_size_scale(self.ally))
+
+        props = self.session.load_spell('enlarge_reduce')
+        spell = EnlargeReduceSpell(self.session, self.caster, 'EnlargeReduceSpell', props)
+        spell.mode = 'enlarge'
+        EnlargeReduceSpell.apply(self.battle, {
+            'type': 'enlarge_reduce',
+            'source': self.caster,
+            'target': self.ally,
+            'effect': spell,
+            'mode': 'enlarge',
+        }, self.session)
+
+        self.assertEqual(self.ally.size(), 'large')
+        self.assertEqual(model_size_scale(self.ally), 2.0)
+
     def test_enlarge_enemy_must_pass_constitution_save(self):
         props = self.session.load_spell('enlarge_reduce')
         spell = EnlargeReduceSpell(self.session, self.caster, 'EnlargeReduceSpell', props)
