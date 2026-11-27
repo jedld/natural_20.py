@@ -262,6 +262,9 @@ class GenericController(Controller):
         if (event or {}).get('type') == 'counterspell':
             from natural20.utils.counterspell import choose_counterspell
             return choose_counterspell(entity, battle, valid_actions, event)
+        if (event or {}).get('type') == 'defensive_cast':
+            from natural20.spell.defensive_cast_spell import choose_defensive_cast_option
+            return choose_defensive_cast_option(entity, battle, valid_actions, event)
         action = self._sort_actions(entity, battle, valid_actions)[0]
         return action
 

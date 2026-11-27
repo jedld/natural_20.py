@@ -1,0 +1,25 @@
+---
+name: Marlow
+race: elf
+subrace: high_elf
+classes:
+  wizard: 5
+description: A wizard who knows the 2024 Defensive Cast reaction
+level: 5
+hit_die: inherit
+max_hp: 32
+ability:
+  str: 8
+  dex: 14
+  con: 14
+  int: 18
+  wis: 12
+  cha: 10
+spellbook:
+  - defensive_cast
+  - magic_missile
+prepared_spells:
+  - firebolt
+  - defensive_cast
+  - magic_missile
+inventory: []

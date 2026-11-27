@@ -63,6 +63,9 @@ class SpellAction(Action):
         name = "SpellAction: unknown"
         if self.spell_action:
             name = f"SpellAction: {self.spell_action.short_name()}"
+            opt = (self.opts or {}).get('cast_option')
+            if isinstance(opt, dict) and opt.get('label'):
+                name += f" ({opt['label']})"
             if self.at_level != self.level:
                 name += f" upcasted at level {self.at_level}"
             if self.target:
@@ -233,6 +236,14 @@ class SpellAction(Action):
             return False
 
         if resource == "reaction" and not entity.has_reaction(battle):
+            return False
+
+        # One reaction spell per turn (both editions; the reaction itself is
+        # usually the limit, but the engine tracks the spell budget
+        # separately so features that grant extra reactions do not also
+        # multiply reaction spells). ``battle`` may be None out of combat.
+        if resource == "reaction" and battle is not None \
+                and not battle.can_cast_reaction_spell(entity):
             return False
 
         return True

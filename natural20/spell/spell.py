@@ -42,6 +42,9 @@ def consume_resource(battle, source, item, as_scroll=False, cast_level=None, cas
             battle.consume(source, "action")
         elif resource == "reaction":
             battle.consume(source, "reaction")
+            # Reaction spells share the one-per-turn spell budget
+            # (Counterspell, Shield, Defensive Cast, Hellish Rebuke, ...).
+            battle.consume_reaction_spell(source)
         elif resource == "bonus_action":
             battle.consume(source, "bonus_action")
 

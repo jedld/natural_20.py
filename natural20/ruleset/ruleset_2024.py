@@ -84,3 +84,6 @@ class Ruleset2024(Ruleset2014):
 
     def squeeze_attack_modifiers(self) -> bool:
         return bool(self._override("squeeze_attack_modifiers", False))
+
+    def shield_ac_bonus(self) -> int:
+        return int(self._override("shield_ac_bonus", 2))

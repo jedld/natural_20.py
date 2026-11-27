@@ -32,8 +32,13 @@ class ShieldSpell(Spell):
     @staticmethod
     def ac_bonus(entity, effect):
         # AC bonuses from different sources stack (add onto any previous
-        # active value).
-        return (int((effect or {}).get('value') or 0)) + 5
+        # active value). The Shield bonus itself is edition-dependent:
+        # +5 (PHB 2014) vs +2 (PHB 2024).
+        try:
+            bonus = entity.session.ruleset.shield_ac_bonus()
+        except Exception:
+            bonus = 5
+        return (int((effect or {}).get('value') or 0)) + bonus
 
     @staticmethod
     def start_of_turn(entity, opts=None):
@@ -51,9 +56,14 @@ class ShieldSpell(Spell):
 
         spell = battle.session.load_spell('shield')
         original_action = opts.get('original_action', None)
+        # PHB 2014 Shield is +5 AC; PHB 2024 reprints it at +2.
+        try:
+            shield_bonus = battle.session.ruleset.shield_ac_bonus()
+        except Exception:
+            shield_bonus = 5
 
         if attack_roll is None or (
-            attack_roll.result() in range(effective_ac, effective_ac + 5)
+            attack_roll.result() in range(effective_ac, effective_ac + shield_bonus)
             # Never spend the slot/reaction on a natural 20 (it hits even at
             # +5 AC) or a natural 1 (it already missed).
             and not attack_roll.nat_20()
@@ -108,12 +118,12 @@ class ShieldSpell(Spell):
                 raise AsyncReactionHandler(entity, result, original_action, 'shield')
             if result:
                 shield_spell.consume(battle)
-                # The +5 AC already counts against the triggering attack.
+                # The AC bonus already counts against the triggering attack.
                 blocks_attack = (
                     attack_roll is not None
                     and effective_ac is not None
                     and not attack_roll.nat_20()
-                    and attack_roll.result() < effective_ac + 5
+                    and attack_roll.result() < effective_ac + shield_bonus
                 )
                 return [[event], 'force_miss' if blocks_attack else False]
             else:

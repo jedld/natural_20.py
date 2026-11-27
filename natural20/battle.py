@@ -522,6 +522,9 @@ class Battle():
             # modeled). Opportunity attacks, Shield, and NPC reactions all
             # work from combat start.
             'reaction': 1,
+            # Reaction *spells* budget (Counterspell, Shield, Defensive Cast,
+            # ...). Defaults to the ruleset's reaction_spell_per_turn (1).
+            'reaction_spell': 1,
             'movement': 0,
             'stealth': 0,
             'statuses': set(),
@@ -1489,13 +1492,28 @@ class Battle():
     # @param entity [Natural20::Entity]
     # @param resource [str]
     def consume(self, entity, resource, qty=1):
-        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction', 'legendary_actions']
+        valid_resources = ['action', 'reaction', 'bonus_action', 'movement', 'free_object_interaction', 'legendary_actions', 'reaction_spell']
         if resource not in valid_resources:
             raise Exception('invalid resource')
 
         if self.entity_state_for(entity):
             entity_state = self.entity_state_for(entity)
             entity_state[resource] = max(0, entity_state[resource] - qty)
+
+    def can_cast_reaction_spell(self, entity):
+        """Is a reaction spell (Counterspell, Shield, Defensive Cast, ...) still
+        available this turn for ``entity``? Both editions allow at most one
+        (``ruleset.reaction_spell_per_turn``)."""
+        state = self.entity_state_for(entity)
+        if state is None:
+            return False
+        return state.get('reaction_spell', 1) > 0
+
+    def consume_reaction_spell(self, entity):
+        """Spend one reaction-spell slot for ``entity`` (no-op outside battle)."""
+        state = self.entity_state_for(entity)
+        if state is not None:
+            state['reaction_spell'] = max(0, state.get('reaction_spell', 1) - 1)
 
     def opposing(self, entity1, entity2):
         source_state1 = self.entity_state_for(entity1)

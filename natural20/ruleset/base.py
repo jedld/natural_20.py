@@ -170,3 +170,13 @@ class Ruleset(ABC):
         the SRD 5.1 +-2). 2024 squeezing is purely a movement constraint: no
         attack modifiers."""
         return bool(self._override("squeeze_attack_modifiers", True))
+
+    def shield_ac_bonus(self) -> int:
+        """AC bonus granted by the Shield spell (2014: +5, 2024: +2)."""
+        return int(self._override("shield_ac_bonus", 5))
+
+    def reaction_spell_per_turn(self) -> int:
+        """Spell casts using a reaction allowed per turn. Both editions allow a
+        single reaction, so at most one reaction spell; a house ruleset can
+        raise it."""
+        return int(self._override("reaction_spell_per_turn", 1))

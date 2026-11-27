@@ -181,3 +181,11 @@ blink:
     Roll 1d6 at the end of each of your turns for the duration. On a 4–6 you vanish to the
     Ethereal Plane. At the start of your next turn, or when the spell ends, you return to an
     unoccupied space within 10 feet of where you vanished.
+
+shield:
+  description: >-
+    An invisible barrier of magical force appears and protects you. Until the
+    start of your next turn, you have a +2 bonus to AC, including against the
+    triggering attack, and you take no damage from magic missile. (The 2024
+    reprint of Shield; the engine applies the +2 via
+    ``ruleset.shield_ac_bonus``.)

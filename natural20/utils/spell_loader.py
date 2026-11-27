@@ -52,6 +52,7 @@ def _build_spell_class_registry():
     from natural20.spell.cure_wounds_spell import CureWoundsSpell
     from natural20.spell.guiding_bolt_spell import GuidingBoltSpell
     from natural20.spell.shield_spell import ShieldSpell
+    from natural20.spell.defensive_cast_spell import DefensiveCastSpell
     from natural20.spell.bless_spell import BlessSpell
     from natural20.spell.protection_from_poison_spell import ProtectionFromPoisonSpell
     from natural20.spell.toll_the_dead_spell import TollTheDeadSpell
@@ -208,6 +209,7 @@ def _build_spell_class_registry():
         'MagicMissileSpell': MagicMissileSpell,
         'RayOfFrostSpell': RayOfFrostSpell,
         'ShieldSpell': ShieldSpell,
+        'DefensiveCastSpell': DefensiveCastSpell,
         'SacredFlameSpell': SacredFlameSpell,
         'CureWoundsSpell': CureWoundsSpell,
         'GuidingBoltSpell': GuidingBoltSpell,
