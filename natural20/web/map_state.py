@@ -315,6 +315,8 @@ def entities_from_tiles(tiles: Iterable[dict], battle_map=None,
         # JsonRenderer as tile attributes; forward them for VTT 3D chips
         if tile.get('quick_interact'):
             entry['quick_interact'] = tile['quick_interact']
+        if tile.get('creature_auras'):
+            entry['creature_auras'] = tile['creature_auras']
         entity = _lookup_map_entity(battle_map, uid) if battle_map is not None else None
         light = visual_light_from_entity(entity) if entity is not None else None
         if light is None:

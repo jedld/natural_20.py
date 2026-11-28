@@ -8,8 +8,12 @@ Flames race across your body for the duration (concentration, 1 minute):
 - You can use an action to create a 15-foot line of flame (Dex save, 4d8
   fire, half on success) — see ``natural20/actions/flame_line_action.py``.
 
-The light-shedding part is DM-narrated. The moving 5-foot aura reuses the
-Spirit Guardians emanation machinery with the save skipped (``dc=100``).
+The flames shed bright light in a 30-foot radius and dim light for an
+additional 30 feet via a ``light_override`` effect (2D light map and 3D
+token lamp both read ``Entity.light_properties``). The moving 5-foot aura
+reuses the Spirit Guardians emanation machinery with the save skipped
+(``dc=100``) and renders as a creature aura ring (see
+``natural20/utils/creature_auras.py``).
 """
 from __future__ import annotations
 
@@ -21,6 +25,8 @@ from natural20.spell.spell import Spell
 
 class InvestitureFlameAuraZone(SpiritGuardiansZone):
     """5-foot emanation of flame: 1d10 fire, no saving throw."""
+
+    zone_name = 'investiture_of_flame'
 
     def strike(self, entity, reason='turn_start'):
         if not self.affects(entity):
@@ -53,6 +59,10 @@ class InvestitureFlameAuraZone(SpiritGuardiansZone):
 
 class InvestitureOfFlameEffect:
 
+    #: SRD: bright light in 30 ft, dim light for an additional 30 ft.
+    BRIGHT_FEET = 30
+    DIM_FEET = 30
+
     def __init__(self, source, zone, spell_properties=None):
         self.source = source
         self.zone = zone
@@ -77,6 +87,19 @@ class InvestitureOfFlameEffect:
     def resistance_override(entity, opt=None):
         opt = opt or {}
         return list(opt.get('value') or []) + ['cold']
+
+    @staticmethod
+    def light_override(entity, opt=None):
+        """Read by Entity.light_properties: the caster sheds SRD flame light
+        (bright 30 ft, dim for an additional 30 ft). Feeds the 2D light map
+        (StaticLightBuilder) and the 3D token lamp (map_state light payload)."""
+        opt = opt or {}
+        cur_bright = opt.get('bright', 0) or 0
+        cur_dim = opt.get('dim', 0) or 0
+        return {
+            'bright': max(cur_bright, InvestitureOfFlameEffect.BRIGHT_FEET),
+            'dim': max(cur_dim, InvestitureOfFlameEffect.DIM_FEET),
+        }
 
     def dismiss(self, entity, descriptor=None, opts=None):
         if self.zone is not None:
@@ -134,6 +157,8 @@ class InvestitureOfFlameSpell(Spell):
         source.register_effect('immunity_override', InvestitureOfFlameEffect,
                                effect=effect, source=source, duration=duration)
         source.register_effect('resistance_override', InvestitureOfFlameEffect,
+                               effect=effect, source=source, duration=duration)
+        source.register_effect('light_override', InvestitureOfFlameEffect,
                                effect=effect, source=source, duration=duration)
         statuses = getattr(source, 'statuses', None)
         if isinstance(statuses, list) and 'investiture_of_flame' not in statuses:

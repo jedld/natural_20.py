@@ -183,10 +183,65 @@ def test_investiture_of_flame_aura_and_line(tmp_path):
     from natural20.actions.flame_line_action import FlameLineAction
     assert FlameLineAction.can(caster, arena.battle)
     line = FlameLineAction(arena.session, caster, 'investiture_flame_line')
+    # The web route builds the action with a zero-arg build_map() (regression:
+    # it used to require an argument, so clicking the action bar 500'd).
+    built = line.build_map()
+    assert built['param'][0]['type'] == 'select_empty_space'
     line.target = [8, 2]
     DieRoll.fudge(20)
     line.resolve(arena.session, arena.map, {'battle': arena.battle})
     assert any(r['type'] == 'flame_line_damage' for r in line.result)
+    # Renderers: exact footprint + VFX key in the animation payload.
+    assert line.line_squares
+    extra = line.animation_extra()
+    assert extra['special_effect'] == 'investiture_flame_line'
+    assert extra['target_squares'] == line.line_squares
+    preview = FlameLineAction(arena.session, caster, 'investiture_flame_line') \
+        .preview_target_squares(arena.map, 8, 2)
+    assert {tuple(s) for s in preview} == {tuple(s) for s in line.line_squares}
+
+
+def test_investiture_of_flame_sheds_srd_light(tmp_path):
+    """SRD: bright light 30 ft, dim for an additional 30 (engine 'dim' is
+    the extra ring). Ends with the spell."""
+    arena = Arena(tmp_path, ruleset='5e-2024', packs=EE, caster='druid',
+                  spells=['investiture_of_flame'], slot_class='druid')
+    caster = arena.caster
+    assert caster.light_properties() is None
+    arena.cast('investiture_of_flame', 6, caster)
+    assert caster.light_properties() == {'dim': 30, 'bright': 30}
+    # Dismissal (concentration break / expiry) clears the light along with
+    # the immunities, since all registrations share the effect object.
+    caster.remove_effect('investiture_of_flame')
+    assert caster.light_properties() is None
+
+
+def test_investiture_of_flame_render_payload(tmp_path):
+    """2D/3D rendering: deduped effect icon, creature aura ring on the
+    token tile, forwarded into the 3D entity payload."""
+    from natural20.web.json_renderer import JsonRenderer
+    from natural20.web.map_state import build_map_state, flatten_tiles
+    arena = Arena(tmp_path, ruleset='5e-2024', packs=EE, caster='druid',
+                  spells=['investiture_of_flame'], slot_class='druid')
+    caster = arena.caster
+    arena.cast('investiture_of_flame', 6, caster)
+    zone = next(z for z in arena.battle.active_zones
+                if z.shape == 'emanation')
+    assert zone.name == 'investiture_of_flame'
+
+    rows = JsonRenderer(arena.map, arena.battle).render(entity_pov=[caster])
+    token = next(t for t in flatten_tiles(rows) if t.get('entity'))
+    assert token['effects'] == ['investiture_of_flame']  # deduped
+    assert token['creature_auras'] == [
+        {'name': 'investiture_of_flame', 'radius_ft': 5, 'radius_tiles': 1},
+    ]
+    state = build_map_state(arena.map, rows)
+    entry = next(e for e in state['entities']
+                 if e['uid'] == caster.entity_uid)
+    assert entry['creature_auras'] == token['creature_auras']
+    # SRD flame light reaches the 3D lamp payload (origin: effect).
+    assert entry['light']['bright'] == 30.0
+    assert entry['light']['origin'] == 'effect'
 
 
 def test_vorpal_beheading_roll(tmp_path):

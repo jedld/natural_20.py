@@ -50,9 +50,9 @@ class FlameLineAction(Action):
         except Exception:
             return 13
 
-    def build_map(self, action):
+    def build_map(self):
         def set_target(target):
-            new_action = action.clone()
+            new_action = self.clone()
             new_action.target = target
             return new_action
 
@@ -62,6 +62,25 @@ class FlameLineAction(Action):
                        'require_los': False}],
             'next': set_target,
         }
+
+    def preview_target_squares(self, battle_map, x, y):
+        """Hover preview for the web VTT: the 15x5 ft line the cast would
+        produce if the caster clicked (x, y) right now."""
+        origin = battle_map.position_of(self.source)
+        if origin is None:
+            return []
+        squares = battle_map.squares_in_line(
+            tuple(origin), (int(x), int(y)), 15, 5, require_los=False)
+        return [[int(sx), int(sy)] for (sx, sy) in squares]
+
+    def animation_extra(self):
+        """Generic ``action_animator`` hook: fields merged into the socket
+        animation payload. ``special_effect`` picks the 2D/3D renderer,
+        ``target_squares`` carries the exact flame footprint."""
+        extra = {'special_effect': 'investiture_flame_line'}
+        if getattr(self, 'line_squares', None):
+            extra['target_squares'] = self.line_squares
+        return extra
 
     def resolve(self, session, map=None, opts=None):
         battle = (opts or {}).get('battle')
@@ -79,6 +98,9 @@ class FlameLineAction(Action):
         direction = (int(target[0]), int(target[1]))
         squares = battle_map.squares_in_line(origin, direction, 15, 5,
                                              require_los=False)
+        # Renderers (2D overlay / 3D flame wall) animate along these squares;
+        # ``action_animator`` forwards them as ``target_squares``.
+        self.line_squares = [[int(x), int(y)] for (x, y) in squares]
         dc = self._spell_dc(battle)
         from natural20.spell.extensions.save_check import SaveCheck
         spell_props = {'name': 'Investiture of Flame', 'id': 'investiture_of_flame'}

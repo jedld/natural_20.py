@@ -90,6 +90,13 @@ def _aura_active(owner):
     return True
 
 
+def active_auras_of(entity):
+    """Aura definitions projected right now (owner conscious and up)."""
+    if not _aura_active(entity):
+        return []
+    return auras_of(entity)
+
+
 def _battle_for(entity, battle=None):
     if battle is not None:
         return battle

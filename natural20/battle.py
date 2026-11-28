@@ -367,6 +367,16 @@ def action_animator(action, battle=None):
         special_effect = _npc_special_effect(action)
         if special_effect:
             message['special_effect'] = special_effect
+        # Generic per-action renderer extras (e.g. Line of Flame ships its
+        # footprint squares and a spell_effects.js VFX key).
+        extra = getattr(action, 'animation_extra', None)
+        if callable(extra):
+            try:
+                extra = extra()
+            except Exception:
+                extra = None
+            if isinstance(extra, dict):
+                message.update(extra)
         return {'type': 'spell', 'message': message}
 
 class Battle():

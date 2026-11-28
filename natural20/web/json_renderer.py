@@ -27,6 +27,7 @@ from natural20.web.terrain_tooltip import build_terrain_tooltip
 from natural20.web.grapple_info import grapple_tile_attributes
 from natural20.web.death_save_info import death_save_tile_attributes
 from natural20.utils.magical_aura import magical_auras_for_tile, viewer_has_detect_magic
+from natural20.utils.creature_auras import creature_auras
 
 
 def _is_empty_terrain_object(obj):
@@ -706,6 +707,7 @@ class JsonRenderer:
                             object_info['wall_of_thorns_marker'] = bool(object_entity.properties.get('wall_of_thorns'))
                             object_info['silence_marker'] = bool(object_entity.properties.get('silenced'))
                             object_info['flaming_sphere_marker'] = bool(object_entity.properties.get('flaming_sphere'))
+                            object_info['bonfire_marker'] = bool(object_entity.properties.get('bonfire'))
     
                             is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
                                 object_entity.properties.get('tiny_hut_dome')
@@ -863,7 +865,11 @@ class JsonRenderer:
                                 'prone': entity.prone(),
                                 'dead': entity.dead(),
                                 'unconscious': entity.unconscious(),
-                                'effects' : [str(effect['effect']) for effect in entity.current_effects()],
+                                'effects' : list(dict.fromkeys(
+                                    str(effect['effect']) for effect in entity.current_effects())),
+                                'creature_auras': creature_auras(
+                                    entity, self.battle, self.map,
+                                    feet_per_grid=self.map.feet_per_grid),
                                 'mirror_images': MirrorImageSpell.images_remaining_for(entity),
                                 'team_group': team_group,
                                 'team_border_tint': team_border_tint

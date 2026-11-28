@@ -1099,6 +1099,10 @@ class EventManager:
                 "(it blocks line of sight; moving through costs 4 ft per ft, "
                 "and entering or ending a turn there risks 7d8 slashing damage)."
             ),
+            'investiture_flame_line': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} traces a line of flame, searing "
+                "anyone who fails their Dexterity save."
+            ),
             'spike_growth_damage': lambda event: self.output_logger.log(
                 f"{self.decorate_name(event.get('target'))} is torn by Spike Growth thorns."
             ),

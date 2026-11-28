@@ -39,6 +39,10 @@ class SpiritGuardiansEffect:
 class SpiritGuardiansZone(PersistentAoEZone):
     __slots__ = ('source', 'dc', 'dice', 'damage_type', 'radius_ft', '_struck')
 
+    #: Zone name reported to the battlefield and VTT renderers; subclasses
+    #: override it (Investiture of Flame) so aura rendering can style itself.
+    zone_name = 'spirit_guardians'
+
     def __init__(self, source, battle, battle_map, spell, *, dice, damage_type, dc,
                  radius_ft=15, duration_rounds=100):
         super().__init__(
@@ -46,7 +50,7 @@ class SpiritGuardiansZone(PersistentAoEZone):
             battle=battle,
             map=battle_map,
             squares=[],
-            name='spirit_guardians',
+            name=self.zone_name,
             shape='emanation',
             duration_rounds=duration_rounds,
             concentration=True,
