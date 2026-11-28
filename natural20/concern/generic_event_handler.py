@@ -223,6 +223,19 @@ class GenericEventHandler:
             resolve_area_save(entity, self.properties['area_save'], battle=opts.get('battle'),
                               battle_map=self._resolve_map(entity), session=self.session)
 
+        if self.properties.get('teleport_destinations'):
+            # Grant/revise Teleport-spell destinations on any event
+            # (docs/TELEPORT_DESTINATIONS.md). `target` defaults to the
+            # triggering entity ('self'), or party/all_characters/uid:<uid>.
+            from natural20.utils.teleport_destinations import apply_destination_ops
+            trigger = opts.get('target') or entity
+            _applied, errs = apply_destination_ops(
+                self.session, self.properties['teleport_destinations'],
+                source=trigger, battle=opts.get('battle'))
+            for _err in errs:
+                self.session.event_manager.received_event(
+                    {'event': 'console', 'source': entity, 'message': _err})
+
         if self.properties.get('update_state'):
             update_state_properties = self.properties['update_state']
 

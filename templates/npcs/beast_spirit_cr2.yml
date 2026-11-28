@@ -8,6 +8,7 @@ description: A fey spirit shaped like a great beast of the wilds.
 outward_appearance: >-
   A translucent, moonlit predator with leaf-green fire in its eyes; its paws
   barely bend the grass.
+token_image: token_beast_spirit_cr2.png
 size: large
 race:
   - beast

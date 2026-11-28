@@ -6,6 +6,7 @@ description: A fey spirit shaped like a nimble beast of the wilds.
 outward_appearance: >-
   A slender wisp of a creature, fur and feathers suggested more than drawn,
   eyes like green lanterns.
+token_image: token_beast_spirit_cr_quarter.png
 size: medium
 race:
   - beast

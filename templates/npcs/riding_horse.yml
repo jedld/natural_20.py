@@ -1,0 +1,38 @@
+---
+kind: Riding Horse
+label: Riding Horse
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A riding horse (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 10
+max_hp: 13
+hp_die: 2d10
+speed: 60
+passive_perception: 10
+token:
+ - R
+color: "#92400e"
+token_image: token_riding_horse.png
+ability:
+  str: 16
+  dex: 10
+  con: 12
+  int: 2
+  wis: 11
+  cha: 7
+cr: 0.25
+xp: 25
+proficiency_bonus: 2
+actions:
+  - name: hooves
+    label: Hooves
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 8
+    damage_die: 2d4+3
+    damage_type: bludgeoning

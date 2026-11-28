@@ -5,6 +5,7 @@ kind: Beast Spirit (CR 1/2)
 description: A fey spirit shaped like a sturdy beast of the wilds.
 outward_appearance: >-
   A small-pricked spirit-beast of bramble and mist, snout low to the ground.
+token_image: token_beast_spirit_cr_half.png
 size: medium
 race:
   - beast

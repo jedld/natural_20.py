@@ -795,6 +795,63 @@ def attack_target_issue(source, target, npc_action):
     return None
 
 
+def charge_config(npc_action):
+    """``charge`` key of an NPC action: extra damage and riders when the
+    creature first moves straight toward the target.
+
+        actions:
+          - name: Gore
+            charge:
+              distance_ft: 10          # net closing movement required
+              damage_die: 2d8
+              damage_type: piercing
+              save_dc: strength:14     # optional save the target makes
+              push_ft: 10              # on a failed save
+              prone: true              # and knocked prone
+
+    The engine tracks how far each combatant has moved and where it stood at
+    the start of its turn (battle entity state ``movement_used_ft`` and
+    ``turn_start_pos``), so "moves at least N feet straight toward a target"
+    resolves as: closing distance and movement used both >= distance_ft.
+    """
+    if not isinstance(npc_action, dict):
+        return None
+    cfg = npc_action.get('charge')
+    if not isinstance(cfg, dict) or not cfg.get('damage_die'):
+        return None
+    return cfg
+
+
+def charge_met(battle, attacker, target, cfg):
+    """Has ``attacker`` moved far enough straight toward ``target`` this turn?"""
+    if battle is None or cfg is None:
+        return False
+    state = battle.entity_state_for(attacker)
+    if not state:
+        return False
+    need = float(cfg.get('distance_ft', 10))
+    if float(state.get('movement_used_ft') or 0) < need:
+        return False
+    battle_map = battle.map_for(attacker)
+    if battle_map is None:
+        return False
+    here = battle_map.position_of(attacker)
+    start = state.get('turn_start_position')
+    if not here or not start or tuple(here) == tuple(start):
+        return False
+    there = battle_map.position_of(target)
+    if not there:
+        return False
+
+    def squares(a, b):
+        # 5e grid distance (Chebyshev): diagonals cost the same as straight.
+        return max(abs(int(a[0]) - int(b[0])), abs(int(a[1]) - int(b[1])))
+
+    closing = squares(start, there) - squares(here, there)
+    feet = battle_map.feet_per_grid or 5
+    return closing * feet >= need
+
+
 def additional_damage_entries(npc_action, target=None):
     """``additional_damage`` riders of an NPC action or weapon.
 

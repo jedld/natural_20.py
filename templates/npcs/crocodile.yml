@@ -1,0 +1,46 @@
+---
+kind: Crocodile
+label: Crocodile
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A crocodile (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 12
+max_hp: 19
+hp_die: 3d10
+speed: 20
+speed_swim: 20
+passive_perception: 10
+token:
+ - C
+color: "#3f6212"
+token_image: token_crocodile.png
+ability:
+  str: 15
+  dex: 10
+  con: 13
+  int: 2
+  wis: 10
+  cha: 5
+skills:
+  stealth: 2
+cr: 0.5
+xp: 100
+proficiency_bonus: 2
+attributes:
+- hold_breath
+- hide_in_water
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 8
+    damage_die: 1d10+2
+    damage_type: piercing
+    grapple_instead:
+      escape_dc: 12

@@ -46,6 +46,52 @@ class TestWildShape(unittest.TestCase):
         # wolf is illegal below L2.
         self.assertFalse(ws.can_assume(wolf_props, 1))
 
+    # --- level/ruleset-gated availability (2014 default ruleset) ---
+
+    def test_l2_scan_swim_locked(self):
+        # 2014 level 2: no swim speeds, CR <= 1/4.
+        beasts = ws.available_beasts(2, session=self.session)
+        self.assertNotIn('giant_frog', beasts)
+        self.assertNotIn('brown_bear', beasts)
+        self.assertIn('boar', beasts)
+
+    def test_l4_scan_allows_swim(self):
+        # 2014 level 4 unlocks swimming beasts, still CR <= 1/4.
+        beasts = ws.available_beasts(4, session=self.session)
+        self.assertIn('giant_frog', beasts)
+        self.assertNotIn('crocodile', beasts)  # CR 1/2 is L8 in 2014
+
+    def test_l8_scan_allows_fly_and_cr1(self):
+        beasts = ws.available_beasts(8, session=self.session)
+        self.assertIn('owl', beasts)        # flight unlocked
+        self.assertIn('brown_bear', beasts)  # CR 1 unlocked
+        self.assertIn('crocodile', beasts)
+
+    def test_l13_catalog_not_stuck_at_l2(self):
+        # Regression: the pool used to be hardcoded to four L2 beasts.
+        beasts = set(ws.available_beasts(13, session=self.session))
+        self.assertIn('dire_wolf', beasts)
+        self.assertIn('brown_bear', beasts)
+        self.assertNotIn('hunter_shark', beasts)  # CR 2 beyond the 2014 cap
+
+    def test_moon_circle_higher_cr(self):
+        beasts = set(ws.available_beasts(13, session=self.session,
+                                         circle='circle_of_the_moon'))
+        self.assertIn('hunter_shark', beasts)  # CR 2, Moon cap at L13 is 3
+
+    def test_2024_ruleset_cr_progression(self):
+        from natural20.ruleset.factory import get_ruleset
+        r2024 = get_ruleset('5e-2024')
+        # 2024 CR 1/2 from level 4, swim never restricted, fly from 8.
+        beasts_l4 = set(ws.available_beasts(4, session=self.session, ruleset=r2024))
+        self.assertIn('crocodile', beasts_l4)
+        self.assertIn('giant_frog', beasts_l4)
+        self.assertNotIn('owl', beasts_l4)
+        self.assertNotIn('brown_bear', beasts_l4)  # CR 1 only at 8 in 2024
+        beasts_l8 = set(ws.available_beasts(8, session=self.session, ruleset=r2024))
+        self.assertIn('brown_bear', beasts_l8)
+        self.assertIn('owl', beasts_l8)
+
     def test_action_can_when_pool_available(self):
         self.assertTrue(WildShapeAction.can(self.druid, self.battle))
 

@@ -137,6 +137,8 @@ def _build_spell_class_registry():
     from natural20.spell.pass_without_trace_spell import PassWithoutTraceSpell
     from natural20.spell.disguise_self_spell import DisguiseSelfSpell
     from natural20.spell.rope_trick_spell import RopeTrickSpell
+    from natural20.spell.maze_spell import MazeSpell
+    import natural20.actions.maze_escape_action  # noqa: F401  (maze escape action)
     from natural20.spell.fear_spell import FearSpell
     from natural20.spell.strike_surge_spell import StrikeSurgeSpell
     from natural20.spell.push_creature_spell import PushCreatureSpell
@@ -189,16 +191,15 @@ def _build_spell_class_registry():
         HideousLaughterSpell,
         BlindnessDeafnessSpell,
         LightningBoltSpell,
-        MazeSpell,
         MinorIllusionSpell,
         OtilukesResilientSphereSpell,
         ProtectionFromEnergySpell,
         ScorchingRaySpell,
         SunbeamSpell,
         SunburstSpell,
-        TeleportSpell,
         WallOfForceSpell,
     )
+    from natural20.spell.teleport_spell import TeleportSpell
     # Create a mapping of spell names to spell classes
     spell_classes = {
         'ShockingGraspSpell': ShockingGraspSpell,

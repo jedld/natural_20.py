@@ -20,6 +20,7 @@ from natural20.item_library.room_service_buzzer import RoomServiceBuzzer
 from natural20.item_library.multi_switch import MultiSwitch
 from natural20.item_library.squeeze_terrain import SqueezeTerrain
 from natural20.item_library.rotating_mechanism import RotatingMechanism
+from natural20.item_library.lava_tile import LavaTile, build_lava_zones
 from natural20.player_character import PlayerCharacter
 from natural20.serializable_object import SerializableObject
 from natural20.npc import Npc
@@ -159,7 +160,23 @@ class Map(SerializableObject):
             self._setup_npcs()
             self._setup_entities()
             self._trigger_after_setup()
+            self._setup_hazard_zones()
         self._compute_lights()
+
+    def _setup_hazard_zones(self):
+        """Group placed hazard tiles (lava) into shared ticking zones.
+
+        Each contiguous patch of identical-config lava tiles becomes one
+        ``LavaZone`` registered on ``environment_zones``; battle start
+        promotes it onto ``battle.active_zones`` (enter / start-of-turn
+        fire damage), and exploration ticks deal the per-6-second burn.
+        """
+        lava_tiles = {}
+        for obj, pos in list(self.interactable_objects.items()):
+            if isinstance(obj, LavaTile):
+                lava_tiles[(int(pos[0]), int(pos[1]))] = obj
+        if lava_tiles:
+            build_lava_zones(self, lava_tiles, battle=None)
 
     def _materialize_layer_placements_from_yaml(self) -> None:
         """Apply map.layer_placements onto grid strings and in-memory layer grids."""
@@ -664,8 +681,10 @@ class Map(SerializableObject):
 
     def _trigger_after_setup(self):
         for trigger_name, trigger in self.triggers.items():
-            if trigger.get('type') == 'area':
-                self.area_triggers[trigger_name] = trigger
+            entries = trigger if isinstance(trigger, list) else [trigger]
+            for entry in entries:
+                if isinstance(entry, dict) and entry.get('type') == 'area':
+                    self.area_triggers[trigger_name] = entry
         for x in range(self.size[0]):
             for y in range(self.size[1]):
                 for obj in self.objects[x][y]:
@@ -2673,7 +2692,11 @@ class Map(SerializableObject):
         if opt is None:
             opt = {}
         if trigger_type in self.triggers:
-            for trigger in self.triggers[trigger_type]:
+            entries = self.triggers[trigger_type]
+            entries = entries if isinstance(entries, list) else [entries]
+            for trigger in entries:
+                if not isinstance(trigger, dict):
+                    continue
                 if trigger.get('if') and not source.eval_if(trigger.get('if'), opt):
                     continue
 
@@ -2681,6 +2704,16 @@ class Map(SerializableObject):
                     opt.get('ui_controller').show_message(trigger['content'])
                 elif trigger['type'] == 'battle_end':
                     return 'battle_end'
+                elif trigger['type'] == 'teleport_destinations':
+                    # Map event grants/revokes Teleport destinations
+                    # (docs/TELEPORT_DESTINATIONS.md).
+                    from natural20.utils.teleport_destinations import apply_destination_ops
+                    applied, errors = apply_destination_ops(
+                        self.session, trigger.get('destinations') or [],
+                        source=source, battle=opt.get('battle'))
+                    for line in errors:
+                        self.session.event_manager.received_event(
+                            {'event': 'console', 'source': source, 'message': line})
                 else:
                     raise ValueError(f"unknown trigger type {trigger['type']}")
 

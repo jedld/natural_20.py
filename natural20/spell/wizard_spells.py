@@ -766,10 +766,6 @@ class DispelMagicSpell(CounterspellSpell):
                 end_spell_on(target, outcome['effect'], outcome.get('caster'))
 
 
-class MazeSpell(CounterspellSpell):
-    pass
-
-
 class BigbysHandSpell(UtilityWizardSpell):
     TARGET_TYPES = ['point']
 
@@ -814,10 +810,6 @@ class GustOfWindSpell(AreaSaveSpell):
     BASE_LEVEL = 2
     SHAPE = 'line'
     SAVE = 'strength'
-
-
-class TeleportSpell(UtilityWizardSpell):
-    TARGET_TYPES = ['point']
 
 
 class MinorIllusionSpell(UtilityWizardSpell):

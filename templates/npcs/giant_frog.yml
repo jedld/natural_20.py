@@ -1,0 +1,44 @@
+---
+kind: Giant Frog
+label: Giant Frog
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A giant frog (SRD 5e beast)."
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 11
+max_hp: 18
+hp_die: 4d8
+speed: 30
+speed_swim: 30
+passive_perception: 12
+token:
+ - G
+color: "#3a7d44"
+token_image: token_giant_frog.png
+ability:
+  str: 12
+  dex: 13
+  con: 11
+  int: 2
+  wis: 10
+  cha: 3
+skills:
+  perception: 2
+  stealth: 3
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 4
+    damage_die: 1d6+1
+    damage_type: piercing
+    grapple_instead:
+      escape_dc: 11

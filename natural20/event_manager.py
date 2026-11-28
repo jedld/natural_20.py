@@ -55,6 +55,23 @@ def _spell_label(spell):
     return getattr(spell, 'name', None) or str(spell)
 
 
+# Teleport log phrasing (natural20.utils.teleport_destinations outcomes).
+FAMILIARITY_LOG_LABELS = {
+    'permanent_circle': 'a permanent circle',
+    'linked_object': 'a linked object',
+    'very_familiar': 'very familiar',
+    'seen_casually': 'seen casually',
+    'viewed_once': 'viewed once or described',
+    'false': 'a false destination',
+}
+TELEPORT_OUTCOME_LABELS = {
+    'mishap': 'mishap',
+    'similar_area': 'a similar area instead',
+    'off_target': 'off target',
+    'on_target': 'on target',
+}
+
+
 def _roll_vs_dc(event, roll_key='roll'):
     """``(1d20+3=15 vs DC 14)`` for a save/check event; ``(auto-fail)`` without a roll."""
     roll = event.get(roll_key)
@@ -758,6 +775,11 @@ class EventManager:
                 f"(Dexterity check {event['roll']} = {event['roll'].result()} vs DC {event['dc']})."),
             'life_drain': lambda event: self.output_logger.log(f"{self.show_name(event)} drains {event['value']} life from {self.show_target_name(event)}: its hit point maximum is reduced and {self.show_name(event)} regains that many hit points."),
             'grappled_on_hit': lambda event: self.output_logger.log(f"{self.show_name(event)} grapples {self.show_target_name(event)} (escape DC {event['escape_dc']}) instead of dealing {event['damage_type']} damage."),
+            'charge_rider': lambda event: (
+                self.output_logger.log(f"{self.show_target_name(event)} resists the charge (save {event['roll'].result()} vs DC {event['dc']})")
+                if event.get('saved') else
+                self.output_logger.log(f"{self.show_name(event)}'s charge bowls {self.show_target_name(event)} over (save {event['roll'].result()} vs DC {event['dc']})")
+            ),
             'charmed': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is charmed by {self.show_name(event)}."),
             'charm_ended': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is no longer charmed by {self.show_name(event)}."),
             'frightened': lambda event: self.output_logger.log(f"{self.show_target_name(event)} is frightened of {self.show_name(event)}."),
@@ -1132,8 +1154,57 @@ class EventManager:
             ),
             'rope_trick': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} casts Rope Trick; "
-                f"{', '.join(event.get('members') or []) or 'the caster'} climb into the hidden space."
+                f"{', '.join(event.get('members') or []) or 'the caster'} climb the rope "
+                f"into the hidden space."
             ),
+            'pocket_dimension_travel': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} "
+                f"{event.get('direction_label') or 'moves through the extradimensional entrance'}."
+            ),
+            'pocket_dimension_failed': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} tries to use the entrance, but "
+                f"{event.get('message') or 'it does not work'}."
+            ),
+            'pocket_dimension_rope': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} "
+                + ("pulls the rope up into the space; it vanishes from view outside."
+                   if event.get('stowed') else
+                   "lets the rope back down, opening the entrance again.")
+            ),
+            'pocket_dimension_closed': lambda event: self.output_logger.log(
+                f"{event.get('label') or 'The hidden space'} dissolves — "
+                f"everything inside drops out onto the ground."
+            ),
+            'maze_trapped': lambda event: self.output_logger.log(
+                f"{self.show_target_name(event)} is banished into a labyrinthine demiplane"
+                + (f" stalked by a {event.get('warden')}." if event.get('warden') else ".")
+            ),
+            'maze_escape': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} finds the way out of the labyrinth."
+                if event.get('success') else
+                f"{self.show_name(event)} prowls the labyrinth, found no way out {_roll_vs_dc(event)}."
+            ),
+            'teleport': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Teleport to {event.get('destination')} "
+                f"({FAMILIARITY_LOG_LABELS.get(event.get('familiarity'), event.get('familiarity'))}); "
+                + (
+                    f"mishap — the journey is violent "
+                    f"({', '.join(str(r) for r in (event.get('rolls') or []))} on d100) and "
+                    if event.get('outcome') == 'mishap' else
+                    f"{TELEPORT_OUTCOME_LABELS.get(event.get('outcome'), event.get('outcome'))} "
+                    f"({', '.join(str(r) for r in (event.get('rolls') or []))} on d100) and "
+                )
+                + (event.get('narrative') or 'they arrive where they intended')
+                + (f" on map '{event.get('map')}'" if event.get('map') else '')
+                + (f" — {', '.join(event.get('members') or [])}." if event.get('members') else ".")
+            ),
+            'teleport_failed': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} casts Teleport, but "
+                f"{event.get('message') or 'it fails'}."
+            ),
+            'teleport_destinations': lambda event: [
+                self.output_logger.log(line) for line in (event.get('lines') or [])
+            ] and None,
             'fear': lambda event: self.output_logger.log(
                 f"{self.show_name(event)} casts Fear: "
                 + ("; ".join(

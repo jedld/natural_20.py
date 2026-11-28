@@ -1,0 +1,64 @@
+---
+kind: Minotaur
+description: The minotaur is a ferocious beastian guardian of labyrinths. It
+  charges down prey with its horns and never forgets a path it has walked.
+size: large
+race:
+- monstrosity
+alignment: chaotic_evil
+default_ac: 14
+max_hp: 76
+hp_die: 9d10+27
+speed: 40
+passive_perception: 17
+darkvision: 60
+token:
+  - M┌
+  - ┘M
+color: '#8B4513'
+token_image: token_minotaur.png
+ability:
+  str: 18
+  dex: 11
+  con: 16
+  int: 6
+  wis: 16
+  cha: 9
+skills:
+  perception: 7
+languages:
+- abyssal
+cr: 3
+xp: 700
+proficiency_bonus: 2
+reckless: true
+attributes: []
+actions:
+  - name: Greataxe
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 17
+    damage_die: 2d12+4
+    damage_type: slashing
+  - name: Gore
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 13
+    damage_die: 2d8+4
+    damage_type: piercing
+    charge:
+      description: If the minotaur moves at least 10 feet straight toward a
+        target and then hits it with a gore attack on the same turn, the target
+        takes an extra 9 (2d8) piercing damage. If the target is a creature, it
+        must succeed on a DC 14 Strength saving throw or be pushed up to 10 feet
+        away and knocked prone.
+      distance_ft: 10
+      damage_die: 2d8
+      damage_type: piercing
+      save_dc: strength:14
+      push_ft: 10
+      prone: true

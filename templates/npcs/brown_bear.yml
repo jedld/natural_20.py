@@ -1,0 +1,53 @@
+---
+kind: Brown Bear
+label: Brown Bear
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A brown bear (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 11
+max_hp: 34
+hp_die: 4d10
+speed: 40
+speed_climb: 30
+passive_perception: 13
+token:
+ - B
+color: "#8b5e34"
+token_image: token_brown_bear.png
+ability:
+  str: 19
+  dex: 10
+  con: 16
+  int: 2
+  wis: 13
+  cha: 7
+skills:
+  perception: 3
+cr: 1
+xp: 200
+proficiency_bonus: 2
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 8
+    damage_die: 1d8+4
+    damage_type: piercing
+    multiattack_group: 1
+  - name: claws
+    label: Claws
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: slashing
+    multiattack_group: 1
+multiattack: bite,claws

@@ -512,69 +512,90 @@ class MoveAction(Action):
                 session=session,
             )
         elif item_type == 'move':
-            if item['map'].move_to(item['source'], *item['position'], battle):
-                if battle:
-                    # SRD "Hiding": you can't hide from something that can
-                    # see you. A hidden creature that steps into the clear
-                    # line of sight of a hostile stops being hidden the
-                    # moment it arrives there; the old stealth bonus only
-                    # survives when nobody on the other side sees the new
-                    # square (issue #6 item 56).
-                    reveal_if_exposed(battle, session, item['source'])
-                    path_taken = item['path']
-                    positions_entered = battle.entity_state_for(item['source'])['positions_entered']
-                    for p in path_taken:
-                        p_key = tuple(p)
-                        visit_count = positions_entered.get(p_key, 0)
-                        positions_entered[p_key] = visit_count + 1
+            # Voluntary movement charges hazard tiles (lava) through the
+            # per-step zone dispatch below; without this guard, the single
+            # ``Map.move_to`` hop below would ALSO fire the destination
+            # tile's ``on_enter`` and burn the mover twice for one move.
+            # Pushes/teleports call ``move_to`` directly (no flag), where the
+            # tile ``on_enter`` is the only hazard hook.
+            _hazard_guard = getattr(item['map'], '_lava_move_step_dispatch', False)
+            item['map']._lava_move_step_dispatch = True
+            try:
+                if item['map'].move_to(item['source'], *item['position'], battle):
+                    if battle:
+                        # SRD "Hiding": you can't hide from something that can
+                        # see you. A hidden creature that steps into the clear
+                        # line of sight of a hostile stops being hidden the
+                        # moment it arrives there; the old stealth bonus only
+                        # survives when nobody on the other side sees the new
+                        # square (issue #6 item 56).
+                        reveal_if_exposed(battle, session, item['source'])
+                        path_taken = item['path']
+                        positions_entered = battle.entity_state_for(item['source'])['positions_entered']
+                        for p in path_taken:
+                            p_key = tuple(p)
+                            visit_count = positions_entered.get(p_key, 0)
+                            positions_entered[p_key] = visit_count + 1
 
-                # Broadcast per-step movement so persistent zones (Spike
-                # Growth, Web, etc.) can react. Done here rather than in
-                # ``Map.move_to`` so teleport-style move_to calls (Misty
-                # Step, Teleporter objects) don't fire on every traversed
-                # square. Zones living on the map's ``environment_zones``
-                # (cast out of combat, or never promoted into the current
-                # battle) fire through the same twin dispatcher so Spike
-                # Growth damage works in and out of combat.
-                from natural20.environment_zones import (
-                    trigger_environment_movement_step,
-                )
-                prev = None
-                for step in item['path']:
-                    if battle and hasattr(battle, 'trigger_movement_step'):
-                        battle.trigger_movement_step(item['source'], prev, step)
-                    trigger_environment_movement_step(
-                        item['map'], item['source'], prev, step,
-                        event_manager=session.event_manager,
+                    # Broadcast per-step movement so persistent zones (Spike
+                    # Growth, Web, etc.) can react. Done here rather than in
+                    # ``Map.move_to`` so teleport-style move_to calls (Misty
+                    # Step, Teleporter objects) don't fire on every traversed
+                    # square. Zones living on the map's ``environment_zones``
+                    # (cast out of combat, or never promoted into the current
+                    # battle) fire through the same twin dispatcher so Spike
+                    # Growth damage works in and out of combat.
+                    from natural20.environment_zones import (
+                        trigger_environment_movement_step,
                     )
-                    prev = tuple(step)
+                    prev = None
+                    for step in item['path']:
+                        if battle and hasattr(battle, 'trigger_movement_step'):
+                            battle.trigger_movement_step(item['source'], prev, step)
+                        trigger_environment_movement_step(
+                            item['map'], item['source'], prev, step,
+                            event_manager=session.event_manager,
+                        )
+                        prev = tuple(step)
 
-                if item.get('as_legendary_action'):
-                    if battle and item.get('legendary_cost'):
-                        battle.consume(item['source'], 'legendary_actions', item['legendary_cost'])
-                elif item['as_dash'] and item['as_bonus_action']:
-                    battle.entity_state_for(item['source'])['bonus_action'] -= 1
-                elif item['as_dash']:
-                    battle.entity_state_for(item['source'])['action'] -= 1
-                elif battle:
-                    battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map_for(item['source']).feet_per_grid
+                    if battle:
+                        # Track feet moved this turn (Charge trait). Count the
+                        # squares actually entered, not the cost, so difficult
+                        # terrain does not fake extra straight-line movement.
+                        state = battle.entity_state_for(item['source'])
+                        steps = len(item['path'] or [])
+                        feet = (item['map'].feet_per_grid or 5)
+                        state['movement_used_ft'] = (
+                            state.get('movement_used_ft', 0) + steps * feet)
 
-                battle_map = item.get('map', None)
-                if battle_map is None:
-                    battle_map = battle.map_for(item['source'])
+                    if item.get('as_legendary_action'):
+                        if battle and item.get('legendary_cost'):
+                            battle.consume(item['source'], 'legendary_actions', item['legendary_cost'])
+                    elif item['as_dash'] and item['as_bonus_action']:
+                        battle.entity_state_for(item['source'])['bonus_action'] -= 1
+                    elif item['as_dash']:
+                        battle.entity_state_for(item['source'])['action'] -= 1
+                    elif battle:
+                        battle.entity_state_for(item['source'])['movement'] -= item['move_cost'] * battle.map_for(item['source']).feet_per_grid
 
-                session.event_manager.received_event({
-                    'event': 'move',
-                    'source': item['source'],
-                    'position': item['position'],
-                    'path': item['path'],
-                    'move_cost' : item['move_cost'],
-                    'feet_per_grid': battle_map.feet_per_grid,
-                    'as_dash': item['as_dash'],
-                    'as_bonus': item['as_bonus_action'],
-                    'as_legendary_action': bool(item.get('as_legendary_action')),
-                    'dragged_by': item.get('dragged_by'),
-                })
+                    battle_map = item.get('map', None)
+                    if battle_map is None:
+                        battle_map = battle.map_for(item['source'])
+
+                    session.event_manager.received_event({
+                        'event': 'move',
+                        'source': item['source'],
+                        'position': item['position'],
+                        'path': item['path'],
+                        'move_cost' : item['move_cost'],
+                        'feet_per_grid': battle_map.feet_per_grid,
+                        'as_dash': item['as_dash'],
+                        'as_bonus': item['as_bonus_action'],
+                        'as_legendary_action': bool(item.get('as_legendary_action')),
+                        'dragged_by': item.get('dragged_by'),
+                    })
+            finally:
+                item['map']._lava_move_step_dispatch = _hazard_guard
 
     def check_movement_acrobatics(self, actual_moves, dexterity_checks, battle):
         cutoff = len(actual_moves) - 1

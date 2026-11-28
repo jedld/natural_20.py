@@ -202,6 +202,13 @@ class SpellAction(Action):
         if environment_issue(entity, spell_details, battle):
             return False
 
+        # Spells with YAML ``requires_known_destination: true`` (Teleport) are
+        # not castable while the caster's destination database is empty.
+        if spell_details.get('requires_known_destination'):
+            from natural20.utils.teleport_destinations import list_destinations
+            if not list_destinations(slot_owner):
+                return False
+
         if not battle:
             return True
 

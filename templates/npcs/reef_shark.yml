@@ -1,0 +1,43 @@
+---
+kind: Reef Shark
+label: Reef Shark
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "Smaller than giant sharks and hunter sharks, reef sharks inhabit shallow waters and coral reefs, gathering in small packs to hunt. A full-grown specimen measures 6 to 10 feet long."
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 12
+max_hp: 22
+hp_die: 4d8
+speed: 0
+speed_swim: 40
+passive_perception: 12
+token:
+ - R
+color: "#64748b"
+token_image: token_reef_shark.png
+ability:
+  str: 14
+  dex: 13
+  con: 13
+  int: 1
+  wis: 10
+  cha: 4
+skills:
+  perception: 2
+cr: 0.5
+xp: 100
+proficiency_bonus: 2
+attributes:
+- water_breathing_only
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 6
+    damage_die: 1d8+2
+    damage_type: piercing

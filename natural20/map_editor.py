@@ -25,7 +25,7 @@ _FILLER_CHARS = {".", " ", None, ""}
 _WALL_HINTS = ("wall", "stone_wall", "barrier")
 _DOOR_HINTS = ("door",)
 _TELEPORTER_HINTS = ("teleporter",)
-_TERRAIN_OVERLAY_TYPES = frozenset({"water", "difficult_terrain", "briar", "ground"})
+_TERRAIN_OVERLAY_TYPES = frozenset({"water", "difficult_terrain", "briar", "ground", "lava"})
 # Legend types that are never objects.yml entries. Looking them up via
 # Session.load_object() reloads the whole catalog on every miss.
 _NON_OBJECT_CATALOG_TYPES = frozenset({"npc", "pc", "player", "spawn_point", "note"})
@@ -1507,6 +1507,7 @@ def _terrain_token_char(session, object_type: str) -> str:
             "difficult_terrain": "~",
             "briar": "▓",
             "stone_wall": "#",
+            "lava": "L",
         }
         candidate = fallback.get(object_type, "?")
     return candidate

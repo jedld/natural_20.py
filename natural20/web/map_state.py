@@ -172,6 +172,17 @@ def _token_squares(size_name) -> int:
     return _SIZE_SQUARES.get(str(size_name or 'medium').lower(), 1)
 
 
+def _is_party_sidekick(session, uid) -> bool:
+    """True when this token is a sidekick in a party (players may see its HP)."""
+    if session is None or not uid:
+        return False
+    try:
+        from natural20.sidekick import is_in_party_sidekick
+        return bool(is_in_party_sidekick(session, uid))
+    except Exception:
+        return False
+
+
 def build_map_geometry(battle_map, catalog=None) -> dict:
     """Derive solid-cell walls, thin edge walls, and doors from map objects."""
     width, height = battle_map.size
@@ -302,6 +313,7 @@ def entities_from_tiles(tiles: Iterable[dict], battle_map=None,
             'unconscious': bool(tile.get('unconscious')),
             'effects': tile.get('effects') or [],
             'is_npc': bool(tile.get('is_npc')),
+            'sidekick': _is_party_sidekick(session, uid),
             'line_of_sight': bool(tile.get('line_of_sight', True)),
         }
         if tile.get('grappled_by') or tile.get('grappling') or tile.get('grappled'):
@@ -423,10 +435,18 @@ def classify_object_kind(obj: dict, catalog: dict | None = None) -> str | None:
         return 'tree'
     if type_name == 'briar':
         return 'briar'
+    if type_name == 'lava' or 'lava' in name:
+        return 'lava'
     if type_name == 'spike_growth_tile':
         return 'thorns'
     if type_name == 'wall_of_thorns_tile':
         return 'thorns'
+    if type_name in ('bonfire', 'bonfire_tile') or 'bonfire' in name:
+        return 'campfire'
+    if type_name in ('overgrowth', 'overgrowth_tile') or 'overgrowth' in name:
+        return 'briar'
+    if type_name == 'healing_spirit_tile' or 'healing spirit' in name:
+        return 'lamp'
     cover = obj.get('cover')
     if cover in _COVER_LEVELS:
         return 'cover'

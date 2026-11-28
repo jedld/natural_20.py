@@ -1,0 +1,53 @@
+---
+kind: Giant Badger
+label: Giant Badger
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A giant badger (SRD 5e beast)."
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 10
+max_hp: 13
+hp_die: 2d8
+speed: 30
+speed_burrow: 10
+passive_perception: 11
+token:
+ - G
+color: "#d6d3d1"
+token_image: token_giant_badger.png
+ability:
+  str: 13
+  dex: 10
+  con: 15
+  int: 2
+  wis: 12
+  cha: 5
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+attributes:
+- poison_resistance
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 4
+    damage_die: 1d6+1
+    damage_type: piercing
+    multiattack_group: 1
+  - name: claws
+    label: Claws
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 6
+    damage_die: 2d4+1
+    damage_type: slashing
+    multiattack_group: 1
+multiattack: bite,claws

@@ -1,0 +1,48 @@
+---
+kind: Dire Wolf
+label: Dire Wolf
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A dire wolf (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 14
+max_hp: 37
+hp_die: 5d10
+speed: 50
+passive_perception: 13
+token:
+ - D
+color: "#6b7280"
+token_image: token_dire_wolf.png
+ability:
+  str: 17
+  dex: 15
+  con: 15
+  int: 3
+  wis: 12
+  cha: 7
+skills:
+  perception: 3
+  stealth: 4
+cr: 1
+xp: 200
+proficiency_bonus: 2
+attributes:
+- pack_tactics
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 10
+    damage_die: 2d6+3
+    damage_type: piercing
+    on_hit:
+      - description: "If the target is a Medium or smaller creature, it must succeed on a DC 12 Strength saving throw or be knocked prone."
+        save_dc: strength:12
+        if: "target:!object"
+        fail: status:prone

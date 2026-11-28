@@ -1,0 +1,44 @@
+---
+kind: Hunter Shark
+label: Hunter Shark
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "Smaller than a giant shark but larger and fiercer than a reef shark, a hunter shark haunts deep waters. It usually hunts alone, but multiple hunter sharks might feed in the same area. A fully grown hunter shark is 15 to 20 feet long."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 12
+max_hp: 45
+hp_die: 6d10
+speed: 0
+speed_swim: 40
+passive_perception: 12
+token:
+ - H
+color: "#475569"
+token_image: token_hunter_shark.png
+ability:
+  str: 18
+  dex: 13
+  con: 15
+  int: 1
+  wis: 10
+  cha: 4
+skills:
+  perception: 2
+cr: 2
+xp: 450
+proficiency_bonus: 2
+attributes:
+- water_breathing_only
+- blood_frenzy
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 13
+    damage_die: 2d8+4
+    damage_type: piercing

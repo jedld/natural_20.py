@@ -151,3 +151,14 @@ class Arena:
         for name, battle_map in (maps2 or {}).items():
             session2.register_map(name, battle_map)
         return session2, battle2, maps2
+
+    def serialize_all(self):
+        """Serialize every session map (dynamically created maps included)."""
+        return Serialization().serialize(self.session, self.battle, dict(self.session.maps))
+
+    @staticmethod
+    def deserialize(dump):
+        session2, battle2, maps2 = Serialization().deserialize(dump)
+        for name, battle_map in (maps2 or {}).items():
+            session2.register_map(name, battle_map)
+        return session2, battle2, maps2

@@ -2740,6 +2740,8 @@ class Entity(EntityStateEvaluator, Notable):
             'casted_spells': [],
             'positions_entered': {},
             'turn_start_position': self._turn_start_position(battle),
+            # Feet actually moved this turn (Charge trait checks).
+            'movement_used_ft': 0,
             'legendary_actions': total_legendary_actions,
             # Attacks resolved this turn (Reckless Attack must be declared
             # on/before the first one).

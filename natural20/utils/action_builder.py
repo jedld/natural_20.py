@@ -7,10 +7,11 @@ import pdb
 
 
 def _tile_has_avoidable_hazard(map, entity, x, y):
-    """Return True if (x, y) holds a visible chasm and ``entity`` cannot fly.
+    """Return True if (x, y) holds a visible chasm or lava pool and ``entity``
+    cannot fly.
 
     Used to keep the movement autobuilder from offering single-step moves that
-    would dump a non-flying creature straight into a known pit.
+    would dump a non-flying creature straight into a known pit or into lava.
     """
     if entity is not None:
         is_flying = getattr(entity, 'is_flying', None)
@@ -22,6 +23,7 @@ def _tile_has_avoidable_hazard(map, entity, x, y):
                 pass
     # Lazy import to avoid a circular import via item_library -> action_builder.
     from natural20.item_library.chasm import Chasm
+    from natural20.item_library.lava_tile import LavaTile
     try:
         objs = map.objects_at(x, y, reveal_concealed=False)
     except TypeError:
@@ -32,7 +34,7 @@ def _tile_has_avoidable_hazard(map, entity, x, y):
     except Exception:
         return False
     for obj in objs:
-        if isinstance(obj, Chasm) and not obj.concealed():
+        if isinstance(obj, (Chasm, LavaTile)) and not obj.concealed():
             return True
     return False
 

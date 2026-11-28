@@ -121,6 +121,7 @@ This conforms with DnD 5e where movement is measured in feet (5 ft = 1 grid squa
 | `cors_config.py` | CORS origins, SocketIO async mode |
 | `perf.py` | Request timing instrumentation |
 | `conversation_wiring.py` | `ConversationService` setup and `/talk` route registration |
+| `teleport_destinations.py` | Teleport-spell destination databases: `/dm/teleport_destinations` (GET list + POST op=add/update/delete/set_familiarity) and MCP `dm.teleport_destination` share `apply_op`; destinations live in `entity.properties['teleport_destinations']` (`natural20/utils/teleport_destinations.py`, `docs/TELEPORT_DESTINATIONS.md`) |
 | `instruction_follow.py` | Player free-text instruction runs executed step by step by the System One (JEV) decision model; per-entity run state in `session_state['active_instructions']`; provider gating via `combat_llm_provider_for` (`docs/PLAYER_INSTRUCTIONS.md`) |
 
 Blueprints read shared state through `runtime_state` accessors, **not** by importing from `webapp.app`.

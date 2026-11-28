@@ -1,0 +1,47 @@
+---
+kind: Giant Octopus
+label: Giant Octopus
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A giant octopus (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 11
+max_hp: 52
+hp_die: 8d10
+speed: 10
+speed_swim: 60
+passive_perception: 14
+token:
+ - G
+color: "#9a3412"
+token_image: token_giant_octopus.png
+ability:
+  str: 17
+  dex: 13
+  con: 13
+  int: 4
+  wis: 10
+  cha: 4
+skills:
+  perception: 4
+  stealth: 5
+cr: 1
+xp: 200
+proficiency_bonus: 2
+attributes:
+- hold_breath
+- ink_cloud
+actions:
+  - name: tentacles
+    label: Tentacles
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 10
+    damage_die: 2d6+3
+    damage_type: bludgeoning
+    grapple_instead:
+      escape_dc: 15

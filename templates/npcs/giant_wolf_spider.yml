@@ -1,0 +1,45 @@
+---
+kind: Giant Wolf Spider
+label: Giant Wolf Spider
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "Smaller than a giant spider, a giant wolf spider hunts prey across open ground or hides in a burrow or crevice, or in a hidden cavity beneath debris."
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 13
+max_hp: 11
+hp_die: 2d8
+speed: 40
+speed_climb: 40
+passive_perception: 13
+token:
+ - G
+color: "#57350f"
+token_image: token_giant_wolf_spider.png
+ability:
+  str: 12
+  dex: 16
+  con: 13
+  int: 3
+  wis: 12
+  cha: 4
+skills:
+  perception: 3
+  stealth: 7
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+attributes:
+- web_walk
+- spider_climb
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 4
+    damage_die: 1d6+1
+    damage_type: piercing

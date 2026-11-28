@@ -471,6 +471,8 @@ class AttackAction(Action):
             __class__._apply_additional_damage(battle, item, session)
             from natural20.utils.great_weapon_master import note_hew_trigger
             note_hew_trigger(battle, item)
+        elif item['type'] == 'charge_rider':
+            __class__._apply_charge_rider(battle, item, session)
         elif item['type'] == 'grapple_on_hit':
             target, source = item['target'], item['source']
             if not target.dead() and not target.immune_to_condition('grappled'):
@@ -507,6 +509,50 @@ class AttackAction(Action):
             'as_reaction': bool(item['as_reaction']),
             'as_legendary_action': bool(item['as_legendary_action']),
         })
+
+    @staticmethod
+    def _apply_charge_rider(battle, item, session):
+        """Charge trait rider (e.g. the minotaur's Charge): after the charging
+        attack hits, the target makes the configured save or is pushed away
+        from the charger and knocked prone."""
+        target, source = item['target'], item['source']
+        cfg = item.get('charge') or {}
+        if target.dead():
+            return
+        save_type, _, dc_text = str(cfg.get('save_dc', '')).partition(':')
+        try:
+            dc = int(dc_text)
+        except ValueError:
+            return
+        roll = target.save_throw(save_type, battle=battle, opts={
+            'dc': dc, 'save_tags': cfg.get('save_tags') or []})
+        event = {
+            'event': 'charge_rider',
+            'source': source,
+            'target': target,
+            'attack_name': item.get('attack_name'),
+            'save_type': save_type,
+            'dc': dc,
+            'roll': roll,
+        }
+        if roll.result() >= dc:
+            event['saved'] = True
+            session.event_manager.received_event(event)
+            return
+        event['saved'] = False
+        battle_map = battle.map_for(source) if battle is not None else None
+        if battle_map is None:
+            battle_map = getattr(target, 'current_map', lambda: None)()
+        if battle_map is not None and cfg.get('push_ft'):
+            pos = battle_map.position_of(source)
+            if pos:
+                push_to = target.push_from(battle_map, pos[0], pos[1],
+                                           distance=int(cfg['push_ft']))
+                if push_to and tuple(push_to) != tuple(battle_map.position_of(target)):
+                    battle_map.move_to(target, push_to[0], push_to[1], battle)
+        if cfg.get('prone', True) and not target.immune_to_condition('prone'):
+            target.do_prone()
+        session.event_manager.received_event(event)
 
     @staticmethod
     def _apply_additional_damage(battle, item, session):
@@ -1017,6 +1063,23 @@ class AttackAction(Action):
         entries = list(additional_damage_entries(weapon, target=target))
         entries += feature_hit_riders(self.source, weapon, thrown=bool(self.thrown))
         entries += gwm_hit_riders(self.source, weapon, battle, as_reaction=bool(self.as_reaction))
+        from natural20.utils.monster_traits import charge_config, charge_met
+        charge = charge_config(weapon)
+        if charge is not None and battle is not None and charge_met(
+                battle, self.source, target, charge):
+            charge_entry = dict(charge)
+            entries.append(charge_entry)
+            if charge.get('save_dc'):
+                # The push/prone rider resolves in apply() (it needs the map
+                # and a save), like the wolf trip but with a shove first.
+                results.append({
+                    'type': 'charge_rider',
+                    'source': self.source,
+                    'target': target,
+                    'battle': battle,
+                    'attack_name': attack_name,
+                    'charge': charge,
+                })
         for entry in entries:
             results.append({
                 'type': 'additional_damage',

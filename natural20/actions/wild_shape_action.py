@@ -45,7 +45,7 @@ class WildShapeAction(Action):
             self.target = beast_id
             return self
 
-        beasts = list(ws.available_beasts(getattr(self.source, 'druid_level', None)))
+        beasts = list(ws.available_forms(self.source))
         choices = []
         for beast_id in beasts:
             try:
@@ -82,11 +82,11 @@ class WildShapeAction(Action):
 
     def resolve(self, _session, _map, opts=None):
         opts = opts or {}
-        if not self.target and ws.available_beasts(
-                getattr(self.source, 'druid_level', None)):
-            # Default to the first legal form when none was specified.
-            self.target = ws.available_beasts(
-                getattr(self.source, 'druid_level', None))[0]
+        if not self.target:
+            forms = ws.available_forms(self.source)
+            if forms:
+                # Default to the first legal form when none was specified.
+                self.target = forms[0]
         self.result = [{
             'type': 'wild_shape',
             'source': self.source,

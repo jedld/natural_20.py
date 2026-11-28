@@ -242,6 +242,14 @@ def relink_persistent_zones(session, maps=None, battle=None):
                     zone_map = m
                     break
         zone.map = zone_map or (map_list[0] if map_list else None)
+        # Zones that know their own map by name (pocket dimensions anchor on
+        # the *outer* map while their owner stands inside) fix themselves up.
+        relink = getattr(zone, 'relink', None)
+        if callable(relink):
+            try:
+                relink(session, map_list)
+            except Exception:
+                pass
         if zone.map is not None and hasattr(zone, '_tile_objects'):
             zone._tile_objects = [o for col in zone.map.objects for cell in col for o in cell
                                   if getattr(o, 'zone', None) is zone]
@@ -544,6 +552,14 @@ def register_yaml_handlers():
     from natural20.spell.objects.zone_tile import ZoneTile
     yaml.SafeDumper.add_multi_representer(ZoneTile, represent_zone_tile)
     SafeLoaderWithConstructors.add_constructor('!zone_tile', zone_tile_constructor)
+    # Pocket-dimension doorway anchors (Rope Trick rope, Portable Hole lid...).
+    from natural20.utils.pocket_dimension import PocketEntranceObject
+    CLASS_TAG_MAPPING.setdefault(PocketEntranceObject, '!pocket_entrance')
+    yaml.SafeDumper.add_representer(
+        PocketEntranceObject,
+        lambda dumper, data: dumper.represent_mapping('!pocket_entrance', dict(data.to_dict()))
+    )
+    SafeLoaderWithConstructors.add_constructor('!pocket_entrance', generic_constructor)
     yaml.SafeDumper.add_multi_representer(object, represent_effect_object)
     SafeLoaderWithConstructors.add_constructor('!effect_object', effect_object_constructor)
     

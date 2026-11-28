@@ -66,11 +66,17 @@ class Druid:
 
   # ---------------- Wild Shape ----------------
 
+  def _wild_shape_ruleset(self):
+    return getattr(getattr(self, 'session', None), 'ruleset', None)
+
   def _wild_shape_max(self):
     if not getattr(self, 'druid_level', 0):
       return 0
     if self.druid_level < 2:
       return 0
+    ruleset = self._wild_shape_ruleset()
+    if ruleset is not None:
+      return int(ruleset.wild_shape_uses(self.druid_level))
     return WILD_SHAPE_USES
 
   def has_wild_shape(self, qty=1):
@@ -90,8 +96,14 @@ class Druid:
   # ---------------- Rest hooks ----------------
 
   def short_rest_for_druid(self, _battle):
-    # Wild Shape recharges on a short or long rest.
-    self.wild_shape_count = self._wild_shape_max()
+    # Wild Shape recharges on a short or long rest (2014). 2024 rules regain
+    # one expended use per short rest; the long rest still refills everything.
+    ruleset = self._wild_shape_ruleset()
+    if ruleset is not None and ruleset.wild_shape_short_rest_recharge() == 'one':
+      self.wild_shape_count = min(self._wild_shape_max(),
+                                  (self.wild_shape_count or 0) + 1)
+    else:
+      self.wild_shape_count = self._wild_shape_max()
 
   def long_rest_for_druid(self, _battle):
     self.spell_slots['druid'] = self.reset_druid_spell_slots()

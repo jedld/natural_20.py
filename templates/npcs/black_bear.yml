@@ -1,0 +1,53 @@
+---
+kind: Black Bear
+label: Black Bear
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A black bear (SRD 5e beast)."
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 11
+max_hp: 19
+hp_die: 3d8
+speed: 40
+speed_climb: 30
+passive_perception: 13
+token:
+ - B
+color: "#3f3f46"
+token_image: token_black_bear.png
+ability:
+  str: 15
+  dex: 10
+  con: 14
+  int: 2
+  wis: 12
+  cha: 7
+cr: 0.5
+xp: 100
+proficiency_bonus: 2
+attributes:
+- hide_in_water
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 6
+    damage_die: 1d6+2
+    damage_type: piercing
+    multiattack_group: 1
+  - name: claws
+    label: Claws
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 3
+    damage: 7
+    damage_die: 2d4+2
+    damage_type: slashing
+    multiattack_group: 1
+multiattack: bite,claws

@@ -1,0 +1,50 @@
+---
+kind: Constrictor Snake
+label: Constrictor Snake
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A constrictor snake (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 12
+max_hp: 13
+hp_die: 2d10
+speed: 30
+speed_swim: 30
+passive_perception: 10
+token:
+ - C
+color: "#4d7c0f"
+token_image: token_constrictor_snake.png
+ability:
+  str: 15
+  dex: 14
+  con: 12
+  int: 1
+  wis: 10
+  cha: 3
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 6
+    damage_die: 1d6+2
+    damage_type: piercing
+    grapple_instead:
+      escape_dc: 11
+  - name: constrict
+    label: Constrict
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 6
+    damage_die: 1d8+2
+    damage_type: bludgeoning

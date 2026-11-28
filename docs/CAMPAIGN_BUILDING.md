@@ -1345,6 +1345,45 @@ Behaviour notes:
   creature dies, the grappler is incapacitated, or the target leaves its reach. AI grapplers
   drop dead, unconscious, or non-hostile creatures for free instead of dragging them at half
   speed. See `docs/RULESETS.md` → "Grappler-side rules".
+- **Charge** (SRD minotaur-style trait): put a `charge:` block on a melee NPC attack to add
+  rider damage and riders when the creature closed distance first. The battle tracks
+  `movement_used_ft` (feet actually moved this turn, set in `MoveAction.apply`) and
+  `turn_start_position`; `charge_met` (`natural20/utils/monster_traits.py`) resolves "moves at
+  least N feet straight toward a target" as: closing distance and movement used both ≥
+  `distance_ft`. On a hit the rider damage is added like `additional_damage`, then the target
+  makes `save_dc` or is pushed `push_ft` squares away from the charger (`Entity.push_from` +
+  `Map.move_to`) and knocked prone (`prone: true`, default).
+
+  ```yaml
+  actions:
+    - name: Gore
+      type: melee_attack
+      attack: 6
+      damage_die: 2d8+4
+      damage_type: piercing
+      charge:
+        distance_ft: 10        # net closing movement required
+        damage_die: 2d8        # extra damage on a charged hit
+        damage_type: piercing
+        save_dc: strength:14   # target's save
+        push_ft: 10            # on a failed save: pushed away …
+        prone: true            # … and knocked prone
+  ```
+
+- **Reckless** (minotaur-style): a top-level `reckless: true` on the NPC YAML makes every melee
+  attack roll with advantage and every attack against the creature with advantage
+  (`Entity.is_reckless` reads `properties['reckless']`; `natural20/weapons.py` applies both
+  sides). PCs declare it with the Reckless Attack feature instead.
+
+#### Pocket dimensions and the Maze labyrinth
+
+Extradimensional spaces (Rope Trick, Maze, and future Portable Hole / Demiplane style items)
+are dynamically generated maps with entrance objects — see **`docs/POCKET_DIMENSIONS.md`**.
+For the Maze spell, the relevant NPC-side pieces are the SRD minotaur sheet
+(`templates/npcs/minotaur.yml`, using `charge:` and `reckless:` above) and the `maze_escape`
+action: any creature the `maze` effect is on gets a DC `escape_dc` Intelligence check action
+(`natural20/actions/maze_escape_action.py`), and kinds listed in the spell YAML `auto_escape`
+(minotaur, goristro) succeed automatically.
 
 #### Breath weapons and other area abilities (`type: area_save`, recharge)
 

@@ -1,0 +1,57 @@
+---
+kind: Giant Spider
+label: Giant Spider
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "To snare its prey, a giant spider spins elaborate webs or shoots sticky strands of webbing from its abdomen. Giant spiders are most commonly found underground, making their lairs on ceilings or in dark, web-filled crevices. Such lairs are often festooned with web cocoons holding past victims."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 14
+max_hp: 26
+hp_die: 4d10
+speed: 30
+speed_climb: 30
+passive_perception: 10
+token:
+ - G
+color: "#292524"
+token_image: token_giant_spider.png
+ability:
+  str: 14
+  dex: 16
+  con: 12
+  int: 2
+  wis: 11
+  cha: 4
+skills:
+  stealth: 7
+cr: 1
+xp: 200
+proficiency_bonus: 2
+attributes:
+- web_walk
+- spider_climb
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 8
+    damage_die: 1d8+3
+    damage_type: piercing
+    on_hit:
+      - description: "Poisonous bite: on a failed DC 13 Constitution save the target is also poisoned. (The SRD poison damage is not modeled.)"
+        save_dc: constitution:13
+        if: "target:!object"
+        fail: status:poisoned
+  - name: web
+    label: Web
+    type: ranged_attack
+    range: 60
+    targets: 1
+    attack: 5
+    damage: 0
+    damage_type: bludgeoning

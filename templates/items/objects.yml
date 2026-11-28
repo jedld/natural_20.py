@@ -358,6 +358,27 @@ difficult_terrain:
   opaque: false
   token:
     - '~'
+lava:
+  name: Lava
+  description: >-
+    Molten rock. Difficult terrain for anything not flying over it; a
+    creature that moves into it takes 2d8 fire damage, and a creature that
+    starts its turn in it burns again (2d8 fire).
+  item_class: LavaTile
+  type: lava
+  color: orange-red
+  passable: true
+  placeable: true
+  targettable: false
+  movement_cost: 2
+  damage_type: fire
+  enter_damage_die: 2d8
+  start_turn_damage_die: 2d8
+  light:
+    bright: 10
+    dim: 10
+  token:
+    - L
 rubble_passage:
   name: Rubble Passage
   description: >-

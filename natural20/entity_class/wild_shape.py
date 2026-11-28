@@ -1,10 +1,18 @@
 """Wild Shape (Druid) — transform / revert helpers.
 
-Implements the 5e SRD 2014 Wild Shape mechanic for the Druid class. At
-level 2 the druid may transform into a beast of CR <= 1/4 with no
-flying or swimming speed. The duration is tracked but the engine does
-not auto-tick mid-combat hours; transformations end on revert, on
-0 HP, or via the explicit revert action.
+Implements the 5e Wild Shape mechanic for the Druid class. The legal beast
+pool scales with druid level and campaign ruleset (see
+``Ruleset.wild_shape_max_cr`` / ``wild_shape_flight_level`` /
+``wild_shape_swim_level``):
+
+* 2014: CR <= 1/4 (no fly, no swim) at level 2; swim at 4; CR <= 1 and fly
+  at 8. Circle of the Moon: CR 1 at 2 and swim ignored from 2 (+1 CR every
+  4 levels to CR 5).
+* 2024: CR <= 1/4 at 2-3, CR <= 1/2 at 4-7, CR <= 1 at 8+; swim always
+  allowed; fly at 8. Circle of the Moon: CR 1 at 3 ... CR 6 at 18.
+
+The duration is tracked but the engine does not auto-tick mid-combat hours;
+transformations end on revert, on 0 HP, or via the explicit revert action.
 
 The implementation snapshots druid-side combat-relevant state, then
 overlays the beast statblock loaded from ``templates/npcs/<beast>.yml``.
@@ -13,10 +21,12 @@ overflow damage is applied to the druid form.
 """
 
 import copy
+import yaml
 from natural20.yaml_loader import load_campaign_resource_path
 
 
-# Beasts available at druid level 2 (CR <= 1/4, no fly / swim speed).
+# Beasts available at druid level 2 (CR <= 1/4, no fly / swim speed) when no
+# session catalog is available; kept as a fallback for bare-unit contexts.
 WILD_SHAPE_BEASTS_LEVEL_2 = ('wolf', 'giant_rat', 'boar', 'cat')
 
 
@@ -30,32 +40,99 @@ def _load_beast_yaml(session, beast_id):
     ) from exc
 
 
-def available_beasts(druid_level):
-  """Return the list of beast ids the druid may assume at this level."""
-  if druid_level is None or druid_level < 2:
-    return ()
-  # L2 only: CR <= 1/4, no fly / no swim. (Higher levels TBD.)
-  return tuple(WILD_SHAPE_BEASTS_LEVEL_2)
+def druid_circle(druid):
+  """Circle/subclass name stored on the character sheet, if any."""
+  props = getattr(druid, 'properties', None) or {}
+  for key in ('druidic_circle', 'druid_circle', 'druid_subclass', 'subclass'):
+    value = props.get(key)
+    if value:
+      return str(value)
+  return None
 
 
-def can_assume(beast_props, druid_level):
-  """Return True if the beast statblock is legal at this druid level."""
-  if druid_level is None or druid_level < 2:
-    return False
-  cr = beast_props.get('cr')
+def _ruleset_for(ruleset=None, session=None):
+  if ruleset is not None:
+    return ruleset
+  ruleset = getattr(session, 'ruleset', None)
+  if ruleset is not None:
+    return ruleset
+  from natural20.ruleset.factory import get_ruleset
+  return get_ruleset('5e-2014')
+
+
+def _cr_value(beast_props):
+  cr = (beast_props or {}).get('cr')
   try:
-    cr_val = float(cr) if cr is not None else 999.0
+    return float(cr) if cr is not None else 999.0
   except (TypeError, ValueError):
-    cr_val = 999.0
-  if cr_val > 0.25:
+    return 999.0
+
+
+def can_assume(beast_props, druid_level, ruleset=None, session=None, circle=None):
+  """Return True if the beast statblock is legal for this druid."""
+  if druid_level is None or druid_level < 2:
     return False
-  # No fly speed at L2.
-  if beast_props.get('speed_fly'):
+  ruleset = _ruleset_for(ruleset, session)
+  max_cr = ruleset.wild_shape_max_cr(druid_level, circle)
+  if _cr_value(beast_props) > max_cr:
     return False
-  # No swim speed at L2.
-  if beast_props.get('speed_swim'):
+  if beast_props.get('speed_fly') and druid_level < ruleset.wild_shape_flight_level(circle):
+    return False
+  if beast_props.get('speed_swim') and druid_level < ruleset.wild_shape_swim_level(circle):
     return False
   return True
+
+
+def available_beasts(druid_level, session=None, ruleset=None, circle=None):
+  """Return the beast ids the druid may assume, scanned from the NPC catalog.
+
+  Every YAML under the campaign/import/expansion/template ``npcs`` roots with
+  ``race: [beast, ...]`` is a candidate; legality follows the campaign
+  ruleset (CR cap plus fly/swim level gates). Without a session, falls back
+  to the level-2 CR <= 1/4 ground-and-water-free list.
+  """
+  if druid_level is None or druid_level < 2:
+    return ()
+  ruleset = _ruleset_for(ruleset, session)
+  if session is None:
+    return tuple(WILD_SHAPE_BEASTS_LEVEL_2)
+
+  found = []
+  seen = set()
+  roots_fn = getattr(session, '_category_roots', None)
+  if not callable(roots_fn):
+    return tuple(WILD_SHAPE_BEASTS_LEVEL_2)
+  for folder in roots_fn('npcs', include_templates=True):
+    for path in sorted(folder.glob('*.yml')):
+      key = path.stem.lower()
+      if key in seen:
+        continue
+      seen.add(key)
+      try:
+        with path.open('r', encoding='utf-8') as fh:
+          props = yaml.safe_load(fh)
+      except (OSError, yaml.YAMLError):
+        continue
+      if not isinstance(props, dict) or 'key' in props and props['key'] is None:
+        continue
+      race = props.get('race') or []
+      if isinstance(race, str):
+        race = [race]
+      if 'beast' not in [str(entry).strip().lower() for entry in race]:
+        continue
+      if can_assume(props, druid_level, ruleset=ruleset, circle=circle):
+        found.append(key)
+  return tuple(sorted(found))
+
+
+def available_forms(druid):
+  """Available beast ids for a specific druid entity (session + ruleset +
+  circle aware)."""
+  session = getattr(druid, 'session', None)
+  return available_beasts(getattr(druid, 'druid_level', None),
+                          session=session,
+                          ruleset=getattr(session, 'ruleset', None),
+                          circle=druid_circle(druid))
 
 
 def _wild_shape_duration_rounds(druid_level):
@@ -111,7 +188,9 @@ def _apply_beast_overlay(druid, props, set_full_hp=True, beast_id=None, replace_
 def transform(druid, beast_id):
   """Snapshot druid state and overlay the beast statblock onto it."""
   props = _load_beast_yaml(druid.session, beast_id)
-  if not can_assume(props, getattr(druid, 'druid_level', None)):
+  ruleset = getattr(getattr(druid, 'session', None), 'ruleset', None)
+  if not can_assume(props, getattr(druid, 'druid_level', None),
+                    ruleset=ruleset, circle=druid_circle(druid)):
     raise ValueError(f'beast {beast_id} not legal at druid level '
                      f'{getattr(druid, "druid_level", None)}')
   assume_form(druid, beast_id, props,

@@ -5,6 +5,7 @@ import copy
 import time
 from natural20.item_library.door_object import DoorObject, DoorObjectWall
 from natural20.item_library.chasm import Chasm
+from natural20.item_library.lava_tile import LavaTile
 MAX_DISTANCE = 4_000_000
 
 # Timing instrumentation — set N20_DEBUG_TIMING=1 to log per-query timings.
@@ -518,8 +519,8 @@ class PathCompute:
     def _is_avoidable_hazard(self, x, y) -> bool:
         """Return True if the tile contains a hazard the entity should avoid
         when planning a path. Currently this means a non-concealed ``Chasm``
-        and a non-flying entity. Concealed chasms are not avoided because the
-        entity cannot reasonably know about them.
+        or ``LavaTile`` and a non-flying entity. Concealed hazards are not
+        avoided because the entity cannot reasonably know about them.
         """
         if self.entity is not None and getattr(self.entity, 'is_flying', None):
             try:
@@ -538,6 +539,8 @@ class PathCompute:
             return False
         for obj in objs:
             if isinstance(obj, Chasm) and not obj.concealed():
+                return True
+            if isinstance(obj, LavaTile) and not obj.concealed():
                 return True
         return False
 

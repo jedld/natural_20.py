@@ -27,6 +27,7 @@ _ZONE_EFFECTS = {
     "spirit_guardians": "damage on entering or starting a turn",
     "stinking_cloud": "loses an action on failed save",
     "web": "restrained on failed save",
+    "lava": "fire damage on entering or starting a turn",
 }
 
 
@@ -105,8 +106,16 @@ def _details(zone) -> str:
     if extent:
         parts.append(extent)
 
-    dice = getattr(zone, "dice", None) or getattr(zone, "damage_dice", None)
+    dice = (getattr(zone, "dice", None) or getattr(zone, "damage_dice", None)
+            or getattr(zone, "enter_damage_die", None))
     damage_type = getattr(zone, "damage_type", None) or props.get("damage_type")
+    if damage_type is None:
+        damage_type_fn = getattr(zone, "_damage_type", None)
+        if callable(damage_type_fn):
+            try:
+                damage_type = damage_type_fn()
+            except Exception:
+                damage_type = None
     if dice and damage_type:
         parts.append(f"{dice} {damage_type}")
     elif dice:
@@ -203,9 +212,13 @@ def hostile_hazard_lines(battle, entity, map_=None, limit: int = 4) -> List[str]
             owner = getattr(zone, "owner", None)
             if owner is None:
                 owner = getattr(zone, "source", None)
+            # Environmental hazards (lava pools…) have no owner: hostile to
+            # everyone standing near them.
+            env_hazard = getattr(zone, "environmental_hazard", None)
             if owner is None or owner is entity:
-                continue
-            if not battle.opposing(owner, entity):
+                if not (callable(env_hazard) and env_hazard()):
+                    continue
+            elif not battle.opposing(owner, entity):
                 continue
 
             squares = _squares(zone)

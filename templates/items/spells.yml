@@ -1728,13 +1728,26 @@ maze:
   label: Maze
   casting_time: 1:action
   components: [verbal, somatic]
-  description: Banish a creature into a labyrinthine demiplane.
+  description: |
+    Banish a creature you can see into a labyrinthine demiplane with a roaming
+    minotaur. On each of its turns the trapped creature can use its action to
+    make a DC 20 Intelligence check, escaping on a success (minotaurs and
+    goristras succeed automatically). When the spell ends, the target reappears
+    in the space it left; the minotaur vanishes with the labyrinth.
+    Engine model: the target is moved onto a generated maze map with a hostile
+    minotaur; the Escape action appears on its action bar. Dispel the entrance
+    square (or break concentration) to collapse the space.
   duration: 10m
   duration_seconds: 600
   level: 8
   name: Maze
   range: 60
-  status: mazed
+  escape_dc: 20
+  auto_escape: [minotaur, goristro]
+  maze_npc: minotaur
+  maze_cells: [6, 6]
+  pocket_label: The Labyrinth
+  pocket_illumination: 0.3
   school: conjuration
   concentration: true
   type: control
@@ -1878,12 +1891,19 @@ teleport:
   label: Teleport
   casting_time: 1:action
   components: [verbal]
-  description: Transport yourself and willing creatures to a destination.
+  description: |
+    Transport yourself and up to eight willing creatures you can see within
+    10 feet to a destination you know. The destination comes from your
+    personal teleportation destination list; your familiarity with it
+    (very familiar, seen casually, viewed once, ...) decides the d100
+    outcome: mishap, similar area, off target, or on target.
   duration: instant
   level: 7
   name: Teleport
   range: 10
-  target_types: [point]
+  max_creatures: 8
+  requires_known_destination: true
+  target_types: [self]
   school: conjuration
   type: utility
   spell_list_classes: [Wizard, Sorcerer, Bard]
@@ -3437,8 +3457,8 @@ rope_trick:
     top. Up to eight Medium or smaller creatures can climb in and pull the rope up after them.
     Nothing outside can see, target or reach the creatures inside, and they can't attack or
     cast spells out through the doorway. When the spell ends, everything inside drops out.
-    Engine model: the caster and up to seven nearby allies become untargetable and can't attack
-    or cast spells for the duration; the spell can only be cast outside of combat.
+    Engine model: a rope entrance appears on the map and the party climbs into a generated
+    pocket-dimension map. Dispel the rope (or wait out the hour) and everyone spills back out.
   duration: 1h
   duration_seconds: 3600
   level: 2
@@ -3446,6 +3466,10 @@ rope_trick:
   range: 5
   max_creatures: 8
   gather_radius: 30
+  pocket_size_ft: 30
+  pocket_label: The Rope Trick space
+  pocket_illumination: 0.9
+  entrance_token: rope_trick.png
   requires: [out_of_combat]
   hostile: false
   ai_in_combat: false

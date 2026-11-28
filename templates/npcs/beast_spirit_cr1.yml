@@ -6,6 +6,7 @@ description: A fey spirit shaped like a mighty beast of the wilds.
 outward_appearance: >-
   A shimmering wild thing woven from dusk and leaf-shadow, bright-eyed and
   silent as it pads.
+token_image: token_beast_spirit_cr1.png
 size: medium
 race:
   - beast

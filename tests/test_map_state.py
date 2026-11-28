@@ -842,3 +842,36 @@ def test_template_map_water_has_no_yaml_torch(session):
     lamps = visual_lights_from_map(battle_map, geom, set())
     assert all((lamp['x'], lamp['y']) not in water for lamp in lamps)
     assert any(lamp['x'] == 3 and lamp['y'] == 4 for lamp in lamps)
+
+
+def test_entities_from_tiles_marks_party_sidekicks(session):
+    """3D nameplates hide exact HP on non-party NPCs; flag in-party sidekicks."""
+    session.session_state = {'sidekicks': {
+        'squire-1': {'status': 'in_party'},
+        'guide-1': {'status': 'left'},
+    }}
+    tiles = [
+        {'x': 1, 'y': 1,
+         'id': 'goblin-1', 'entity': 'goblin.png', 'name': 'Goblin',
+         'is_npc': True, 'hp': 7, 'max_hp': 7},
+        {'x': 2, 'y': 1,
+         'id': 'squire-1', 'entity': 'squire.png', 'name': 'Squire',
+         'is_npc': True, 'hp': 9, 'max_hp': 9},
+        {'x': 3, 'y': 1,
+         'id': 'guide-1', 'entity': 'guide.png', 'name': 'Guide',
+         'is_npc': True, 'hp': 5, 'max_hp': 5},
+    ]
+    entries = entities_from_tiles(flatten_tiles(tiles), battle_map=None)
+    # battle_map=None means no session context -> nothing counts as in-party
+    assert {e['uid']: e['sidekick'] for e in entries} == {
+        'goblin-1': False, 'squire-1': False, 'guide-1': False,
+    }
+
+    class _MapWithSession:
+        session = None
+
+    battle_map = _MapWithSession()
+    battle_map.session = session
+    entries = entities_from_tiles(flatten_tiles(tiles), battle_map=battle_map)
+    flags = {e['uid']: e['sidekick'] for e in entries}
+    assert flags == {'goblin-1': False, 'squire-1': True, 'guide-1': False}

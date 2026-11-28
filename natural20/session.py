@@ -366,6 +366,17 @@ class Session:
         self._link_maps_within_sets()
         return self.maps[name]
 
+    def unregister_map(self, name):
+        """Remove a dynamically created map (e.g. an ephemeral pocket
+        dimension) from the registry and its map set. The map object itself
+        is not modified; entities on it keep their registry entries."""
+        battle_map = (self.maps or {}).pop(name, None)
+        if battle_map is not None:
+            if getattr(self, 'map_sets', None) is not None:
+                self.map_sets.remove_map(name)
+            self._link_maps_within_sets()
+        return battle_map
+
     def groups(self):
         return self.game_properties.get('groups', {})
 

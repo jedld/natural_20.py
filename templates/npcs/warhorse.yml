@@ -1,0 +1,38 @@
+---
+kind: Warhorse
+label: Warhorse
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A warhorse (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 11
+max_hp: 19
+hp_die: 3d10
+speed: 60
+passive_perception: 11
+token:
+ - W
+color: "#7c4a1e"
+token_image: token_warhorse.png
+ability:
+  str: 18
+  dex: 12
+  con: 13
+  int: 2
+  wis: 12
+  cha: 7
+cr: 0.5
+xp: 100
+proficiency_bonus: 2
+actions:
+  - name: hooves
+    label: Hooves
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 6
+    damage: 11
+    damage_die: 2d6+4
+    damage_type: bludgeoning

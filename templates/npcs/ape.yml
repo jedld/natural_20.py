@@ -1,0 +1,54 @@
+---
+kind: Ape
+label: Ape
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A ape (SRD 5e beast)."
+size: medium
+race:
+- beast
+alignment: unaligned
+default_ac: 12
+max_hp: 19
+hp_die: 3d8
+speed: 30
+speed_climb: 30
+passive_perception: 13
+token:
+ - A
+color: "#78552b"
+token_image: token_ape.png
+ability:
+  str: 16
+  dex: 14
+  con: 14
+  int: 6
+  wis: 12
+  cha: 7
+skills:
+  athletics: 5
+  perception: 3
+cr: 0.5
+xp: 100
+proficiency_bonus: 2
+actions:
+  - name: fist
+    label: Fist
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 5
+    damage: 6
+    damage_die: 1d6+3
+    damage_type: bludgeoning
+    multiattack_group: 1
+  - name: rock
+    label: Rock
+    type: ranged_attack
+    range: 50
+    targets: 1
+    attack: 5
+    damage: 6
+    damage_die: 1d6+3
+    damage_type: bludgeoning
+    multiattack_group: 1
+multiattack: fist,fist

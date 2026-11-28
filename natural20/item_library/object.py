@@ -523,7 +523,14 @@ class Object(Entity, Container, EventLoader, Annotatable):
         return None
     
     def on_enter(self, entity, map, battle):
-        pass
+        # Generic map-object event: YAML ``teleport_destinations:`` on the
+        # object grants/revises Teleport destinations when a creature steps
+        # onto its square (scrying pools, ruin markers, waygates).
+        grants = (self.properties or {}).get('teleport_destinations')
+        if grants:
+            from natural20.utils.teleport_destinations import apply_destination_ops
+            session = getattr(map, 'session', None) or self.session
+            apply_destination_ops(session, grants, source=entity, battle=battle)
 
     def update_state(self, state):
         super().update_state(state)

@@ -87,3 +87,37 @@ class Ruleset2024(Ruleset2014):
 
     def shield_ac_bonus(self) -> int:
         return int(self._override("shield_ac_bonus", 2))
+
+    # --- Wild Shape (Druid), PHB 2024 ---
+    _MOON_WILD_SHAPE_CR_2024 = ((18, 6.0), (15, 5.0), (12, 4.0), (9, 3.0), (6, 2.0), (3, 1.0))
+
+    def wild_shape_max_cr(self, druid_level: int, subclass: str | None = None) -> float:
+        """PHB 2024 Beast Shapes: CR 1/4 at 2-3, 1/2 at 4-7, 1 at 8+.
+        Circle of the Moon: CR 1 at 3, then +1 CR at 6/9/12/15/18 (max 6)."""
+        moon = bool(subclass) and "moon" in str(subclass).lower()
+        if moon:
+            for level, cr in self._MOON_WILD_SHAPE_CR_2024:
+                if druid_level >= level:
+                    return cr
+            return 0.25
+        if druid_level >= 8:
+            return 1.0
+        if druid_level >= 4:
+            return 0.5
+        return 0.25
+
+    def wild_shape_swim_level(self, subclass: str | None = None) -> int:
+        """2024 Wild Shape has no swim-speed restriction."""
+        return 2
+
+    def wild_shape_uses(self, druid_level: int) -> int:
+        """PHB 2024 Druid Features table: 2 uses at 2, 3 at 6, 4 at 17."""
+        if druid_level >= 17:
+            return 4
+        if druid_level >= 6:
+            return 3
+        return 2 if druid_level >= 2 else 0
+
+    def wild_shape_short_rest_recharge(self) -> str:
+        """2024: regain one expended use per short rest (all on a long rest)."""
+        return "one"

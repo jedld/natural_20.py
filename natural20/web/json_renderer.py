@@ -704,10 +704,13 @@ class JsonRenderer:
                             )
                             object_info['sleet_storm_marker'] = bool(object_entity.properties.get('sleet_storm'))
                             object_info['spike_growth_marker'] = bool(object_entity.properties.get('spike_growth'))
+                            object_info['lava_marker'] = bool(object_entity.properties.get('lava'))
                             object_info['wall_of_thorns_marker'] = bool(object_entity.properties.get('wall_of_thorns'))
                             object_info['silence_marker'] = bool(object_entity.properties.get('silenced'))
                             object_info['flaming_sphere_marker'] = bool(object_entity.properties.get('flaming_sphere'))
                             object_info['bonfire_marker'] = bool(object_entity.properties.get('bonfire'))
+                            object_info['healing_spirit_marker'] = bool(object_entity.properties.get('healing_spirit'))
+                            object_info['overgrowth_marker'] = bool(object_entity.properties.get('overgrowth'))
     
                             is_tiny_hut_dome = isinstance(object_entity, TinyHutDome) or bool(
                                 object_entity.properties.get('tiny_hut_dome')

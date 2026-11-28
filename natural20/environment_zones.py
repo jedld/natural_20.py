@@ -122,7 +122,9 @@ def tick_environment_zones(maps, *, event_manager=None) -> None:
     if not maps:
         return
 
-    map_list = maps.values() if isinstance(maps, dict) else maps
+    # Snapshot: a zone dismissed during the tick can register/unregister maps
+    # (e.g. a pocket dimension removing its ephemeral map).
+    map_list = list(maps.values()) if isinstance(maps, dict) else list(maps or [])
     for battle_map in map_list:
         zones = list(_zones_for_map(battle_map))
         if not zones:

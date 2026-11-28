@@ -445,6 +445,10 @@ _SPELL_VISUAL_HINTS: dict[str, str] = {
     "conjure_animals": (
         "conjuration light burst with stag, boar and owl silhouettes forming from sparks"
     ),
+    "plant_growth": (
+        "surging tangle of thick green vines and knee-high brambles bursting from soil, "
+        "difficult-terrain glyph"
+    ),
     "investiture_of_flame": (
         "elemental flame transformation aura with dripping fire droplets and ember wings"
     ),

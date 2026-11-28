@@ -1,0 +1,41 @@
+---
+kind: Giant Bat
+label: Giant Bat
+# SRD 5e beast statblock for Wild Shape / Polymorph / Summon Beast forms.
+description: "A giant bat (SRD 5e beast)."
+size: large
+race:
+- beast
+alignment: unaligned
+default_ac: 13
+max_hp: 22
+hp_die: 4d10
+speed: 10
+speed_fly: 60
+passive_perception: 11
+token:
+ - G
+color: "#4b3a2f"
+token_image: token_giant_bat.png
+ability:
+  str: 15
+  dex: 16
+  con: 11
+  int: 2
+  wis: 12
+  cha: 6
+cr: 0.25
+xp: 50
+proficiency_bonus: 2
+attributes:
+- keen_ears
+actions:
+  - name: bite
+    label: Bite
+    type: melee_attack
+    range: 5
+    targets: 1
+    attack: 4
+    damage: 6
+    damage_die: 1d6+2
+    damage_type: piercing

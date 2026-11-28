@@ -21,6 +21,7 @@ from natural20.actions.post_attack_teleport_action import PostAttackTeleportActi
 from natural20.actions.escape_grapple_action import EscapeGrappleAction
 from natural20.actions.extinguish_flames_action import ExtinguishFlamesAction
 from natural20.actions.break_free_action import BreakFreeAction
+from natural20.actions.maze_escape_action import MazeEscapeAction
 from natural20.actions.attack_surge_action import AttackSurgeAction
 from natural20.actions.use_item_action import UseItemAction
 from natural20.actions.interact_action import InteractAction
@@ -126,6 +127,7 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
         StandAction, ShoveAction, HelpAction, HelpBonusAction, UseItemAction, GroundInteractAction,
         SpellAction, InteractAction, SpeakAction, WitchBoltSustainAction, CallLightningBoltAction, AuraOfVitalityHealAction,
         PickpocketAction, SecondWindAction, ExtinguishFlamesAction, BreakFreeAction,
+        MazeEscapeAction,
     ]
 
     def __init__(self, session, type, opt=None):
@@ -537,6 +539,8 @@ class Npc(Entity, Multiattack, Lootable, Inventory, EventLoader, Mimic):
                             actions.append(ExtinguishFlamesAction(session, self))
                     elif action_class == BreakFreeAction:
                         actions.extend(BreakFreeAction.options_for(session, self, battle))
+                    elif action_class == MazeEscapeAction:
+                        actions.extend(MazeEscapeAction.options_for(session, self, battle))
                     elif action_class == InteractAction:
                         if map:
                             for objects in map.objects_near(self, battle):

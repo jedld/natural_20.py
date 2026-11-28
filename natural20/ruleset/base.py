@@ -175,6 +175,42 @@ class Ruleset(ABC):
         """AC bonus granted by the Shield spell (2014: +5, 2024: +2)."""
         return int(self._override("shield_ac_bonus", 5))
 
+    # --- Wild Shape (Druid) ---
+    _MOON_WILD_SHAPE_CR_2014 = ((18, 5.0), (14, 4.0), (10, 3.0), (6, 2.0), (2, 1.0))
+
+    def wild_shape_max_cr(self, druid_level: int, subclass: str | None = None) -> float:
+        """Max beast Challenge Rating for Wild Shape at a druid level.
+
+        2014: CR 1/4 until level 8, then CR 1. Circle of the Moon: CR 1 at 2,
+        then +1 CR at 6/10/14/18 (max 5).
+        """
+        moon = bool(subclass) and "moon" in str(subclass).lower()
+        if moon:
+            for level, cr in self._MOON_WILD_SHAPE_CR_2014:
+                if druid_level >= level:
+                    return cr
+            return 0.0
+        return 1.0 if druid_level >= 8 else 0.25
+
+    def wild_shape_flight_level(self, subclass: str | None = None) -> int:
+        """Earliest druid level that may assume beasts with a fly speed."""
+        return 8
+
+    def wild_shape_swim_level(self, subclass: str | None = None) -> int:
+        """Earliest druid level that may assume beasts with a swim speed."""
+        if bool(subclass) and "moon" in str(subclass).lower():
+            return 2
+        return 4
+
+    def wild_shape_uses(self, druid_level: int) -> int:
+        """Wild Shape charges available before resting (2014: 2 from level 2)."""
+        return 2 if druid_level >= 2 else 0
+
+    def wild_shape_short_rest_recharge(self) -> str:
+        """``all`` (2014: a short rest refills every charge) or ``one``
+        (2024: a short rest regains a single expended charge)."""
+        return "all"
+
     def reaction_spell_per_turn(self) -> int:
         """Spell casts using a reaction allowed per turn. Both editions allow a
         single reaction, so at most one reaction spell; a house ruleset can
