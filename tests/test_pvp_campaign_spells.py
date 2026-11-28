@@ -8,7 +8,7 @@ import pytest
 from natural20.die_roll import DieRoll
 from natural20.spell.freedom_of_movement_spell import FreedomOfMovementEffect
 from natural20.utils.vorpal import vorpal_beheading_roll
-from tests.ranger_spell_helpers import Arena
+from tests.ranger_spell_helpers import Arena, forced_save
 
 XGE = ['xanathars_guide']
 EE = ['elemental_evolution']
@@ -76,23 +76,55 @@ def test_conjure_animals_spirits_vanish_with_the_spell(tmp_path):
     assert remaining == []
 
 
-def test_wall_of_thorns_places_tiles_and_steps_damage(tmp_path):
+def test_wall_of_thorns_places_wall_and_blocks_los(tmp_path):
     arena = Arena(tmp_path, caster='ranger', spells=['wall_of_thorns'])
-    arena.cast('wall_of_thorns', 6, [13, 13])
+    arena.cast('wall_of_thorns', 6, 'wall', [8, 8])
     zone = next(z for z in arena.battle.active_zones if z.name == 'wall_of_thorns')
     tiles = [o for o in arena.map.interactable_objects if o.properties.get('wall_of_thorns')]
-    assert tiles
+    assert len(tiles) == 12  # 60 ft wall on a 5 ft grid
+    assert all(t.properties.get('opaque') for t in tiles)
+    # The wall blocks line of sight through its squares.
+    assert not arena.map.line_of_sight(6, 6, 6, 10)
+    # Very costly to move through (4 squares of movement per square).
+    assert all(t.properties.get('movement_cost') == 4 for t in tiles)
+    assert arena.map.difficult_terrain(arena.goblin2, 8, 8, arena.battle)
+    # Entering the wall forces a Dex save; a failed save takes damage.
     goblin = arena.goblin
-    arena.map.move_to(goblin, 13, 10, arena.battle)
+    arena.map.move_to(goblin, 8, 8, arena.battle)
     before = goblin.hp()
-    DieRoll.fudge(9)
-    zone.on_movement_step(goblin, (13, 12), (13, 13))
+    with forced_save(goblin, 1):
+        zone.on_enter(goblin)
     assert goblin.hp() < before
-    # The thorn squares are difficult terrain for everyone else.
-    assert arena.map.difficult_terrain(arena.goblin2, 13, 13, arena.battle)
+    # ... but entering twice on the same turn only burns once.
+    hp_after = goblin.hp()
+    with forced_save(goblin, 1):
+        zone.on_enter(goblin)
+    assert goblin.hp() == hp_after
     zone.dismiss()
     assert not [o for o in arena.map.interactable_objects
                 if o.properties.get('wall_of_thorns')]
+
+
+def test_wall_of_thorns_circle_and_upcast(tmp_path):
+    arena = Arena(tmp_path, caster='ranger', spells=['wall_of_thorns'])
+    arena.cast('wall_of_thorns', 7, 'circle', [8, 8])
+    zone = next(z for z in arena.battle.active_zones if z.name == 'wall_of_thorns')
+    # 20 ft diameter ring: the 12 squares on a 4x4 block centered on (8, 8)
+    # (outer 20 ft, inner 10 ft hole).
+    assert len(zone._square_set) == 12
+    assert (6, 6) in zone._square_set and (9, 9) in zone._square_set
+    assert (6, 8) in zone._square_set
+    assert (8, 8) not in zone._square_set and (7, 7) not in zone._square_set
+    # Slot 7 (one above 6th): both damage dice gain 1d8.
+    assert zone.appearance_dice == '8d8'
+    assert zone.enter_dice == '8d8'
+    # Ending a turn inside the wall hurts too (once).
+    goblin = arena.goblin
+    arena.map.move_to(goblin, 6, 6, arena.battle)
+    before = goblin.hp()
+    with forced_save(goblin, 1):
+        zone.on_turn_end(goblin)
+    assert goblin.hp() < before
 
 
 def test_frostbite_damage_blocks_reactions(tmp_path):

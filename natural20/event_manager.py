@@ -1093,6 +1093,12 @@ class EventManager:
                 f"{self.show_name(event)} casts Spike Growth: hidden thorns cover "
                 f"{len(event.get('squares') or [])} squares (difficult terrain, 2d4 piercing per 5 ft moved)."
             ),
+            'wall_of_thorns': lambda event: self.output_logger.log(
+                f"{self.show_name(event)} conjures a Wall of Thorns across "
+                f"{len(event.get('squares') or [])} squares "
+                "(it blocks line of sight; moving through costs 4 ft per ft, "
+                "and entering or ending a turn there risks 7d8 slashing damage)."
+            ),
             'spike_growth_damage': lambda event: self.output_logger.log(
                 f"{self.decorate_name(event.get('target'))} is torn by Spike Growth thorns."
             ),

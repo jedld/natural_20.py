@@ -703,6 +703,7 @@ class JsonRenderer:
                             )
                             object_info['sleet_storm_marker'] = bool(object_entity.properties.get('sleet_storm'))
                             object_info['spike_growth_marker'] = bool(object_entity.properties.get('spike_growth'))
+                            object_info['wall_of_thorns_marker'] = bool(object_entity.properties.get('wall_of_thorns'))
                             object_info['silence_marker'] = bool(object_entity.properties.get('silenced'))
                             object_info['flaming_sphere_marker'] = bool(object_entity.properties.get('flaming_sphere'))
     

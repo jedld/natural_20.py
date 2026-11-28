@@ -1831,7 +1831,17 @@ class Map(SerializableObject):
                 inclusive = not self.session.render_for_text
 
             if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y, inclusive=inclusive) is None:
-                continue
+                # Obstacle-in-the-target-square peek: objects that opt in via
+                # the ``see_own_square`` property (Wall of Thorns and similar
+                # visible barriers) can be *seen* in their own square, you
+                # just cannot see past them. Re-run the walk excluding the
+                # endpoint square; squares BEHIND the obstacle still fail
+                # because the ray must cross it mid-path.
+                if inclusive or not self._object_opaque_at(pos2_x, pos2_y):
+                    continue
+                if self.line_of_sight(pos1_x, pos1_y, pos2_x, pos2_y,
+                                      inclusive=False) is None:
+                    continue
 
             location_illumination = self.light_at(pos2_x, pos2_y)
             max_illumination = max(location_illumination, max_illumination)
@@ -2043,7 +2053,20 @@ class Map(SerializableObject):
                                                         occupant=entity2)
                 if line_of_sight_info is None:
                     # print(f"no line of sight from {pos1_x},{pos1_y} to {pos2_x},{pos2_y} {distance}")
-                    continue
+                    # Obstacle-in-the-target-square peek (see can_see_square):
+                    # opaque spell objects that opt in via ``see_own_square``
+                    # (Wall of Thorns) are visible themselves; only what is
+                    # behind them stays hidden.
+                    if (distance or heavy_cover or creature_size_min
+                            or not self._object_opaque_at(pos2_x, pos2_y)):
+                        continue
+                    line_of_sight_info = self.line_of_sight(
+                        pos1_x, pos1_y, pos2_x, pos2_y,
+                        inclusive=False, heavy_cover=heavy_cover,
+                        creature_size_min=creature_size_min,
+                        occupant=entity2)
+                    if line_of_sight_info is None:
+                        continue
 
                 location_illumination = self.light_at(pos2_x, pos2_y)
                 # print(f"location_illumination {location_illumination}")
@@ -2380,11 +2403,30 @@ class Map(SerializableObject):
 
         return [min_distance_reached, True]
 
+    def _object_opaque_at(self, pos_x, pos_y):
+        """True when an object in this square marks itself as a visible obstacle.
+
+        Opaque spell/terrain objects (Wall of Thorns, thick brush) must stay
+        themselves visible: you can see the wall in front of you, you just
+        cannot see what is behind it. Such objects set the ``see_own_square``
+        property; ``can_see_square``/``can_see`` then allow an endpoint-only
+        peek (``inclusive=False``). This is deliberately opt-in so it does NOT
+        change the careful visibility rules already implemented for doors,
+        secret doors and closed window shutters.
+        """
+        if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
+            return False
+        if self.base_map[pos_x][pos_y] == '#':
+            return False
+        for obj in self.objects_at(pos_x, pos_y, reveal_concealed=True):
+            if obj.properties.get('see_own_square') and obj.opaque(None):
+                return True
+        return False
+
     def opaque(self, pos_x, pos_y, origin=None):
         if pos_x < 0 or pos_y < 0 or pos_x >= self.size[0] or pos_y >= self.size[1]:
             # Out-of-bounds positions are treated as opaque (blocking line of sight)
             return True
-
         if self.base_map[pos_x][pos_y] == '#':
             return True
         else:
